@@ -154,20 +154,38 @@
         track-remainders;
     };
 
+    zip_vertical_scroll_scaler: zip_vertical_scroll_scaler {
+        compatible = "zmk,input-processor-scaler";
+        #input-processor-cells = <2>;
+        type = <INPUT_EV_REL>;
+        codes = <INPUT_REL_WHEEL>;
+        track-remainders;
+    };
+
+    zip_horizontal_scroll_scaler: zip_horizontal_scroll_scaler {
+        compatible = "zmk,input-processor-scaler";
+        #input-processor-cells = <2>;
+        type = <INPUT_EV_REL>;
+        codes = <INPUT_REL_HWHEEL>;
+        track-remainders;
+    };
+
     trackpad_listener_R: trackpad_listener_R {
         compatible = "zmk,input-listener";
         status = "disabled";
         device = <&trackpad_split_R>;
         input-processors = <&trackpad_key_behaviors_R>,
                            <&zip_xy_scaler 1 5>,
-                           <&zip_scroll_scaler 1 12>,
+                           <&zip_vertical_scroll_scaler (-1) 12>,
+                           <&zip_horizontal_scroll_scaler 1 12>,
                            <&zip_dynamic_xy_scaler>,
                            <&zip_dynamic_scroll_scaler>;
         lowspeedmode {
             layers = <1>,<2>;
             input-processors =  <&trackpad_key_behaviors_R>,
                                 <&zip_xy_scaler 1 15>,
-                                <&zip_scroll_scaler 1 40>,
+                                <&zip_vertical_scroll_scaler (-1) 40>,
+                                <&zip_horizontal_scroll_scaler 1 40>,
                                 <&zip_dynamic_xy_scaler>,
                                 <&zip_dynamic_scroll_scaler>;
         };
@@ -178,14 +196,16 @@
         device = <&trackpad_split_L>;
         input-processors = <&trackpad_key_behaviors_L>,
                            <&zip_xy_scaler 1 5>,
-                           <&zip_scroll_scaler 1 12>,
+                           <&zip_vertical_scroll_scaler (-1) 12>,
+                           <&zip_horizontal_scroll_scaler 1 12>,
                            <&zip_dynamic_xy_scaler>,
                            <&zip_dynamic_scroll_scaler>;
         lowspeedmode {
             layers = <1>,<2>;
             input-processors =  <&trackpad_key_behaviors_L>,
                                 <&zip_xy_scaler 1 15>,
-                                <&zip_scroll_scaler 1 40>,
+                                <&zip_vertical_scroll_scaler (-1) 40>,
+                                <&zip_horizontal_scroll_scaler 1 40>,
                                 <&zip_dynamic_xy_scaler>,
                                 <&zip_dynamic_scroll_scaler>;
         };
