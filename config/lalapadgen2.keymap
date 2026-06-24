@@ -91,6 +91,15 @@
 
         SYSTEM_LAYER {
             display-name = "system_layer";
+            // OUT_TOG: USB/BLEの出力先を切り替え。
+            // BT_SEL 0-3: Bluetoothプロファイル0-3を選択。
+            // sys_reset: ファームウェアを再起動。
+            // bootloader: ファームウェア書き込み用のbootloaderを起動。
+            // BT_CLR: 現在のBluetoothプロファイルのペアリングを削除。
+            // BT_CLR_ALL: 全Bluetoothプロファイルのペアリングを削除。
+            // ZDS_XY INC/DEC: ポインター速度を上げる/下げる。
+            // ZDS_SC INC/DEC: スクロール速度を上げる/下げる。
+            // ZDS_ALL RST: ポインター/スクロール速度をリセット。
             bindings = <
 &kp F1   &kp F2   &kp F3   &kp F4   &kp F5                   &out OUT_TOG                   &bt BT_SEL 0                   &bt BT_SEL 1                   &bt BT_SEL 2                   &bt BT_SEL 3
 &kp F6   &kp F7   &kp F8   &kp F9   &kp F10                  &sys_reset                     &bootloader                    &bt BT_CLR                     &bt BT_CLR_ALL                 &trans
