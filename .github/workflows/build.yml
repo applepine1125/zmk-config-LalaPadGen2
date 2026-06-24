@@ -35,7 +35,7 @@ jobs:
         id: version
         shell: bash
         run: |
-          latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -n 1)"
+          latest_tag="$(git tag --list 'v[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | sed -nE '/^v[0-9]+\.[0-9]+\.[0-9]+$/p' | head -n 1)"
           if [ -z "$latest_tag" ]; then
             latest_tag="v0.0.0"
           fi
