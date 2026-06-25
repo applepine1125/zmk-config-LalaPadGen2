@@ -57,7 +57,7 @@
 &mt2 TAB A           &kp S      &kp D             &kp F      &kp G                              &kp H      &kp J     &kp K              &kp L      &kp SEMICOLON
 &mt2 LCTRL Z         &kp X      &kp C             &kp V      &kp B                              &kp N      &kp M     &kp COMMA          &kp PERIOD &kp SLASH
 &kp LSHFT            &kp LALT   &mo 1             &kp LCMD   &kp SPACE  &kp ESC  &kp BACKSPACE  &kp ENTER  &kp RCMD   &mo 2      &kp RALT  &kp RSHFT
-                     &none      &kp RIGHT         &kp DOWN   &kp LEFT   &kp UP   &kp UP         &kp LEFT   &kp DOWN   &kp RIGHT  &none
+                     &mkp LCLK  &kp RIGHT         &kp DOWN   &kp LEFT   &kp UP   &kp UP         &kp LEFT   &kp DOWN   &kp RIGHT  &mkp LCLK
 &mkp LCLK            &mkp RCLK  &mkp MCLK                                                                            &mkp LCLK  &mkp RCLK  &mkp MCLK
 &mkp MB4             &mkp MB5   &kp LC(UP_ARROW)  &none      &kp LCMD                            &mkp MB4   &mkp MB5  &kp LC(UP_ARROW)   &none      &kp LCMD
             >;
