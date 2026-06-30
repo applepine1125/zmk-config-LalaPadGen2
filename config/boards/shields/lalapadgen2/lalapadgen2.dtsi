@@ -4,6 +4,7 @@
 #include <dt-bindings/zmk/zip_dynamic_scale.h>
 #include <zephyr/dt-bindings/input/input-event-codes.h>
 #include <input/processors.dtsi>
+#include <scroll-snap.dtsi>
 #include "lalapadgen2-layouts.dtsi"
 
 #define POS_TP_LCLK_L  52
@@ -176,18 +177,20 @@
         device = <&trackpad_split_R>;
         input-processors = <&trackpad_key_behaviors_R>,
                            <&zip_xy_scaler 1 5>,
-                           <&zip_vertical_scroll_scaler (-1) 12>,
-                           <&zip_horizontal_scroll_scaler 1 12>,
+                           <&zip_vertical_scroll_scaler (-1) 10>,
+                           <&zip_horizontal_scroll_scaler (-1) 10>,
                            <&zip_dynamic_xy_scaler>,
-                           <&zip_dynamic_scroll_scaler>;
+                           <&zip_dynamic_scroll_scaler>,
+                           <&zip_scroll_snap>;
         lowspeedmode {
             layers = <1>,<2>;
             input-processors =  <&trackpad_key_behaviors_R>,
                                 <&zip_xy_scaler 1 15>,
                                 <&zip_vertical_scroll_scaler (-1) 40>,
-                                <&zip_horizontal_scroll_scaler 1 40>,
+                                <&zip_horizontal_scroll_scaler (-1) 40>,
                                 <&zip_dynamic_xy_scaler>,
-                                <&zip_dynamic_scroll_scaler>;
+                                <&zip_dynamic_scroll_scaler>,
+                                <&zip_scroll_snap>;
         };
     };
     trackpad_listener_L: trackpad_listener_L {
@@ -196,18 +199,20 @@
         device = <&trackpad_split_L>;
         input-processors = <&trackpad_key_behaviors_L>,
                            <&zip_xy_scaler 1 5>,
-                           <&zip_vertical_scroll_scaler (-1) 12>,
-                           <&zip_horizontal_scroll_scaler 1 12>,
+                           <&zip_vertical_scroll_scaler (-1) 10>,
+                           <&zip_horizontal_scroll_scaler (-1) 10>,
                            <&zip_dynamic_xy_scaler>,
-                           <&zip_dynamic_scroll_scaler>;
+                           <&zip_dynamic_scroll_scaler>,
+                           <&zip_scroll_snap>;
         lowspeedmode {
             layers = <1>,<2>;
             input-processors =  <&trackpad_key_behaviors_L>,
                                 <&zip_xy_scaler 1 15>,
                                 <&zip_vertical_scroll_scaler (-1) 40>,
-                                <&zip_horizontal_scroll_scaler 1 40>,
+                                <&zip_horizontal_scroll_scaler (-1) 40>,
                                 <&zip_dynamic_xy_scaler>,
-                                <&zip_dynamic_scroll_scaler>;
+                                <&zip_dynamic_scroll_scaler>,
+                                <&zip_scroll_snap>;
         };
     };
 
@@ -249,4 +254,16 @@ status = "okay";
         status = "okay";
         irq-gpios = <&xiao_d 6 (GPIO_ACTIVE_LOW | GPIO_PULL_UP)>;
     };
+};
+
+&zip_scroll_snap {
+    x-threshold = <5 8>;
+    y-threshold = <8 5>;
+    xy-threshold = <5 8>;
+
+    require-n-samples = <5>;
+    immediate-snap-threshold = <1500>;
+    lock-duration-ms = <200>;
+    lock-for-next-n-events = <10>;
+    idle-reset-timeout-ms = <200>;
 };
