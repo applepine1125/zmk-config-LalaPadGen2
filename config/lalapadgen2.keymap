@@ -79,8 +79,8 @@
 
 // 左/右トラックパッド: 1本指タップ -> LCLK、2本指タップ -> RCLK、3本指タップ -> MCLK
 &mkp LCLK      &mkp RCLK      &mkp MCLK                                                                                               &mkp LCLK      &mkp RCLK      &mkp MCLK
-// 左/右トラックパッド: 3本指左スワイプ -> MB4、3本指右スワイプ -> MB5、3本指上スワイプ -> Ctrl+Up、3本指下スワイプ -> none、ピンチ -> LCtrl
-&mkp MB4       &mkp MB5       &kp LC(UP_ARROW)  &none       &kp LCTRL                                   &mkp MB4       &mkp MB5       &kp LC(UP_ARROW)  &none       &kp LCTRL
+// 左/右トラックパッド: 3本指左スワイプ -> MB4、3本指右スワイプ -> MB5、3本指上スワイプ -> Ctrl+Up、3本指下スワイプ -> none、ピンチ -> LCmd
+&mkp MB4       &mkp MB5       &kp LC(UP_ARROW)  &none       &kp LCMD                                    &mkp MB4       &mkp MB5       &kp LC(UP_ARROW)  &none       &kp LCMD
             >;
         };
 
