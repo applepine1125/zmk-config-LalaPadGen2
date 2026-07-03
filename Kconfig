@@ -1,0 +1,7 @@
+config ZMK_INPUT_PROCESSOR_SCROLL_ACCEL
+    bool "Scroll acceleration curve input processor"
+    default y
+    depends on DT_HAS_ZMK_INPUT_PROCESSOR_SCROLL_ACCEL_ENABLED
+    help
+      Apply a speed-dependent gain curve to scroll (wheel) events so that
+      slow scrolls stay precise while fast flicks are compressed.

@@ -1,0 +1,32 @@
+# Copyright (c) 2026
+# SPDX-License-Identifier: MIT
+
+description: Input processor applying a speed-dependent gain curve to scroll events
+
+compatible: "zmk,input-processor-scroll-accel"
+
+include: ip_zero_param.yaml
+
+properties:
+  type:
+    type: int
+    required: true
+  codes:
+    type: array
+    required: true
+  low-speed:
+    type: int
+    default: 1000
+    description: "Speed (input units/sec) at or below which low-gain applies"
+  high-speed:
+    type: int
+    default: 9000
+    description: "Speed (input units/sec) at or above which high-gain applies"
+  low-gain-x1000:
+    type: int
+    default: 1000
+    description: "Gain multiplier at low speed (x1000, 1000 = 1.0x)"
+  high-gain-x1000:
+    type: int
+    default: 400
+    description: "Gain multiplier at high speed (x1000, 400 = 0.4x)"
