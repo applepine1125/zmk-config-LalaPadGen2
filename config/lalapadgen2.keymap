@@ -45,25 +45,6 @@
         };
     };
 
-    combos {
-        compatible = "zmk,combos";
-
-        combo_tab {
-            timeout-ms = <50>;
-            key-positions = <10 11>;
-            layers = <DEFAULT_LAYER>;
-            bindings = <&kp TAB>;
-        };
-
-        combo_lctrl {
-            timeout-ms = <50>;
-            slow-release;
-            key-positions = <20 21>;
-            layers = <DEFAULT_LAYER>;
-            bindings = <&kp LCTRL>;
-        };
-    };
-
     keymap {
         compatible = "zmk,keymap";
 
@@ -71,8 +52,8 @@
             display-name = "Default";
             bindings = <
 &kp Q          &kp W          &kp E          &kp R          &kp T                                       &kp Y          &kp U          &kp I          &kp O          &kp P
-&kp A          &kp S          &kp D          &kp F          &kp G                                       &kp H          &kp J          &kp K          &kp L          &kp SEMICOLON
-&kp Z          &kp X          &kp C          &kp V          &kp B                                       &kp N          &kp M          &kp COMMA      &kp PERIOD     &kp SLASH
+&mt2 TAB A     &mt2 TAB S     &kp D          &kp F          &kp G                                       &kp H          &kp J          &kp K          &kp L          &kp SEMICOLON
+&mt2 LCTRL Z   &mt2 LCTRL X   &kp C          &kp V          &kp B                                       &kp N          &kp M          &kp COMMA      &kp PERIOD     &kp SLASH
 &kp LSHFT      &kp LALT       &mo 1          &kp LCMD       &kp BACKSPACE  &kp ESC       &kp SPACE      &kp ENTER      &kp RCMD       &mo 2          &kp RALT       &kp RSHFT
 
                &kp ENTER      &kp RIGHT      &kp DOWN       &kp LEFT       &kp UP        &kp UP         &kp LEFT       &kp DOWN       &kp RIGHT      &kp ENTER
