@@ -21,7 +21,9 @@ jobs:
         run: python3 -m unittest discover -s tools/keymap-img
 
       - name: Render keymap images
-        run: python3 tools/keymap-img/render.py
+        run: |
+          python3 tools/keymap-img/gen_template.py
+          python3 tools/keymap-img/render.py
 
       - name: Check images are in sync with keymap
         run: |
