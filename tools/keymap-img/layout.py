@@ -16,7 +16,7 @@ MARGIN = 80
 HALF_GAP = 1.0  # 左右ハーフ間の隙間 (u)
 PAD = 0.3  # ハーフ外形からキー群までの余白 (u)
 HALF_W = 6.0 + PAD * 2  # 親指行が 6 キーあるため
-HALF_H = 7.0 + PAD * 2
+HALF_H = 5.6 + PAD * 2
 
 LAYOUT_JSON = Path(__file__).resolve().parents[2] / "config" / "lalapadgen2.json"
 
@@ -34,36 +34,15 @@ FIVE_WAY_OFFSET = {
     10: (0.0, 0.0),  # center
 }
 
-# トラックパッドのジェスチャ (row 5: タップ, row 6: スワイプ/ピンチ)
-GESTURE_NAMES = {
-    (5, 0): "1 tap",
-    (5, 1): "2 tap",
-    (5, 2): "3 tap",
-    (5, 9): "1 tap",
-    (5, 10): "2 tap",
-    (5, 11): "3 tap",
-    (6, 0): "3← swipe",
-    (6, 1): "3→ swipe",
-    (6, 2): "3↑ swipe",
-    (6, 3): "3↓ swipe",
-    (6, 4): "pinch",
-    (6, 7): "3← swipe",
-    (6, 8): "3→ swipe",
-    (6, 9): "3↑ swipe",
-    (6, 10): "3↓ swipe",
-    (6, 11): "pinch",
-}
-
 
 @dataclass
 class Key:
     index: int
-    kind: str  # "key" | "fiveway" | "gesture"
+    kind: str  # "key" | "fiveway" | "gesture" (gesture は描画対象外)
     x: float  # 左上 (px)
     y: float
     w: float
     h: float
-    gesture: str = ""
 
     @property
     def cx(self) -> float:
@@ -83,10 +62,6 @@ class Half:
     h: float
     fiveway_cx: float
     fiveway_cy: float
-    trackpad_x: float
-    trackpad_y: float
-    trackpad_w: float
-    trackpad_h: float
 
 
 def _half_origin(side: str) -> float:
@@ -103,14 +78,11 @@ def build() -> tuple[list[Key], list[Half], tuple[int, int]]:
     for side in ("left", "right"):
         ox = _half_origin(side)
         oy = MARGIN
-        tp_w, tp_h = 3.3 * U, 2.2 * U
-        band_y = oy + (PAD + 4.5) * U
+        fw_cy = oy + (PAD + 4.85) * U
         if side == "left":
-            tp_x = ox + PAD * U
-            fw_cx = ox + (PAD + 4.75) * U
+            fw_cx = ox + (PAD + 4.5) * U
         else:
-            tp_x = ox + (HALF_W - PAD) * U - tp_w
-            fw_cx = ox + (PAD + 1.25) * U
+            fw_cx = ox + (PAD + 1.5) * U
         halves.append(
             Half(
                 side=side,
@@ -119,11 +91,7 @@ def build() -> tuple[list[Key], list[Half], tuple[int, int]]:
                 w=HALF_W * U,
                 h=HALF_H * U,
                 fiveway_cx=fw_cx,
-                fiveway_cy=band_y + tp_h / 2,
-                trackpad_x=tp_x,
-                trackpad_y=band_y,
-                trackpad_w=tp_w,
-                trackpad_h=tp_h,
+                fiveway_cy=fw_cy,
             )
         )
     left, right = halves
@@ -162,25 +130,8 @@ def build() -> tuple[list[Key], list[Half], tuple[int, int]]:
                 )
             )
         else:
-            name = GESTURE_NAMES[(row, col)]
-            cells = 3 if row == 5 else 5
-            pos = col if side == "left" else col - 9 if row == 5 else col - 7
-            inner_x = half.trackpad_x + 0.1 * U
-            inner_w = half.trackpad_w - 0.2 * U
-            cw = inner_w / cells
-            ch = 0.85 * U
-            cy = half.trackpad_y + 0.15 * U + (0 if row == 5 else ch + 0.1 * U)
-            keys.append(
-                Key(
-                    index=i,
-                    kind="gesture",
-                    x=inner_x + pos * cw + 3,
-                    y=cy,
-                    w=cw - 6,
-                    h=ch,
-                    gesture=name,
-                )
-            )
+            # トラックパッドのジェスチャは描画しない (bindings との index 合わせのためだけに保持)
+            keys.append(Key(index=i, kind="gesture", x=0, y=0, w=0, h=0))
 
     width = int(MARGIN * 2 + (HALF_W * 2 + HALF_GAP) * U)
     height = int(MARGIN * 2 + HALF_H * U)

@@ -69,6 +69,11 @@ class LabelTest(unittest.TestCase):
     def test_transのとき_transparentになる(self):
         self.assertTrue(to_label(self.bindings[4], self.keymap).transparent)
 
+    def test_Shiftで記号が変わるキーのとき_shiftedが付く(self):
+        keymap = parse_keymap(SAMPLE.replace("&kp Q", "&kp SEMICOLON"))
+        label = to_label(keymap.layers[0].bindings[0], keymap)
+        self.assertEqual((label.tap, label.shifted), (";", ":"))
+
     def test_zip_dyn_scaleのとき_短縮表記になる(self):
         self.assertEqual(to_label(self.bindings[6], self.keymap).tap, "Ptr +")
 

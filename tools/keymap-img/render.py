@@ -38,17 +38,13 @@ def key_label_svg(k: Key, label: Label) -> str:
     if label.transparent:
         parts.append(_text(k.cx, k.cy, "▽", 14, fill="#666666"))
         return "\n".join(parts)
-    if k.kind == "key":
-        base = 26
-    elif k.kind == "fiveway":
-        base = 14
-    else:
-        base = 15
+    base = 26 if k.kind == "key" else 14
     inner = k.w - 12
     if label.tap:
         size = _fit_font(label.tap, inner, base)
-        cy = k.cy + (6 if k.kind == "gesture" else 0)
-        parts.append(_text(k.cx, cy - (6 if label.hold else 0), label.tap, size, weight="bold"))
+        parts.append(_text(k.cx, k.cy - (6 if label.hold else 0), label.tap, size, weight="bold"))
+    if label.shifted:
+        parts.append(_text(k.x + k.w - 12, k.y + 20, label.shifted, 20, fill="#d0d0d0", anchor="end"))
     if label.hold:
         size = _fit_font(label.hold, inner, 13)
         parts.append(_text(k.cx, k.y + k.h - 14, label.hold, size, fill="#8fd3ff"))
@@ -58,7 +54,7 @@ def key_label_svg(k: Key, label: Label) -> str:
 def combo_svg(keys: list[Key], keymap: Keymap) -> str:
     out = []
     for c in keymap.combos:
-        pts = [keys[i] for i in c.key_positions if i < len(keys)]
+        pts = [keys[i] for i in c.key_positions if i < len(keys) and keys[i].kind != "gesture"]
         if not pts:
             continue
         cx = sum(p.cx for p in pts) / len(pts)
@@ -80,7 +76,8 @@ def render_layer(template: str, keys: list[Key], keymap: Keymap, layer_index: in
     body = [f'<g id="labels" font-family="{FONT}">']
     body.append(_text(width / 2, 40, f"Layer {layer_index}: {layer.display_name}", 28, fill="#ffffff", weight="bold"))
     for k, b in zip(keys, layer.bindings):
-        body.append(key_label_svg(k, to_label(b, keymap)))
+        if k.kind != "gesture":
+            body.append(key_label_svg(k, to_label(b, keymap)))
     body.append(combo_svg(keys, keymap))
     body.append("</g>")
     return template.replace("</svg>", "\n".join(body) + "\n</svg>")

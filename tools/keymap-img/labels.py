@@ -30,6 +30,12 @@ DYN_SCALE = {
     ("ZDS_ALL", "ZDS_RST"): "Spd Rst",
 }
 
+# US 配列で Shift 同時押しした際の記号 (keycode 別名変換後のラベルをキーにする)
+SHIFTED = {
+    "1": "!", "2": "@", "3": "#", "4": "$", "5": "%", "6": "^", "7": "&", "8": "*", "9": "(", "0": ")",
+    "-": "_", "=": "+", "[": "{", "]": "}", "\\": "|", ";": ":", "'": '"', "`": "~", ",": "<", ".": ">", "/": "?",
+}
+
 BT_ALIASES = {"BT_CLR": "BT Clr", "BT_CLR_ALL": "BT ClrAll", "BT_NXT": "BT Next", "BT_PRV": "BT Prev"}
 
 
@@ -37,6 +43,7 @@ BT_ALIASES = {"BT_CLR": "BT Clr", "BT_CLR_ALL": "BT ClrAll", "BT_NXT": "BT Next"
 class Label:
     tap: str = ""
     hold: str = ""
+    shifted: str = ""
     transparent: bool = False
 
 
@@ -92,4 +99,6 @@ def to_label(b: Binding, keymap: Keymap) -> Label:
         hold = simple(Binding(hold_beh, [b.params[0]]), keymap)
         tap = simple(Binding(tap_beh, [b.params[1]]), keymap)
         return Label(tap=tap, hold=hold)
-    return Label(tap=simple(b, keymap))
+    tap = simple(b, keymap)
+    shifted = SHIFTED.get(tap, "") if b.behavior == "kp" else ""
+    return Label(tap=tap, shifted=shifted)

@@ -20,9 +20,7 @@ def rect(x, y, w, h, r=10, sw=2.5, extra=""):
 def key_frame(k: Key) -> str:
     if k.kind == "key":
         return rect(k.x, k.y, k.w, k.h, r=12, extra=f'id="key-{k.index}"')
-    if k.kind == "fiveway":
-        return rect(k.x, k.y, k.w, k.h, r=8, sw=2, extra=f'id="key-{k.index}"')
-    return rect(k.x, k.y, k.w, k.h, r=6, sw=1.5, extra=f'id="key-{k.index}" stroke-dasharray="4 3"')
+    return rect(k.x, k.y, k.w, k.h, r=8, sw=2, extra=f'id="key-{k.index}"')
 
 
 def build_svg() -> str:
@@ -35,16 +33,9 @@ def build_svg() -> str:
     for h in halves:
         out.append(rect(h.x, h.y, h.w, h.h, r=40, sw=3))
         out.append(rect(h.x + 10, h.y + 10, h.w - 20, h.h - 20, r=32, sw=1))
-        out.append(rect(h.trackpad_x, h.trackpad_y, h.trackpad_w, h.trackpad_h, r=20, sw=2.5))
-        out.append(rect(h.trackpad_x + 8, h.trackpad_y + 8, h.trackpad_w - 16, h.trackpad_h - 16, r=14, sw=1))
     out.append("</g>")
     out.append('<g id="keys">')
-    out.extend(key_frame(k) for k in keys)
-    out.append("</g>")
-    out.append('<g id="gesture-labels" font-family="Helvetica Neue, Helvetica, Arial, sans-serif" font-size="12" fill="#9a9a9a" text-anchor="middle">')
-    for k in keys:
-        if k.kind == "gesture":
-            out.append(f'<text x="{k.cx:.1f}" y="{k.y + 15:.1f}">{k.gesture}</text>')
+    out.extend(key_frame(k) for k in keys if k.kind != "gesture")
     out.append("</g>")
     out.append("</svg>")
     return "\n".join(out) + "\n"
