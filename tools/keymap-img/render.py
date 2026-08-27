@@ -33,22 +33,35 @@ def _text(x, y, s, size, fill="#ffffff", weight="normal", anchor="middle"):
     )
 
 
-def key_label_svg(k: Key, label: Label) -> str:
+def key_label_svg(k: Key, label: Label, inherited: bool = False) -> str:
+    """inherited=True は &trans で下位レイヤーから引き継いだ割り当て (灰色で描く)。"""
     parts = []
     if label.transparent:
         parts.append(_text(k.cx, k.cy, "▽", 14, fill="#666666"))
         return "\n".join(parts)
+    main = "#7a7a7a" if inherited else "#ffffff"
+    sub = "#5a5a5a" if inherited else "#d0d0d0"
+    hold = "#4f7a94" if inherited else "#8fd3ff"
     base = 26 if k.kind == "key" else 14
     inner = k.w - 12
     if label.tap:
         size = _fit_font(label.tap, inner, base)
-        parts.append(_text(k.cx, k.cy - (6 if label.hold else 0), label.tap, size, weight="bold"))
+        parts.append(_text(k.cx, k.cy - (6 if label.hold else 0), label.tap, size, fill=main, weight="bold"))
     if label.shifted:
-        parts.append(_text(k.x + k.w - 12, k.y + 20, label.shifted, 20, fill="#d0d0d0", anchor="end"))
+        parts.append(_text(k.x + k.w - 12, k.y + 20, label.shifted, 20, fill=sub, anchor="end"))
     if label.hold:
         size = _fit_font(label.hold, inner, 13)
-        parts.append(_text(k.cx, k.y + k.h - 14, label.hold, size, fill="#8fd3ff"))
+        parts.append(_text(k.cx, k.y + k.h - 14, label.hold, size, fill=hold))
     return "\n".join(parts)
+
+
+def resolve_binding(keymap: Keymap, layer_index: int, pos: int):
+    """&trans を下位レイヤーへ辿り、(binding, 引き継いだか) を返す。"""
+    for j in range(layer_index, -1, -1):
+        b = keymap.layers[j].bindings[pos]
+        if b.behavior != "trans":
+            return b, j != layer_index
+    return keymap.layers[layer_index].bindings[pos], False
 
 
 def combo_svg(keys: list[Key], keymap: Keymap) -> str:
@@ -75,9 +88,10 @@ def render_layer(template: str, keys: list[Key], keymap: Keymap, layer_index: in
         sys.exit(f"layer {layer.name}: bindings={len(layer.bindings)} but layout keys={len(keys)}")
     body = [f'<g id="labels" font-family="{FONT}">']
     body.append(_text(width / 2, 40, f"Layer {layer_index}: {layer.display_name}", 28, fill="#ffffff", weight="bold"))
-    for k, b in zip(keys, layer.bindings):
+    for pos, k in enumerate(keys):
         if k.kind != "gesture":
-            body.append(key_label_svg(k, to_label(b, keymap)))
+            b, inherited = resolve_binding(keymap, layer_index, pos)
+            body.append(key_label_svg(k, to_label(b, keymap), inherited))
     body.append(combo_svg(keys, keymap))
     body.append("</g>")
     return template.replace("</svg>", "\n".join(body) + "\n</svg>")

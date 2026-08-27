@@ -2,6 +2,7 @@ import unittest
 
 from keymap_parser import parse_keymap
 from labels import to_label
+from render import resolve_binding
 from layout import build
 
 SAMPLE = """
@@ -76,6 +77,18 @@ class LabelTest(unittest.TestCase):
 
     def test_zip_dyn_scaleのとき_短縮表記になる(self):
         self.assertEqual(to_label(self.bindings[6], self.keymap).tap, "Ptr +")
+
+
+class ResolveBindingTest(unittest.TestCase):
+    def test_transのとき_下位レイヤーの割り当てが引き継ぎ扱いで返る(self):
+        src = SAMPLE.replace(
+            "        };\n    };\n};",
+            "        };\n        L1 { bindings = <&trans &kp B &trans &trans &trans &trans &trans>; };\n    };\n};",
+        )
+        keymap = parse_keymap(src)
+        self.assertEqual(resolve_binding(keymap, 1, 0), (keymap.layers[0].bindings[0], True))
+        self.assertEqual(resolve_binding(keymap, 1, 1), (keymap.layers[1].bindings[1], False))
+        self.assertEqual(resolve_binding(keymap, 1, 4)[0].behavior, "trans")
 
 
 class LayoutTest(unittest.TestCase):
