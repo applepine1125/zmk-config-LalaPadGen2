@@ -4,6 +4,8 @@ manifest:
       url-base: https://github.com/zmkfirmware
     - name: ShiniNet
       url-base: https://github.com/ShiniNet/
+    - name: applepine1125
+      url-base: https://github.com/applepine1125
     - name: caksoylar
       url-base: https://github.com/caksoylar
     - name: kot149
@@ -14,8 +16,8 @@ manifest:
       revision: v0.3.0
       import: app/west.yml
     - name: zmk-driver-iqs9151
-      remote: ShiniNet
-      revision: v1.0.0
+      remote: applepine1125
+      revision: b771211f1056cc7b869b80478360ca61352d3d6b
     - name: zmk-easy-charge-indicator
       remote: ShiniNet
       revision: v1.0.0
