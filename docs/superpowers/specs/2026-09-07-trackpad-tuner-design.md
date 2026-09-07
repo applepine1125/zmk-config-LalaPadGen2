@@ -61,7 +61,12 @@ tp コマンド ──► iqs9151 ドライバのパラメータ構造体 ──
 - 定義テーブル `iqs9151_param_defs[]` を新設し、シェル・リセット・IC 書き込みはすべてこのテーブル駆動にする
 
 ```c
-enum iqs9151_param_kind { IQS9151_PARAM_DRIVER, IQS9151_PARAM_IC_U8, IQS9151_PARAM_IC_U16 };
+enum iqs9151_param_kind {
+    IQS9151_PARAM_IC_U8,        /* IC レジスタ(8bit)。テーブル先頭に並べ、index を保留ビットに使う */
+    IQS9151_PARAM_IC_U16,       /* IC レジスタ(16bit) */
+    IQS9151_PARAM_DRIVER,       /* ドライバ内の int */
+    IQS9151_PARAM_DRIVER_BOOL,  /* ドライバ内の bool(0/1)。.conf 書き出しは y/n */
+};
 
 struct iqs9151_param_def {
     const char *name;        /* 例: "1f_tap_max_ms"(Kconfig 名の接尾辞を小文字化) */
@@ -95,7 +100,7 @@ struct iqs9151_param_def {
 | IC フィルタ | `ATI_TARGETCOUNT`, `DYNAMIC_FILTER_BOTTOM_SPEED`, `DYNAMIC_FILTER_TOP_SPEED` | IC_U16 |
 | IC フィルタ | `DYNAMIC_FILTER_BOTTOM_BETA` | IC_U8 |
 
-bool 系は 0/1 の int として同じ枠組みで扱う。`RESOLUTION_X/Y`・`ROTATE_*` は対象外。
+bool 系は 0/1 の int として同じ枠組みで扱い、種別 `DRIVER_BOOL` で区別する(`.conf` 書き出し時に `y`/`n` にするため)。`RESOLUTION_X/Y`・`ROTATE_*` は対象外。
 
 Re-ATI は `tp set` で自動実行しない。スライダ操作で連続して値が変わる間に ATI が連発するのを避けるため、ホストの「Re-ATI」ボタン(= `tp reati`)で明示的に実行する。
 
@@ -112,6 +117,7 @@ Re-ATI は `tp set` で自動実行しない。スライダ操作で連続して
 ```
 tp info                  -> side=central|peripheral uptime_ms=<n> params=<count>
 tp list                  -> 1 行 1 パラメータ: <name> <value> <min> <max> <kind> <default>
+                            kind は ic_u8 | ic_u16 | driver | driver_bool
 tp get <name>            -> <name>=<value>
 tp set <name> <value>    -> OK <name>=<value>
 tp reset                 -> OK reset(IC 系の書き戻しは次のフレーム処理で実行)
