@@ -25,7 +25,7 @@
 - zmk-config の作業ディレクトリ: `~/go/src/github.com/applepine1125/zmk-config-LalaPadGen2`(以下 `$CFG`)。ブランチ `trackpad-tuner` に切り替え済み
 - ローカルに west / Zephyr SDK はない。ドライバの ztest はフォークの GitHub Actions(Task 1 で追加)で回す。Docker(`zmkfirmware/zmk-build-arm:3.5`)でのローカル実行スクリプトも用意するが、Apple Silicon 上では x86_64 エミュレーションになるため動かなければ CI を正とする
 - パラメータ名は Kconfig 名 `CONFIG_INPUT_IQS9151_<NAME>` の `<NAME>` を小文字化したもの(例 `1f_tap_max_ms`)。構造体フィールド名は先頭が数字にならないよう `1F`→`f1`、`2F`→`f2`、`3F`→`f3` に置き換える(例 `f1_tap_max_ms`)
-- パラメータ定義テーブルは **IC 系 16 個を先頭**に並べる。その index(0..15)を保留ビットに使う
+- パラメータ定義テーブルは **IC 系 17 個を先頭**に並べる。その index(0..16)を保留ビットに使う
 - `tp` コマンドの応答書式は spec のとおり。エラーは `ERR <reason>` 1 行
 - トレース行の書式は spec のとおり(`T F …` / `T E …`)。時刻は `(uint32_t)k_uptime_get()` を `%u` で出す
 
@@ -237,7 +237,7 @@ Expected: `Run tests` ステップで `PROJECT EXECUTION SUCCESSFUL` が出て j
 
 **Interfaces:**
 - Produces:
-  - `struct iqs9151_params`(全 50 フィールド、`int32_t`)
+  - `struct iqs9151_params`(全 51 フィールド、`int32_t`)
   - `enum iqs9151_param_kind { IQS9151_PARAM_IC_U8, IQS9151_PARAM_IC_U16, IQS9151_PARAM_DRIVER, IQS9151_PARAM_DRIVER_BOOL }`
   - `struct iqs9151_param_def { const char *name; uint16_t offset; int32_t min; int32_t max; int32_t def; enum iqs9151_param_kind kind; uint16_t reg; }`
   - `size_t iqs9151_param_count(void)`
@@ -248,7 +248,7 @@ Expected: `Run tests` ステップで `PROJECT EXECUTION SUCCESSFUL` が出て j
   - `int32_t iqs9151_params_get(const struct iqs9151_params *p, const struct iqs9151_param_def *def)`
   - `bool iqs9151_param_is_ic(const struct iqs9151_param_def *def)`
   - `const char *iqs9151_param_kind_str(enum iqs9151_param_kind kind)`(`ic_u8` / `ic_u16` / `driver` / `driver_bool`)
-  - `#define IQS9151_PARAM_IC_COUNT 16`
+  - `#define IQS9151_PARAM_IC_COUNT 17`
 
 - [ ] **Step 1: ヘッダを書く**
 
@@ -276,7 +276,7 @@ enum iqs9151_param_kind {
 
 /*
  * X(field, name, default, min, max, kind, reg)
- * IC 系 16 個を先頭に置く。index を IC 書き込みの保留ビットに使う。
+ * IC 系 17 個を先頭に置く。index を IC 書き込みの保留ビットに使う。
  */
 #define IQS9151_PARAM_LIST(X)                                                                   \
     X(touch_set_threshold, "touch_set_threshold", CONFIG_INPUT_IQS9151_TOUCH_SET_THRESHOLD,     \
@@ -325,7 +325,7 @@ enum iqs9151_param_kind {
     X(dynamic_filter_top_speed, "dynamic_filter_top_speed",                                     \
       CONFIG_INPUT_IQS9151_DYNAMIC_FILTER_TOP_SPEED, 0, 2047, IQS9151_PARAM_IC_U16,             \
       IQS9151_ADDR_XY_DYNAMIC_FILTER_TOP_SPEED)                                                 \
-    /* ここまで IC 系 16 個 */                                                                   \
+    /* ここまで IC 系 17 個 */                                                                   \
     X(f1_tap_enable, "1f_tap_enable", IS_ENABLED(CONFIG_INPUT_IQS9151_1F_TAP_ENABLE), 0, 1,     \
       IQS9151_PARAM_DRIVER_BOOL, 0)                                                             \
     X(f1_tap_max_ms, "1f_tap_max_ms", CONFIG_INPUT_IQS9151_1F_TAP_MAX_MS, 1, 1000,              \
@@ -397,7 +397,7 @@ enum iqs9151_param_kind {
     X(scroll_inertia_min_avg_speed, "scroll_inertia_min_avg_speed",                             \
       CONFIG_INPUT_IQS9151_SCROLL_INERTIA_MIN_AVG_SPEED, 1, 500, IQS9151_PARAM_DRIVER, 0)
 
-#define IQS9151_PARAM_IC_COUNT 16
+#define IQS9151_PARAM_IC_COUNT 17
 
 struct iqs9151_params {
 #define IQS9151_PARAM_FIELD(field, name, def, min, max, kind, reg) int32_t field;
@@ -545,8 +545,8 @@ tests:
 
 ZTEST_SUITE(iqs9151_params, NULL, NULL, NULL, NULL, NULL);
 
-ZTEST(iqs9151_params, test_定義テーブルは50個でIC系16個が先頭にある) {
-    zassert_equal(iqs9151_param_count(), 50U, "count=%u",
+ZTEST(iqs9151_params, test_定義テーブルは51個でIC系17個が先頭にある) {
+    zassert_equal(iqs9151_param_count(), 51U, "count=%u",
                   (unsigned int)iqs9151_param_count());
     for (size_t i = 0; i < iqs9151_param_count(); i++) {
         const struct iqs9151_param_def *def = iqs9151_param_def_at(i);
@@ -1697,8 +1697,8 @@ test('tp list の1行をパースすると名前と値と範囲と種別が取�
 });
 
 test('tp info の行をパースすると側と uptime が取れる', () => {
-  assert.deepEqual(T.parseInfoLine('side=central uptime_ms=12345 params=50'),
-    { side: 'central', uptimeMs: 12345, params: 50 });
+  assert.deepEqual(T.parseInfoLine('side=central uptime_ms=12345 params=51'),
+    { side: 'central', uptimeMs: 12345, params: 51 });
   assert.equal(T.parseInfoLine('OK reset'), null);
 });
 
@@ -2316,7 +2316,7 @@ open -a "Google Chrome" $CFG/tools/tp-tuner/index.html
 確認項目:
 - 「ダミーデータ」でタイムラインに帯と点が描かれ、診断に stuck が 1 件出る
 - 接続なしでも例外が出ない(DevTools の Console にエラーなし)
-- 実機がある場合: 「接続」→ ポート選択 → 左右と uptime が表示され、パラメータ一覧が 50 行埋まる。スライダを動かすと `tp set` の `OK` が返る。trace を ON にしてパッドに触れるとフレームレーンが動く
+- 実機がある場合: 「接続」→ ポート選択 → 左右と uptime が表示され、パラメータ一覧が 51 行埋まる。スライダを動かすと `tp set` の `OK` が返る。trace を ON にしてパッドに触れるとフレームレーンが動く
 
 - [ ] **Step 7: README を書く**
 
