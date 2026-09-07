@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tp-tuner: トラックパッド調整</title>
+<style>
+  :root {
+    --fg: #111827;
+    --muted: #6b7280;
+    --border: #d1d5db;
+    --bg: #f9fafb;
+    --panel: #ffffff;
+    --accent: #2563eb;
+    --danger: #dc2626;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body {
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Noto Sans JP", sans-serif;
+    padding: 10px 14px 20px;
+    overflow-x: hidden;
+  }
+  h1 { font-size: 16px; margin: 0 12px 0 0; white-space: nowrap; }
+  h2 { font-size: 13px; margin: 0 0 6px; color: var(--muted); font-weight: 600; }
+  button {
+    font: inherit; padding: 3px 10px; border: 1px solid var(--border); border-radius: 4px;
+    background: var(--panel); color: var(--fg); cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.active { background: #dbeafe; border-color: var(--accent); }
+  select, input[type=number] { font: inherit; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; }
+  #topbar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+    padding: 8px 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+  }
+  #topbar .sep { width: 1px; height: 20px; background: var(--border); }
+  #info { color: var(--muted); }
+  #status { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #status.error { color: var(--danger); }
+  #notice {
+    margin: 8px 0 0; padding: 8px 10px; border-radius: 6px;
+    background: #fef3c7; border: 1px solid #f59e0b; color: #78350f;
+  }
+  details#logbox { margin-top: 8px; }
+  details#logbox summary { cursor: pointer; color: var(--muted); }
+  #log {
+    margin: 4px 0 0; max-height: 160px; overflow: auto; padding: 6px 8px;
+    background: #111827; color: #e5e7eb; font: 11px/1.4 ui-monospace, Menlo, monospace;
+    white-space: pre-wrap; word-break: break-all; border-radius: 4px;
+  }
+  #main {
+    display: grid; grid-template-columns: minmax(340px, 5fr) minmax(0, 7fr); gap: 12px; margin-top: 10px;
+  }
+  @media (max-width: 900px) { #main { grid-template-columns: minmax(0, 1fr); } }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 10px; min-width: 0; }
+  #left { max-height: calc(100vh - 120px); overflow-y: auto; }
+  #left .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 10px; padding: 6px 8px 4px; }
+  legend { font-weight: 600; padding: 0 4px; }
+  fieldset > button { margin-bottom: 4px; }
+  .param {
+    display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(60px, 1fr) 64px auto;
+    gap: 6px; align-items: center; padding: 3px 4px; border-radius: 4px;
+  }
+  .param label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .param .desc { grid-column: 1 / -1; color: var(--muted); font-size: 11px; margin-top: -2px; }
+  .param input[type=range] { width: 100%; min-width: 0; margin: 0; }
+  .param input[type=number] { width: 64px; }
+  .param.bool input[type=checkbox] { justify-self: start; }
+  .param button { padding: 1px 6px; font-size: 11px; }
+  .param.changed { background: #fff6cc; }
+  .param.error { background: #ffd6d6; }
+  #right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  #pad {
+    height: 140px; border: 2px dashed var(--border); border-radius: 6px; background: #f3f4f6;
+    display: flex; align-items: center; justify-content: center; color: var(--muted);
+    user-select: none; touch-action: none; cursor: crosshair;
+  }
+  #pad:hover { border-color: var(--accent); }
+  #hoststate { font-family: ui-monospace, Menlo, monospace; font-size: 12px; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .row .spacer { flex: 1; }
+  #timeline { width: 100%; display: block; border: 1px solid var(--border); border-radius: 4px; }
+  #diag { margin: 0; padding-left: 18px; max-height: 140px; overflow-y: auto; }
+  #diag li { color: var(--danger); }
+  #diag li.none { color: var(--muted); list-style: none; margin-left: -18px; }
+  #conf { width: 100%; height: 120px; font: 11px/1.4 ui-monospace, Menlo, monospace; resize: vertical; border: 1px solid var(--border); border-radius: 4px; }
+  .legend { color: var(--muted); font-size: 11px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin: 0 2px 0 8px; }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <h1>tp-tuner</h1>
+  <button id="btnConnect" class="primary">接続</button>
+  <button id="btnDisconnect" disabled>切断</button>
+  <span id="info">未接続</span>
+  <span class="sep"></span>
+  <button id="btnTrace" disabled>trace OFF</button>
+  <span id="status"></span>
+</div>
+<div id="notice" hidden></div>
+<details id="logbox">
+  <summary>シリアルログ</summary>
+  <pre id="log"></pre>
+</details>
+
+<div id="main">
+  <div id="left" class="panel">
+    <div class="toolbar">
+      <h2 style="margin:0">パラメータ</h2>
+      <span class="spacer" style="flex:1"></span>
+      <button id="btnReload" disabled>再読込</button>
+      <button id="btnResetAll" disabled>すべて既定に戻す</button>
+    </div>
+    <div id="params"><span class="legend">接続すると tp list の内容がここに表示されます</span></div>
+  </div>
+
+  <div id="right">
+    <div class="panel">
+      <h2>テストパッド(この領域でジェスチャを行う)</h2>
+      <div id="hoststate">buttons=0 move=- wheel=-</div>
+      <div id="pad">ここでタップ / ドラッグ / スクロールする</div>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <h2 style="margin:0">タイムライン</h2>
+        <span class="legend">表示幅</span>
+        <button class="zoom" data-ms="2000">2s</button>
+        <button class="zoom active" data-ms="5000">5s</button>
+        <button class="zoom" data-ms="10000">10s</button>
+        <span class="spacer"></span>
+        <button id="btnPause">一時停止</button>
+        <button id="btnClear">クリア</button>
+        <button id="btnDummy">ダミーデータ</button>
+      </div>
+      <canvas id="timeline"></canvas>
+      <div class="legend">
+        ボタン: <i style="background:#3b82f6"></i>左 <i style="background:#22c55e"></i>右 <i style="background:#f97316"></i>中
+        <i style="background:#dc2626"></i>wheel / 診断 <i style="background:#111827"></i>REL X,Y / move
+        <span style="color:#dc2626;margin-left:8px">×</span> = input_report がイベントを捨てた
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>診断(直近 60 秒)</h2>
+      <ul id="diag"></ul>
+    </div>
+
+    <div class="panel">
+      <div class="row">
+        <h2 style="margin:0">エクスポート / プロファイル</h2>
+        <span class="spacer"></span>
+        <button id="btnCopyDiff">差分を .conf でコピー</button>
+        <button id="btnCopyAll">すべて .conf でコピー</button>
+      </div>
+      <textarea id="conf" readonly spellcheck="false" placeholder="接続してパラメータを変更すると差分がここに表示されます"></textarea>
+      <div class="row" style="margin-top:6px">
+        <select id="profiles"></select>
+        <button id="btnProfileSave">プロファイル保存</button>
+        <button id="btnProfileLoad">読込</button>
+        <button id="btnProfileDelete">削除</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="tuner.js"></script>
+<script>
+(function () {
+  'use strict';
+  const T = globalThis.TpTuner;
+  const $ = (id) => document.getElementById(id);
+  if (!T) {
+    $('notice').textContent = 'tuner.js が読み込めません。index.html と同じフォルダに tuner.js を置いてください';
+    $('notice').hidden = false;
+    return;
+  }
+  const CMD_TIMEOUT_MS = 5000;
+  const SETTLE_MS = 200;
+  const KEEP_MS = 60000;
+  const SET_DEBOUNCE_MS = 150;
+  const LANE_H = 40;
+  const LANES = ['FW 指', 'FW ボタン', 'FW REL/WHEEL', 'HOST ボタン', 'HOST move', 'HOST wheel'];
+  const BTN_COLOR = { [T.BTN[0]]: '#3b82f6', [T.BTN[1]]: '#22c55e', [T.BTN[2]]: '#f97316', [T.BTN[7]]: '#a855f7' };
+  const HOST_BITS = [[1, T.BTN[0]], [2, T.BTN[1]], [4, T.BTN[2]]];
+  const PROFILE_KEY = 'tp-tuner.profiles';
+
+  const GROUPS = [
+    { title: '1本指タップ / タップドラッグ', names: ['1f_tap_enable', '1f_tap_max_ms', '1f_tap_move', '1f_presshold_enable', '1f_tapdrag_gap_max_ms'] },
+    { title: '2本指タップ / スクロール / ピンチ', names: ['2f_tap_enable', '2f_tap_max_ms', '2f_tap_move', '2f_presshold_enable', '2f_tapdrag_gap_max_ms', 'scroll_x_enable', 'scroll_y_enable', '2f_scroll_start_move', '2f_pinch_enable', '2f_pinch_start_distance', '2f_pinch_wheel_gain_x10'] },
+    { title: '3本指', names: ['3f_tap_enable', '3f_tap_max_ms', '3f_tap_move', '3f_presshold_enable', '3f_tapdrag_gap_max_ms', '3f_swipe_threshold'] },
+    { title: '慣性', names: ['cursor_inertia_enable', 'cursor_inertia_decay', 'cursor_inertia_recent_window_ms', 'cursor_inertia_stale_gap_ms', 'cursor_inertia_min_samples', 'cursor_inertia_min_avg_speed', 'scroll_inertia_enable', 'scroll_inertia_decay', 'scroll_inertia_recent_window_ms', 'scroll_inertia_stale_gap_ms', 'scroll_inertia_min_samples', 'scroll_inertia_min_avg_speed'] },
+    { title: 'IC 感度(変更後にパッドへ一度触れると反映)', ic: true, names: ['touch_set_threshold', 'touch_clear_threshold', 'alp_set_debounce', 'alp_clear_debounce', 'stationary_touch_mov_threshold', 'jitter_filter_delta', 'finger_confidence_threshold'] },
+    { title: 'IC サンプリング周期', ic: true, names: ['active_mode_sampling_period_ms', 'idle_touch_mode_sampling_period_ms', 'idle_mode_sampling_period_ms', 'lp1_mode_sampling_period_ms', 'lp2_mode_sampling_period_ms', 'active_mode_timeout_ms'] },
+    { title: 'IC フィルタ / ATI(変更後は Re-ATI)', ic: true, names: ['ati_targetcount', 'dynamic_filter_bottom_speed', 'dynamic_filter_top_speed', 'dynamic_filter_bottom_beta'] },
+  ];
+  const DESCRIPTIONS = {
+    '1f_tap_max_ms': 'タップと判定する最大押下時間',
+    '1f_tap_move': 'タップと判定する最大移動量',
+    '1f_tapdrag_gap_max_ms': 'タップ後にボタンを押したまま2回目の接触を待つ時間(タップドラッグ)',
+    '2f_scroll_start_move': '2本指スクロールを開始する移動量',
+    'touch_set_threshold': 'タッチ検出の閾値(小さいほど敏感)',
+    'touch_clear_threshold': 'タッチ解除の閾値',
+    'alp_set_debounce': '低消費電力モードからの復帰デバウンス(小さいほど立ち上がりが速い)',
+    'ati_targetcount': 'ATI のターゲットカウント。変更後は Re-ATI',
+  };
+
+  const serial = {
+    port: null, reader: null, writer: null, loopDone: null, buffer: '', pending: null, lines: [], queue: [],
+    onTrace: null, onLog: null,
+  };
+  const clock = { offset: 0 };
+  const view = { ms: 5000, frozenNow: null };
+  const rec = { frames: [], fw: [], hostBtn: [], hostWheel: [], hostMove: [], paused: false };
+  let params = [];
+  let diag = [];
+  let traceOn = false;
+  const setTimers = {};
+
+  function setStatus(msg, isError) {
+    const el = $('status');
+    el.textContent = msg || '';
+    el.classList.toggle('error', !!isError);
+  }
+
+  function showNotice(msg) {
+    const el = $('notice');
+    el.textContent = msg;
+    el.hidden = !msg;
+  }
+
+  const logLines = [];
+  function log(text) {
+    if (text === undefined || text === null || text === '') return;
+    for (const l of String(text).split('\n')) logLines.push(l);
+    while (logLines.length > 300) logLines.shift();
+    const el = $('log');
+    el.textContent = logLines.join('\n');
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function errText(e) {
+    return e && e.message ? e.message : String(e);
+  }
+
+  function isConnected() {
+    return !!(serial.port && serial.writer);
+  }
+
+  function nowMs() {
+    return rec.paused && view.frozenNow !== null ? view.frozenNow : performance.now();
+  }
+
+  function stripPromptPrefix(line) {
+    return line.replace(/^[^\s$]*:~\$ /, '');
+  }
+
+  function handleLine(raw) {
+    const line = stripPromptPrefix(raw);
+    const trace = T.parseTraceLine(line);
+    if (trace) {
+      if (serial.onTrace) serial.onTrace(trace);
+      return;
+    }
+    if (serial.pending && line.trim() !== '') {
+      serial.pending.seen = true;
+      if (line !== serial.pending.cmd) serial.lines.push(line);
+    }
+    if (serial.onLog) serial.onLog(line);
+  }
+
+  function finishPending(err, lines) {
+    const p = serial.pending;
+    if (!p) return;
+    serial.pending = null;
+    clearTimeout(p.timer);
+    serial.lines = [];
+    if (err) p.reject(err); else p.resolve(lines);
+    pump();
+  }
+
+  async function readLoop(port) {
+    const decoder = new TextDecoderStream();
+    const closed = port.readable.pipeTo(decoder.writable).catch(() => {});
+    serial.reader = decoder.readable.getReader();
+    try {
+      for (;;) {
+        const { value, done } = await serial.reader.read();
+        if (done) break;
+        serial.buffer += value;
+        let nl;
+        while ((nl = serial.buffer.indexOf('\n')) >= 0) {
+          handleLine(T.stripAnsi(serial.buffer.slice(0, nl)).replace(/\r/g, ''));
+          serial.buffer = serial.buffer.slice(nl + 1);
+        }
+        const tail = T.stripAnsi(serial.buffer).replace(/\r/g, '');
+        if (T.isPrompt(tail)) {
+          serial.buffer = '';
+          if (serial.pending && serial.pending.seen) finishPending(null, serial.lines);
+        }
+      }
+    } catch (e) {
+      if (serial.port === port) log('読み取りエラー: ' + errText(e));
+    } finally {
+      try { serial.reader.releaseLock(); } catch (e) { /* already released */ }
+      await closed;
+    }
+  }
+
+  function pump() {
+    if (serial.pending || serial.queue.length === 0) return;
+    if (!isConnected()) {
+      for (const q of serial.queue.splice(0)) q.reject(new Error('未接続です'));
+      return;
+    }
+    const p = serial.queue.shift();
+    serial.pending = p;
+    serial.lines = [];
+    p.timer = setTimeout(() => {
+      if (serial.pending === p) finishPending(new Error('タイムアウト: ' + p.cmd));
+    }, CMD_TIMEOUT_MS);
+    serial.writer.write(new TextEncoder().encode(p.cmd + '\r\n')).catch((e) => {
+      if (serial.pending === p) finishPending(new Error('送信失敗: ' + errText(e)));
+    });
+  }
+
+  function send(cmd) {
+    return new Promise((resolve, reject) => {
+      if (!isConnected()) return reject(new Error('未接続です: ' + cmd));
+      serial.queue.push({ cmd, resolve, reject, timer: null, seen: false });
+      pump();
+    });
+  }
+
+  function setConnectedUi(connected) {
+    $('btnConnect').disabled = connected || !navigator.serial;
+    $('btnDisconnect').disabled = !connected;
+    $('btnTrace').disabled = !connected;
+    $('btnReload').disabled = !connected;
+    $('btnResetAll').disabled = !connected;
+    if (!connected) {
+      $('info').textContent = '未接続';
+      traceOn = false;
+      $('btnTrace').textContent = 'trace OFF';
+      $('btnTrace').classList.remove('active');
+    }
+  }
+
+  async function connect() {
+    if (!navigator.serial) {
+      setStatus('このブラウザは Web Serial に対応していません。Chrome / Edge で開いてください', true);
+      return;
+    }
+    if (isConnected()) return;
+    let port;
+    try {
+      port = await navigator.serial.requestPort();
+    } catch (e) {
+      setStatus('ポートが選択されませんでした', false);
+      return;
+    }
+    try {
+      setStatus('接続中...');
+      await port.open({ baudRate: 115200 });
+      serial.port = port;
+      serial.buffer = '';
+      serial.writer = port.writable.getWriter();
+      port.addEventListener('disconnect', () => { if (serial.port === port) disconnect('デバイスが外れました', true); });
+      serial.loopDone = readLoop(port);
+      serial.loopDone.then(() => { if (serial.port === port) disconnect('デバイスとの接続が切れました', true); });
+      await new Promise((r) => setTimeout(r, SETTLE_MS));
+      serial.buffer = '';
+      await send('tp trace off');
+      let info = null;
+      for (let attempt = 0; attempt < 2 && !info; attempt++) {
+        const before = performance.now();
+        const infoLines = await send('tp info');
+        const after = performance.now();
+        info = infoLines.map(T.parseInfoLine).find(Boolean);
+        if (info) clock.offset = T.clockOffset(before, after, info.uptimeMs);
+      }
+      if (!info) throw new Error('tp info に応答がありません。もう一方のポートを選んでください');
+      $('info').textContent = `${info.side === 'central' ? '左(central)' : '右(peripheral)'} uptime=${(info.uptimeMs / 1000).toFixed(1)}s params=${info.params}`;
+      setConnectedUi(true);
+      setStatus('接続しました');
+      await loadParams();
+      setStatus(`パラメータ ${params.length} 件を読み込みました`);
+    } catch (e) {
+      setStatus(errText(e), true);
+      log('接続失敗: ' + errText(e));
+      await disconnect(null, true);
+    }
+  }
+
+  async function disconnect(msg, isError) {
+    const port = serial.port;
+    if (!port) return;
+    serial.port = null;
+    for (const q of serial.queue.splice(0)) q.reject(new Error('切断されました'));
+    finishPending(new Error('切断されました'));
+    try { if (serial.writer) serial.writer.releaseLock(); } catch (e) { /* ignore */ }
+    serial.writer = null;
+    try { if (serial.reader) await serial.reader.cancel(); } catch (e) { /* ignore */ }
+    try { await serial.loopDone; } catch (e) { /* ignore */ }
+    serial.reader = null;
+    serial.loopDone = null;
+    try { await port.close(); } catch (e) { log('ポートを閉じられません: ' + errText(e)); }
+    setConnectedUi(false);
+    if (msg) setStatus(msg, !!isError);
+    else if (!isError) setStatus('切断しました');
+  }
+
+  async function toggleTrace() {
+    const next = !traceOn;
+    try {
+      const lines = await send('tp trace ' + (next ? 'on' : 'off'));
+      const ok = lines.some((l) => l.startsWith('OK '));
+      if (!ok) throw new Error(lines.join(' ') || 'trace の切替に失敗しました');
+      traceOn = next;
+      $('btnTrace').textContent = traceOn ? 'trace ON' : 'trace OFF';
+      $('btnTrace').classList.toggle('active', traceOn);
+      setStatus(traceOn ? 'trace ON: パッドに触れるとタイムラインが動きます' : 'trace OFF');
+    } catch (e) {
+      setStatus(errText(e), true);
+    }
+  }
+
+  const byName = () => Object.fromEntries(params.map((p) => [p.name, p]));
+
+  async function loadParams() {
+    const lines = await send('tp list');
+    params = lines.map(T.parseListLine).filter(Boolean);
+    renderParams();
+    updateConfPreview();
+  }
+
+  function renderParams() {
+    const root = $('params');
+    root.innerHTML = '';
+    if (params.length === 0) {
+      root.innerHTML = '<span class="legend">パラメータがありません</span>';
+      return;
+    }
+    const seen = new Set();
+    const known = new Set(GROUPS.flatMap((g) => g.names));
+    const groups = GROUPS.concat([{ title: 'その他', names: params.map((p) => p.name).filter((n) => !known.has(n)) }]);
+    const map = byName();
+    for (const g of groups) {
+      const box = document.createElement('fieldset');
+      const legend = document.createElement('legend');
+      legend.textContent = g.title;
+      box.appendChild(legend);
+      if (g.ic) {
+        const b = document.createElement('button');
+        b.textContent = 'Re-ATI';
+        b.onclick = () => runSimple('tp reati', 'Re-ATI を実行しました');
+        box.appendChild(b);
+      }
+      let rows = 0;
+      for (const name of g.names) {
+        const p = map[name];
+        if (!p || seen.has(name)) continue;
+        seen.add(name);
+        box.appendChild(renderParamRow(p));
+        rows++;
+      }
+      if (rows > 0) root.appendChild(box);
+    }
+  }
+
+  function renderParamRow(p) {
+    const row = document.createElement('div');
+    row.className = 'param' + (p.kind === 'driver_bool' ? ' bool' : '');
+    row.dataset.name = p.name;
+    const label = document.createElement('label');
+    label.textContent = p.name;
+    label.title = `${DESCRIPTIONS[p.name] || ''} [${p.kind}] 範囲 ${p.min}..${p.max} 既定 ${p.def}`.trim();
+    row.appendChild(label);
+    if (p.kind === 'driver_bool') {
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!p.value;
+      cb.onchange = () => setParam(p, cb.checked ? 1 : 0);
+      row.appendChild(cb);
+      row.appendChild(document.createElement('span'));
+    } else {
+      const range = document.createElement('input');
+      range.type = 'range';
+      range.min = p.min; range.max = p.max; range.value = p.value;
+      const num = document.createElement('input');
+      num.type = 'number';
+      num.min = p.min; num.max = p.max; num.value = p.value;
+      range.oninput = () => { num.value = range.value; setParam(p, Number(range.value)); };
+      num.onchange = () => {
+        const v = Math.min(p.max, Math.max(p.min, Math.round(Number(num.value) || 0)));
+        num.value = v; range.value = v; setParam(p, v);
+      };
+      row.appendChild(range);
+      row.appendChild(num);
+    }
+    const reset = document.createElement('button');
+    reset.textContent = '既定に戻す';
+    reset.onclick = () => setParam(p, p.def);
+    row.appendChild(reset);
+    if (DESCRIPTIONS[p.name]) {
+      const d = document.createElement('div');
+      d.className = 'desc';
+      d.textContent = DESCRIPTIONS[p.name];
+      row.appendChild(d);
+    }
+    syncRow(row, p);
+    return row;
+  }
+
+  function rowOf(p) {
+    return document.querySelector(`.param[data-name="${p.name}"]`);
+  }
+
+  function syncRow(row, p) {
+    if (!row) return;
+    row.classList.toggle('changed', p.value !== p.def);
+    const inputs = row.querySelectorAll('input');
+    for (const el of inputs) {
+      if (el.type === 'checkbox') el.checked = !!p.value;
+      else el.value = p.value;
+    }
+  }
+
+  function setParam(p, value) {
+    clearTimeout(setTimers[p.name]);
+    setTimers[p.name] = setTimeout(() => applyParam(p, value), SET_DEBOUNCE_MS);
+  }
+
+  async function applyParam(p, value) {
+    const row = rowOf(p);
+    try {
+      const lines = await send(`tp set ${p.name} ${value}`);
+      const ok = lines.some((l) => l.startsWith('OK '));
+      if (row) row.classList.toggle('error', !ok);
+      if (ok) {
+        p.value = value;
+        syncRow(row, p);
+        updateConfPreview();
+      } else {
+        setStatus(`${p.name}: ${lines.join(' ') || '応答なし'}`, true);
+      }
+      log(lines.join('\n'));
+      return ok;
+    } catch (e) {
+      if (row) row.classList.add('error');
+      setStatus(errText(e), true);
+      return false;
+    }
+  }
+
+  async function runSimple(cmd, okMsg) {
+    try {
+      const lines = await send(cmd);
+      const ok = lines.some((l) => l.startsWith('OK'));
+      log(lines.join('\n'));
+      setStatus(ok ? okMsg : (lines.join(' ') || `${cmd} に応答がありません`), !ok);
+      return ok;
+    } catch (e) {
+      setStatus(errText(e), true);
+      return false;
+    }
+  }
+
+  async function resetAll() {
+    if (!isConnected()) { setStatus('未接続です', true); return; }
+    if (!window.confirm('すべてのパラメータをファームの既定値に戻します。よろしいですか?')) return;
+    if (await runSimple('tp reset', 'すべて既定に戻しました')) {
+      try { await loadParams(); } catch (e) { setStatus(errText(e), true); }
+    }
+  }
+
+  async function reload() {
+    try {
+      await loadParams();
+      setStatus(`パラメータ ${params.length} 件を再読込しました`);
+    } catch (e) {
+      setStatus(errText(e), true);
+    }
+  }
+
+  const pad = $('pad');
+  const hostState = { buttons: 0, move: null, wheel: null };
+  pad.addEventListener('contextmenu', (e) => e.preventDefault());
+  for (const type of ['pointerdown', 'pointerup', 'pointermove', 'pointercancel']) {
+    pad.addEventListener(type, (e) => {
+      if (type === 'pointerdown') { try { pad.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } }
+      if (rec.paused) return;
+      const t = performance.now();
+      if (type === 'pointermove') {
+        if (e.movementX === 0 && e.movementY === 0) return;
+        rec.hostMove.push({ t, dx: e.movementX, dy: e.movementY });
+        hostState.move = `${e.movementX},${e.movementY}`;
+      } else {
+        rec.hostBtn.push({ t, buttons: e.buttons });
+        hostState.buttons = e.buttons;
+      }
+      renderHostState();
+    });
+  }
+  pad.addEventListener('wheel', (e) => {
+    e.preventDefault();
+    if (rec.paused) return;
+    rec.hostWheel.push({ t: performance.now(), deltaX: e.deltaX, deltaY: e.deltaY });
+    hostState.wheel = `${Math.round(e.deltaX)},${Math.round(e.deltaY)}`;
+    renderHostState();
+  }, { passive: false });
+
+  function renderHostState() {
+    const names = [];
+    if (hostState.buttons & 1) names.push('左');
+    if (hostState.buttons & 2) names.push('右');
+    if (hostState.buttons & 4) names.push('中');
+    $('hoststate').textContent =
+      `buttons=${hostState.buttons}${names.length ? '(' + names.join('+') + ')' : ''} move=${hostState.move || '-'} wheel=${hostState.wheel || '-'}`;
+  }
+
+  serial.onTrace = (tr) => {
+    if (rec.paused) return;
+    const t = tr.ms + clock.offset;
+    if (tr.type === 'F') rec.frames.push({ ...tr, t }); else rec.fw.push({ ...tr, t });
+  };
+  serial.onLog = (line) => { if (line.trim() !== '') log(line); };
+
+  function drawTimeline() {
+    const cv = $('timeline');
+    const ctx = cv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const W = Math.max(1, cv.clientWidth);
+    const H = LANES.length * LANE_H;
+    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
+      cv.width = Math.round(W * dpr);
+      cv.height = Math.round(H * dpr);
+      cv.style.height = H + 'px';
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const now = nowMs();
+    const t0 = now - view.ms;
+    const x = (t) => ((t - t0) / view.ms) * W;
+    const laneY = (i) => i * LANE_H;
+    ctx.clearRect(0, 0, W, H);
+    ctx.font = '11px sans-serif';
+    ctx.textBaseline = 'alphabetic';
+    LANES.forEach((name, i) => {
+      ctx.fillStyle = i % 2 ? '#f3f4f6' : '#ffffff';
+      ctx.fillRect(0, laneY(i), W, LANE_H);
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText(name, 4, laneY(i) + 12);
+    });
+    ctx.strokeStyle = '#e5e7eb';
+    for (let s = Math.ceil(t0 / 1000) * 1000; s <= now; s += 1000) {
+      ctx.beginPath(); ctx.moveTo(x(s), 0); ctx.lineTo(x(s), H); ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    let prev = null;
+    for (const f of rec.frames) {
+      if (f.t < t0) continue;
+      const y = laneY(0) + 36 - Math.min(3, f.fingers) * 8;
+      if (prev) ctx.lineTo(x(f.t), y); else ctx.moveTo(x(f.t), y);
+      prev = f;
+    }
+    ctx.stroke();
+    ctx.lineWidth = 1;
+
+    const open = {};
+    for (const e of rec.fw) {
+      if (e.kind === 'K') {
+        if (e.value) {
+          open[e.code] = e.t;
+        } else if (open[e.code] !== undefined) {
+          ctx.fillStyle = BTN_COLOR[e.code] || '#9ca3af';
+          const x0 = Math.max(0, x(open[e.code]));
+          ctx.fillRect(x0, laneY(1) + 14, Math.max(2, x(e.t) - x0), 20);
+          delete open[e.code];
+        }
+        if (e.ret !== 0 && e.t >= t0) {
+          ctx.fillStyle = '#dc2626';
+          ctx.fillText('×', x(e.t) - 3, laneY(1) + 12);
+        }
+      } else if (e.t >= t0) {
+        const isWheel = e.code === T.REL.WHEEL || e.code === T.REL.HWHEEL;
+        ctx.fillStyle = isWheel ? '#dc2626' : '#111827';
+        const h = Math.min(16, Math.abs(e.value));
+        ctx.fillRect(x(e.t), laneY(2) + 30 - h, 2, 2 + h);
+        if (e.ret !== 0) { ctx.fillText('×', x(e.t) - 3, laneY(2) + 12); }
+      }
+    }
+    for (const code of Object.keys(open)) {
+      ctx.fillStyle = BTN_COLOR[code] || '#9ca3af';
+      const x0 = Math.max(0, x(open[code]));
+      ctx.fillRect(x0, laneY(1) + 14, Math.max(2, W - x0), 20);
+    }
+
+    let last = { t: t0, buttons: 0 };
+    for (const s of rec.hostBtn) {
+      if (s.t >= t0) break;
+      last = { t: t0, buttons: s.buttons };
+    }
+    const samples = rec.hostBtn.filter((s) => s.t >= t0).concat([{ t: now, buttons: null }]);
+    for (const s of samples) {
+      HOST_BITS.forEach(([bit, code], i) => {
+        if (last.buttons & bit) {
+          ctx.fillStyle = BTN_COLOR[code];
+          ctx.fillRect(x(last.t), laneY(3) + 12 + i * 8, Math.max(1, x(s.t) - x(last.t)), 7);
+        }
+      });
+      if (s.buttons !== null) last = s;
+    }
+
+    ctx.fillStyle = '#111827';
+    for (const m of rec.hostMove) if (m.t >= t0) ctx.fillRect(x(m.t), laneY(4) + 18, 2, 4);
+    ctx.fillStyle = '#dc2626';
+    for (const w of rec.hostWheel) {
+      if (w.t < t0) continue;
+      const h = Math.min(16, Math.abs(w.deltaY) + Math.abs(w.deltaX));
+      ctx.fillRect(x(w.t), laneY(5) + 30 - h, 2, 2 + h);
+    }
+
+    ctx.strokeStyle = '#dc2626';
+    for (const d of diag) {
+      if (d.t < t0) continue;
+      ctx.beginPath(); ctx.moveTo(x(d.t), 0); ctx.lineTo(x(d.t), H); ctx.stroke();
+    }
+  }
+
+  function runDiagnostics() {
+    const items = [];
+    for (const d of T.detectDrops(rec.fw)) items.push({ t: d.t, msg: `input_report が ${d.kind} ${d.code} を捨てた` });
+    for (const d of T.detectStuckButton(rec.fw, rec.hostBtn, { holdMs: 300 })) items.push({ t: d.t, msg: `ドライバは離したがホストのボタン(${d.code})が押されたまま` });
+    for (const d of T.detectMissingWheel(rec.fw, rec.hostWheel, { windowMs: 200 })) items.push({ t: d.t, msg: 'ドライバは wheel を送ったがホストに届いていない' });
+    for (const d of T.detectTwoFingerNoScroll(rec.frames, rec.fw, { minMove: 30, windowMs: 200 })) items.push({ t: d.t, msg: '2本指で動いているがドライバが wheel を出していない' });
+    return items.sort((a, b) => a.t - b.t);
+  }
+
+  function prune() {
+    const cut = performance.now() - KEEP_MS;
+    for (const key of ['frames', 'fw', 'hostMove', 'hostWheel']) {
+      const arr = rec[key];
+      let i = 0;
+      while (i < arr.length && arr[i].t < cut) i++;
+      if (i) arr.splice(0, i);
+    }
+    let i = 0;
+    while (i < rec.hostBtn.length - 1 && rec.hostBtn[i + 1].t < cut) i++;
+    if (i) rec.hostBtn.splice(0, i);
+  }
+
+  function refreshDiagnostics() {
+    diag = runDiagnostics();
+    const ul = $('diag');
+    ul.innerHTML = '';
+    if (diag.length === 0) {
+      const li = document.createElement('li');
+      li.className = 'none';
+      li.textContent = '問題は検出されていません';
+      ul.appendChild(li);
+    }
+    for (const d of diag.slice(-20)) {
+      const li = document.createElement('li');
+      li.textContent = `${(d.t / 1000).toFixed(2)}s ${d.msg}`;
+      ul.appendChild(li);
+    }
+  }
+
+  setInterval(() => {
+    if (rec.paused) return;
+    prune();
+    refreshDiagnostics();
+  }, 500);
+  (function loop() {
+    try { drawTimeline(); } catch (e) { /* keep the loop alive */ }
+    requestAnimationFrame(loop);
+  })();
+
+  function setPaused(paused) {
+    rec.paused = paused;
+    view.frozenNow = paused ? performance.now() : null;
+    $('btnPause').textContent = paused ? '再開' : '一時停止';
+    $('btnPause').classList.toggle('active', paused);
+    if (paused) refreshDiagnostics();
+  }
+
+  function clearRecords() {
+    for (const key of ['frames', 'fw', 'hostBtn', 'hostWheel', 'hostMove']) rec[key].length = 0;
+    hostState.buttons = 0; hostState.move = null; hostState.wheel = null;
+    renderHostState();
+    refreshDiagnostics();
+    if (rec.paused) setPaused(false);
+  }
+
+  function injectDummy() {
+    const now = performance.now();
+    const base = now - 4500;
+    const F = (ms, fingers, relX, relY) => ({ type: 'F', t: base + ms, ms, fingers, relX, relY, f1x: 0, f1y: 0, f2x: 0, f2y: 0, flags: 0, hold: 0, mode2f: 0, pending: 0 });
+    const K = (ms, code, value, ret) => ({ type: 'E', t: base + ms, ms, kind: 'K', code, value, ret: ret || 0 });
+    const R = (ms, code, value, ret) => ({ type: 'E', t: base + ms, ms, kind: 'R', code, value, ret: ret || 0 });
+    for (let ms = 0; ms <= 1400; ms += 10) {
+      const oneFinger = (ms >= 100 && ms <= 240) || (ms >= 340 && ms <= 1100);
+      rec.frames.push(F(ms, oneFinger ? 1 : 0, oneFinger && ms > 400 ? 3 : 0, oneFinger && ms > 400 ? -1 : 0));
+    }
+    for (let ms = 410; ms <= 1100; ms += 20) {
+      rec.fw.push(R(ms, T.REL.X, 3), R(ms, T.REL.Y, -1));
+      rec.hostMove.push({ t: base + ms + 8, dx: 3, dy: -1 });
+    }
+    rec.fw.push(K(350, T.BTN[0], 1));
+    rec.hostBtn.push({ t: base + 358, buttons: 1 });
+    rec.fw.push(K(1110, T.BTN[0], 0));
+    for (let ms = 2000; ms <= 3000; ms += 10) rec.frames.push(F(ms, 2, 0, 4));
+    for (let ms = 2100; ms <= 3000; ms += 50) {
+      rec.fw.push(R(ms, T.REL.WHEEL, -1));
+      rec.hostWheel.push({ t: base + ms + 12, deltaX: 0, deltaY: 24 });
+    }
+    rec.frames.push(F(3010, 0, 0, 0));
+    rec.fw.sort((a, b) => a.t - b.t);
+    rec.frames.sort((a, b) => a.t - b.t);
+    hostState.buttons = 1; hostState.move = '3,-1'; hostState.wheel = '0,24';
+    renderHostState();
+    setPaused(true);
+    setStatus('ダミーデータ(1本指タップ→ドラッグ、ホスト側はボタンを離さない)を投入して一時停止しました');
+  }
+
+  function updateConfPreview() {
+    $('conf').value = T.exportConf(params, { diffOnly: true });
+  }
+
+  async function copyConf(diffOnly) {
+    if (params.length === 0) { setStatus('パラメータが読み込まれていません', true); return; }
+    const text = T.exportConf(params, { diffOnly });
+    $('conf').value = text;
+    if (text === '') { setStatus('既定値との差分はありません'); return; }
+    try {
+      await navigator.clipboard.writeText(text);
+      setStatus(`${text.split('\n').filter(Boolean).length} 行を .conf 形式でコピーしました`);
+    } catch (e) {
+      const ta = $('conf');
+      ta.focus(); ta.select();
+      const ok = document.execCommand && document.execCommand('copy');
+      setStatus(ok ? 'コピーしました' : 'クリップボードに書き込めません。テキストエリアから手動でコピーしてください', !ok);
+    }
+  }
+
+  function readProfiles() {
+    try {
+      const raw = localStorage.getItem(PROFILE_KEY);
+      const obj = raw ? JSON.parse(raw) : {};
+      return obj && typeof obj === 'object' ? obj : {};
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function writeProfiles(obj) {
+    try {
+      localStorage.setItem(PROFILE_KEY, JSON.stringify(obj));
+      return true;
+    } catch (e) {
+      setStatus('localStorage に保存できません: ' + errText(e), true);
+      return false;
+    }
+  }
+
+  function renderProfiles(selected) {
+    const sel = $('profiles');
+    sel.innerHTML = '';
+    const names = Object.keys(readProfiles()).sort();
+    if (names.length === 0) {
+      const o = document.createElement('option');
+      o.value = ''; o.textContent = '(プロファイルなし)';
+      sel.appendChild(o);
+    }
+    for (const n of names) {
+      const o = document.createElement('option');
+      o.value = n; o.textContent = n;
+      sel.appendChild(o);
+    }
+    if (selected) sel.value = selected;
+  }
+
+  function saveProfile() {
+    if (params.length === 0) { setStatus('パラメータが読み込まれていません', true); return; }
+    const name = (window.prompt('プロファイル名', $('profiles').value || '') || '').trim();
+    if (!name) return;
+    const profiles = readProfiles();
+    profiles[name] = Object.fromEntries(params.map((p) => [p.name, p.value]));
+    if (writeProfiles(profiles)) {
+      renderProfiles(name);
+      setStatus(`プロファイル「${name}」を保存しました`);
+    }
+  }
+
+  async function loadProfile() {
+    const name = $('profiles').value;
+    if (!name) { setStatus('プロファイルを選んでください', true); return; }
+    if (!isConnected()) { setStatus('未接続です', true); return; }
+    const values = readProfiles()[name];
+    if (!values) { setStatus('プロファイルが見つかりません', true); return; }
+    const map = byName();
+    let ok = 0, ng = 0, skipped = 0;
+    for (const [pname, v] of Object.entries(values)) {
+      const p = map[pname];
+      if (!p) { skipped++; continue; }
+      if (p.value === v) continue;
+      if (await applyParam(p, v)) ok++; else ng++;
+    }
+    setStatus(`プロファイル「${name}」を適用: 変更 ${ok} 件` + (ng ? ` 失敗 ${ng} 件` : '') + (skipped ? ` 未知 ${skipped} 件` : ''), ng > 0);
+  }
+
+  function deleteProfile() {
+    const name = $('profiles').value;
+    if (!name) return;
+    if (!window.confirm(`プロファイル「${name}」を削除しますか?`)) return;
+    const profiles = readProfiles();
+    delete profiles[name];
+    if (writeProfiles(profiles)) {
+      renderProfiles();
+      setStatus(`プロファイル「${name}」を削除しました`);
+    }
+  }
+
+  $('btnConnect').onclick = () => { connect(); };
+  $('btnDisconnect').onclick = () => { disconnect(); };
+  $('btnTrace').onclick = () => { toggleTrace(); };
+  $('btnReload').onclick = () => { reload(); };
+  $('btnResetAll').onclick = () => { resetAll(); };
+  $('btnPause').onclick = () => setPaused(!rec.paused);
+  $('btnClear').onclick = clearRecords;
+  $('btnDummy').onclick = injectDummy;
+  $('btnCopyDiff').onclick = () => { copyConf(true); };
+  $('btnCopyAll').onclick = () => { copyConf(false); };
+  $('btnProfileSave').onclick = saveProfile;
+  $('btnProfileLoad').onclick = () => { loadProfile(); };
+  $('btnProfileDelete').onclick = deleteProfile;
+  for (const b of document.querySelectorAll('.zoom')) {
+    b.onclick = () => {
+      view.ms = Number(b.dataset.ms);
+      for (const o of document.querySelectorAll('.zoom')) o.classList.toggle('active', o === b);
+    };
+  }
+  window.addEventListener('beforeunload', () => { if (serial.port) disconnect(null, true); });
+
+  renderProfiles();
+  renderHostState();
+  refreshDiagnostics();
+  setConnectedUi(false);
+  if (!navigator.serial) {
+    showNotice('このブラウザは Web Serial API に対応していません。Google Chrome または Microsoft Edge で開いてください。接続なしでも「ダミーデータ」で表示は確認できます');
+  } else {
+    setStatus('「接続」を押してトラックパッド側の USB シリアルポートを選んでください');
+  }
+})();
+</script>
+</body>
+</html>
