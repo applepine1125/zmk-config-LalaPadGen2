@@ -38,6 +38,33 @@ test('ANSI エスケープを除去してプロンプトを判定できる', () 
   assert.equal(T.isPrompt('OK reset'), false);
 });
 
+test('カーソル保存・復元の 2 バイトエスケープも除去できる', () => {
+  assert.equal(T.stripAnsi('\x1b7uart:~$ \x1b8'), 'uart:~$ ');
+  assert.equal(T.stripAnsi('\x1b[2K\x1b7T E 1 K 272 0 0\x1b8'), 'T E 1 K 272 0 0');
+});
+
+test('プロンプトとエコーが同じ行にあるとき、プロンプト接頭辞を除くとコマンドだけになる', () => {
+  assert.equal(T.stripPromptPrefix('uart:~$ tp info'), 'tp info');
+});
+
+test('エコーだけの行はプロンプト接頭辞の除去で変わらない', () => {
+  assert.equal(T.stripPromptPrefix('tp info'), 'tp info');
+});
+
+test('エコーでない行はプロンプト接頭辞の除去で変わらない', () => {
+  assert.equal(T.stripPromptPrefix('side=central uptime_ms=1 params=50'), 'side=central uptime_ms=1 params=50');
+  assert.equal(T.stripPromptPrefix('OK trace=off'), 'OK trace=off');
+});
+
+test('送信したコマンドと一致する行だけをエコーと判定する', () => {
+  assert.equal(T.isEcho('uart:~$ tp info', 'tp info'), true);
+  assert.equal(T.isEcho('tp info', 'tp info'), true);
+  assert.equal(T.isEcho('side=central uptime_ms=1 params=50', 'tp info'), false);
+  assert.equal(T.isEcho('uart:~$ ', 'tp info'), false);
+  assert.equal(T.isEcho('OK trace=off', 'tp trace off'), false);
+  assert.equal(T.isEcho('tp info', ''), false);
+});
+
 test('往復時間の半分を補正した時刻オフセットを計算できる', () => {
   assert.equal(T.clockOffset(1000, 1020, 500), 510);
 });
@@ -81,6 +108,17 @@ test('ドライバが離した後にホストも離していれば stuck にな�
   ];
   const host = [{ t: 105, buttons: 1 }, { t: 310, buttons: 0 }];
   assert.deepEqual(T.detectStuckButton(fw, host, { holdMs: 300 }), []);
+});
+
+test('離してから holdMs が経っていないときは now を渡すと stuck と判定しない', () => {
+  const fw = [
+    { t: 100, type: 'E', kind: 'K', code: 272, value: 1, ret: 0 },
+    { t: 300, type: 'E', kind: 'K', code: 272, value: 0, ret: 0 },
+  ];
+  const host = [{ t: 105, buttons: 1 }];
+  assert.deepEqual(T.detectStuckButton(fw, host, { holdMs: 300, now: 500 }), []);
+  assert.deepEqual(T.detectStuckButton(fw, host, { holdMs: 300, now: 600 }), [{ t: 300, code: 272 }]);
+  assert.deepEqual(T.detectStuckButton(fw, host, { holdMs: 300 }), [{ t: 300, code: 272 }]);
 });
 
 test('ドライバが wheel を送ったのにホストに wheel が届かなければ検出できる', () => {

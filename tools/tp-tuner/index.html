@@ -182,6 +182,7 @@
     return;
   }
   const CMD_TIMEOUT_MS = 5000;
+  const PROBE_TIMEOUT_MS = 1500;
   const SETTLE_MS = 200;
   const KEEP_MS = 60000;
   const SET_DEBOUNCE_MS = 150;
@@ -257,20 +258,20 @@
     return rec.paused && view.frozenNow !== null ? view.frozenNow : performance.now();
   }
 
-  function stripPromptPrefix(line) {
-    return line.replace(/^[^\s$]*:~\$ /, '');
-  }
-
   function handleLine(raw) {
-    const line = stripPromptPrefix(raw);
+    const line = T.stripPromptPrefix(raw);
     const trace = T.parseTraceLine(line);
     if (trace) {
       if (serial.onTrace) serial.onTrace(trace);
       return;
     }
-    if (serial.pending && line.trim() !== '') {
-      serial.pending.seen = true;
-      if (line !== serial.pending.cmd) serial.lines.push(line);
+    const p = serial.pending;
+    if (p) {
+      if (!p.seen) {
+        if (T.isEcho(line, p.cmd)) p.seen = true;
+      } else if (line.trim() !== '') {
+        serial.lines.push(line);
+      }
     }
     if (serial.onLog) serial.onLog(line);
   }
@@ -324,16 +325,16 @@
     serial.lines = [];
     p.timer = setTimeout(() => {
       if (serial.pending === p) finishPending(new Error('タイムアウト: ' + p.cmd));
-    }, CMD_TIMEOUT_MS);
+    }, p.timeoutMs);
     serial.writer.write(new TextEncoder().encode(p.cmd + '\r\n')).catch((e) => {
       if (serial.pending === p) finishPending(new Error('送信失敗: ' + errText(e)));
     });
   }
 
-  function send(cmd) {
+  function send(cmd, timeoutMs) {
     return new Promise((resolve, reject) => {
       if (!isConnected()) return reject(new Error('未接続です: ' + cmd));
-      serial.queue.push({ cmd, resolve, reject, timer: null, seen: false });
+      serial.queue.push({ cmd, resolve, reject, timer: null, seen: false, timeoutMs: timeoutMs || CMD_TIMEOUT_MS });
       pump();
     });
   }
@@ -376,17 +377,21 @@
       serial.loopDone.then(() => { if (serial.port === port) disconnect('デバイスとの接続が切れました', true); });
       await new Promise((r) => setTimeout(r, SETTLE_MS));
       serial.buffer = '';
-      await send('tp trace off');
       let info = null;
-      for (let attempt = 0; attempt < 2 && !info; attempt++) {
-        const before = performance.now();
-        const infoLines = await send('tp info');
-        const after = performance.now();
-        info = infoLines.map(T.parseInfoLine).find(Boolean);
-        if (info) clock.offset = T.clockOffset(before, after, info.uptimeMs);
+      try {
+        await send('tp trace off', PROBE_TIMEOUT_MS);
+        for (let attempt = 0; attempt < 2 && !info; attempt++) {
+          const before = performance.now();
+          const infoLines = await send('tp info', PROBE_TIMEOUT_MS);
+          const after = performance.now();
+          info = infoLines.map(T.parseInfoLine).find(Boolean);
+          if (info) clock.offset = T.clockOffset(before, after, info.uptimeMs);
+        }
+      } catch (e) {
+        log('接続確認に失敗: ' + errText(e));
       }
-      if (!info) throw new Error('tp info に応答がありません。もう一方のポートを選んでください');
-      $('info').textContent = `${info.side === 'central' ? '左(central)' : '右(peripheral)'} uptime=${(info.uptimeMs / 1000).toFixed(1)}s params=${info.params}`;
+      if (!info) throw new Error('このポートは tp コマンドに応答しません。もう一方のポートを選んでください');
+      $('info').textContent = `${info.side === 'central' ? '右(central)' : '左(peripheral)'} uptime=${(info.uptimeMs / 1000).toFixed(1)}s params=${info.params}`;
       setConnectedUi(true);
       setStatus('接続しました');
       await loadParams();
@@ -522,11 +527,13 @@
     return document.querySelector(`.param[data-name="${p.name}"]`);
   }
 
-  function syncRow(row, p) {
+  function syncRow(row, p, opts) {
     if (!row) return;
+    const force = !!(opts && opts.force);
     row.classList.toggle('changed', p.value !== p.def);
     const inputs = row.querySelectorAll('input');
     for (const el of inputs) {
+      if (!force && el === document.activeElement) continue;
       if (el.type === 'checkbox') el.checked = !!p.value;
       else el.value = p.value;
     }
@@ -548,12 +555,14 @@
         syncRow(row, p);
         updateConfPreview();
       } else {
+        syncRow(row, p, { force: true });
         setStatus(`${p.name}: ${lines.join(' ') || '応答なし'}`, true);
       }
       log(lines.join('\n'));
       return ok;
     } catch (e) {
       if (row) row.classList.add('error');
+      syncRow(row, p, { force: true });
       setStatus(errText(e), true);
       return false;
     }
@@ -739,7 +748,7 @@
   function runDiagnostics() {
     const items = [];
     for (const d of T.detectDrops(rec.fw)) items.push({ t: d.t, msg: `input_report が ${d.kind} ${d.code} を捨てた` });
-    for (const d of T.detectStuckButton(rec.fw, rec.hostBtn, { holdMs: 300 })) items.push({ t: d.t, msg: `ドライバは離したがホストのボタン(${d.code})が押されたまま` });
+    for (const d of T.detectStuckButton(rec.fw, rec.hostBtn, { holdMs: 300, now: performance.now() })) items.push({ t: d.t, msg: `ドライバは離したがホストのボタン(${d.code})が押されたまま` });
     for (const d of T.detectMissingWheel(rec.fw, rec.hostWheel, { windowMs: 200 })) items.push({ t: d.t, msg: 'ドライバは wheel を送ったがホストに届いていない' });
     for (const d of T.detectTwoFingerNoScroll(rec.frames, rec.fw, { minMove: 30, windowMs: 200 })) items.push({ t: d.t, msg: '2本指で動いているがドライバが wheel を出していない' });
     return items.sort((a, b) => a.t - b.t);

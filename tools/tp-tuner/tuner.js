@@ -4,7 +4,8 @@
   const BTN = { 0: 0x110, 1: 0x111, 2: 0x112, 7: 0x117 };
   const REL = { X: 0, Y: 1, HWHEEL: 6, WHEEL: 8 };
   const CONF_PREFIX = 'CONFIG_INPUT_IQS9151_';
-  const ANSI_RE = /\x1b\[[0-9;?]*[ -/]*[@-~]/g;
+  const ANSI_RE = /\x1b(\[[0-9;?]*[ -/]*[@-~]|[0-Z\\-~])/g;
+  const PROMPT_PREFIX_RE = /^[^\s$]*:~\$ /;
 
   function stripAnsi(text) {
     return text.replace(ANSI_RE, '');
@@ -12,6 +13,16 @@
 
   function isPrompt(text) {
     return /\$ $/.test(text);
+  }
+
+  function stripPromptPrefix(line) {
+    return line.replace(PROMPT_PREFIX_RE, '');
+  }
+
+  function isEcho(line, cmd) {
+    if (!cmd) return false;
+    const s = stripPromptPrefix(line).trim();
+    return s === cmd || s.endsWith(cmd);
   }
 
   function parseListLine(line) {
@@ -97,6 +108,7 @@
 
   function detectStuckButton(fwEvents, hostButtonSamples, opts) {
     const holdMs = (opts && opts.holdMs) || 300;
+    const now = opts && typeof opts.now === 'number' ? opts.now : null;
     const out = [];
     const keys = fwEvents.filter((e) => e.type === 'E' && e.kind === 'K');
     for (let i = 0; i < keys.length; i++) {
@@ -106,6 +118,7 @@
       if (!bit) continue;
       const nextPress = keys.slice(i + 1).find((k) => k.code === e.code && k.value === 1);
       const checkT = e.t + holdMs;
+      if (now !== null && checkT > now) continue;
       if (nextPress && nextPress.t <= checkT) continue;
       if (hostButtonsAt(hostButtonSamples, checkT) & bit) {
         out.push({ t: e.t, code: e.code });
@@ -159,7 +172,7 @@
   }
 
   const api = {
-    BTN, REL, stripAnsi, isPrompt, parseListLine, parseInfoLine, parseTraceLine,
+    BTN, REL, stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
     clockOffset, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
   };
