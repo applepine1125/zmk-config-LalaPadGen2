@@ -261,18 +261,17 @@
     return runs;
   }
 
-  function describeAttempt(attempt, fwEvents, host, params, opts) {
+  function observeAttempt(attempt, fwEvents, host, opts) {
     const tailMs = (opts && opts.tailMs) || 500;
-    const P = (name) => paramValue(params, name);
     const start = attempt.start;
     const end = attempt.end;
     const windowEnd = end + tailMs;
     const touches = touchRuns(attempt.frames).map((r) => ({
-      start: r.start, end: r.end, downMs: r.downMs, moveSum: r.moveSum, fingersMax: r.fingersMax, frames: r.frames,
+      start: r.start, end: r.end, downMs: r.downMs, moveSum: r.moveSum, fingersMax: r.fingersMax,
+      holds: [...new Set(r.frames.map((f) => f.hold).filter((h) => h > 0))],
     }));
     const first = touches[0];
     const second = touches[1];
-    const last = touches[touches.length - 1];
     const fingersMax = touches.reduce((m, t) => Math.max(m, t.fingersMax), 0);
     const moveSum = touches.reduce((s, t) => s + t.moveSum, 0);
     const twoFingerFrames = attempt.frames.filter((f) => f.fingers === 2);
@@ -287,161 +286,218 @@
     const mode2fSeen = [...new Set(attempt.frames.map((f) => f.mode2f).filter((m) => m > 0))].sort();
 
     const ev = (fwEvents || []).filter((e) => e.type === 'E' && e.t >= start && e.t <= windowEnd);
-    const keys = ev.filter((e) => e.kind === 'K');
+    const keys = ev.filter((e) => e.kind === 'K').map((e) => ({ t: e.t, code: e.code, value: e.value }));
     const buttonsPressed = [...new Set(keys.filter((k) => k.value !== 0).map((k) => k.code))];
     const buttonsReleased = [...new Set(keys.filter((k) => k.value === 0).map((k) => k.code))];
     const wheels = ev.filter((e) => e.kind === 'R' && (e.code === REL.WHEEL || e.code === REL.HWHEEL));
     const wheel = { count: wheels.length, sum: wheels.reduce((s, w) => s + w.value, 0) };
 
     const hostBtn = (host && host.btn) || [];
-    const hostDown = [];
-    const hostUp = [];
+    const down = [];
+    const up = [];
     let prev = hostButtonsAt(hostBtn, start);
     for (const s of hostBtn) {
       if (s.t <= start || s.t > windowEnd) continue;
       for (const bit of [1, 2, 4]) {
-        if ((s.buttons & bit) && !(prev & bit) && !hostDown.includes(bit)) hostDown.push(bit);
-        if (!(s.buttons & bit) && (prev & bit) && !hostUp.includes(bit)) hostUp.push(bit);
+        if ((s.buttons & bit) && !(prev & bit) && !down.includes(bit)) down.push(bit);
+        if (!(s.buttons & bit) && (prev & bit) && !up.includes(bit)) up.push(bit);
       }
       prev = s.buttons;
     }
     const inWindow = (x) => x.t >= start && x.t <= windowEnd;
-    const hostMoveCount = ((host && host.move) || []).filter(inWindow).length;
-    const hostWheelCount = ((host && host.wheel) || []).filter(inWindow).length;
+    const moveCount = ((host && host.move) || []).filter(inWindow).length;
+    const wheelCount = ((host && host.wheel) || []).filter(inWindow).length;
     const hostAtEnd = hostButtonsAt(hostBtn, windowEnd);
     const stuckBits = buttonsReleased.map(hostBitForCode).filter((bit) => bit && (hostAtEnd & bit));
 
-    let kind = 'unknown';
-    if (!first) {
-      kind = 'unknown';
-    } else if (fingersMax >= 3) {
-      kind = buttonsPressed.includes(BTN[2]) || first.moveSum <= 2 * P('3f_tap_move') ? 'tap3' : 'move';
-    } else if (fingersMax === 2) {
-      if (mode2fSeen.includes(2)) kind = 'pinch';
-      else if (mode2fSeen.includes(1) || wheel.count > 0) kind = 'scroll2';
-      else if (buttonsPressed.includes(BTN[1])) kind = 'tap2';
-      else if (distDelta > 0 && distDelta >= moveSum2) kind = 'pinch';
-      else if (first.downMs > P('2f_tap_max_ms') || first.moveSum > P('2f_tap_move')) kind = 'scroll2';
-      else kind = 'tap2';
-    } else if (second && second.moveSum > P('1f_tap_move')) {
-      kind = 'tapdrag';
-    } else if (buttonsPressed.includes(BTN[0]) || first.moveSum <= 2 * P('1f_tap_move')) {
-      kind = 'tap1';
-    } else {
-      kind = 'move';
-    }
-
-    const reasons = [];
-    const suggest = [];
-    let verdict = 'fail';
-
-    const tapFailReasons = (prefix, tch) => {
-      const maxMs = P(prefix + '_tap_max_ms');
-      const maxMove = P(prefix + '_tap_move');
-      if (tch.downMs > maxMs) {
-        reasons.push(`押下 ${tch.downMs}ms > ${prefix}_tap_max_ms=${maxMs}`);
-        suggest.push({ name: prefix + '_tap_max_ms', delta: 50 });
-      }
-      if (tch.moveSum > maxMove) {
-        reasons.push(`移動 ${tch.moveSum} > ${prefix}_tap_move=${maxMove}`);
-        suggest.push({ name: prefix + '_tap_move', delta: 10 });
-      }
-      if (reasons.length === 0) {
-        reasons.push(`押下 ${tch.downMs}ms・移動 ${tch.moveSum} は範囲内だがボタン報告なし(${prefix}_tap_enable を確認)`);
-      }
-    };
-    const judgeTap = (prefix, code, bit) => {
-      const label = BTN_NAMES[code];
-      if (!buttonsPressed.includes(code)) { tapFailReasons(prefix, first); return 'fail'; }
-      if (!buttonsReleased.includes(code)) { reasons.push(`ドライバが${label}ボタンを離していない`); return 'fail'; }
-      if (stuckBits.includes(bit)) { reasons.push(`ホストで${label}ボタンが押されたまま(タップ後ドラッグ残り)`); return 'fail'; }
-      if (!hostDown.includes(bit) || !hostUp.includes(bit)) {
-        reasons.push(`ホスト側で${label}ボタンが観測されていない(テストモード中か・出力先が USB か確認)`);
-        return 'partial';
-      }
-      return 'pass';
-    };
-
-    let gapMs = null;
-    if (kind === 'tap1') verdict = judgeTap('1f', BTN[0], 1);
-    else if (kind === 'tap2') verdict = judgeTap('2f', BTN[1], 2);
-    else if (kind === 'tap3') verdict = judgeTap('3f', BTN[2], 4);
-    else if (kind === 'tapdrag') {
-      const gapMax = P('1f_tapdrag_gap_max_ms');
-      gapMs = second.start - first.end;
-      const press = keys.find((k) => k.code === BTN[0] && k.value !== 0);
-      const releasedBefore2 = keys.find((k) => k.code === BTN[0] && k.value === 0 && k.t < second.start);
-      const holdIn2 = second.frames.some((f) => f.hold === BTN[0]);
-      const releasedAfter = keys.find((k) => k.code === BTN[0] && k.value === 0 && k.t >= last.end - 30);
-      if (!press) {
-        tapFailReasons('1f', first);
-      } else if (releasedBefore2) {
-        if (gapMs > gapMax) {
-          reasons.push(`2 回目の接触が 1f_tapdrag_gap_max_ms=${gapMax} より遅い(実測 ${gapMs}ms)`);
-          suggest.push({ name: '1f_tapdrag_gap_max_ms', delta: 40 });
-        } else {
-          reasons.push(`2 回目の接触前(実測 gap ${gapMs}ms)にドライバが左ボタンを離した`);
-        }
-      } else if (!holdIn2) {
-        reasons.push('2 回目の接触中にボタン保持(hold=272)が見られない');
-      } else if (!releasedAfter) {
-        reasons.push('ドラッグ終了後もドライバが左ボタンを離していない');
-      } else if (stuckBits.includes(1)) {
-        reasons.push('ホストで左ボタンが押されたまま(タップ後ドラッグ残り)');
-      } else if (!hostDown.includes(1) || hostMoveCount === 0 || !hostUp.includes(1)) {
-        reasons.push('ホスト側で down→move→up が揃っていない(テストモード中か・出力先が USB か確認)');
-        verdict = 'partial';
-      } else {
-        verdict = 'pass';
-      }
-    } else if (kind === 'scroll2') {
-      if (!mode2fSeen.includes(1)) {
-        const startMove = P('2f_scroll_start_move');
-        if (moveSum2 < startMove) {
-          reasons.push(`2 本指移動量 ${moveSum2} < 2f_scroll_start_move=${startMove}`);
-          suggest.push({ name: '2f_scroll_start_move', delta: -5 });
-        } else {
-          reasons.push(`2 本指移動量 ${moveSum2} はあるがスクロール判定なし(scroll_x_enable / scroll_y_enable を確認)`);
-        }
-      } else if (wheel.count === 0) {
-        reasons.push('スクロール判定はあるが wheel 報告なし');
-      } else if (hostWheelCount === 0) {
-        reasons.push('wheel がホストに届いていない');
-      } else {
-        verdict = 'pass';
-      }
-    } else if (kind === 'pinch') {
-      if (!mode2fSeen.includes(2)) {
-        const startDist = P('2f_pinch_start_distance');
-        if (distDelta < startDist) {
-          reasons.push(`距離変化 ${distDelta} < 2f_pinch_start_distance=${startDist}`);
-          suggest.push({ name: '2f_pinch_start_distance', delta: -10 });
-        } else {
-          reasons.push(`距離変化 ${distDelta} はあるがピンチ判定なし(2f_pinch_enable を確認)`);
-        }
-      } else if (!buttonsPressed.includes(BTN[7])) {
-        reasons.push('ピンチ判定はあるが BTN_7(279) の報告なし');
-        verdict = 'partial';
-      } else {
-        verdict = 'pass';
-      }
-    } else {
-      verdict = 'partial';
-    }
-
     return {
-      kind,
-      start,
-      end,
-      touches: touches.map((t) => ({ start: t.start, end: t.end, downMs: t.downMs, moveSum: t.moveSum })),
-      fw: {
-        fingersMax, downMs: first ? first.downMs : 0, moveSum, gapMs, distDelta,
-        buttonsPressed, buttonsReleased, wheel, mode2fSeen, stuck: stuckBits.length > 0,
-      },
-      host: { down: hostDown, up: hostUp, moveCount: hostMoveCount, wheelCount: hostWheelCount },
-      verdict,
-      reasons,
-      suggest,
+      start, end, windowEnd, touches, fingersMax,
+      downMs: first ? first.downMs : 0, moveSum,
+      gapMs: second ? second.start - first.end : null,
+      moveSum2, distDelta, mode2fSeen, keys, buttonsPressed, buttonsReleased, wheel,
+      host: { down, up, moveCount, wheelCount, stuckBits },
+    };
+  }
+
+  function inferKind(o, params) {
+    const P = (name) => paramValue(params, name);
+    const first = o.touches[0];
+    const second = o.touches[1];
+    if (!first) return 'unknown';
+    if (o.fingersMax >= 3) {
+      return o.buttonsPressed.includes(BTN[2]) || first.moveSum <= 2 * P('3f_tap_move') ? 'tap3' : 'move';
+    }
+    if (o.fingersMax === 2) {
+      if (o.mode2fSeen.includes(2)) return 'pinch';
+      if (o.mode2fSeen.includes(1) || o.wheel.count > 0) return 'scroll2';
+      if (o.buttonsPressed.includes(BTN[1])) return 'tap2';
+      if (o.distDelta > 0 && o.distDelta >= o.moveSum2) return 'pinch';
+      if (first.downMs > P('2f_tap_max_ms') || first.moveSum > P('2f_tap_move')) return 'scroll2';
+      return 'tap2';
+    }
+    if (second && second.moveSum > P('1f_tap_move')) return 'tapdrag';
+    if (o.buttonsPressed.includes(BTN[0]) || first.moveSum <= 2 * P('1f_tap_move')) return 'tap1';
+    return 'move';
+  }
+
+  const HOST_CHECK = '(テストモード中か・出力先が USB か確認)';
+
+  function fingersStage(o, n) {
+    if (!o.touches.length) return { ok: false, detail: '接触なし', stop: true };
+    if (o.fingersMax !== n) return { ok: false, detail: `指 ${o.fingersMax} 本で認識されました`, stop: true };
+    return { ok: true, detail: `指 ${n} 本` };
+  }
+
+  function atMost(actual, name, max, unit, delta) {
+    if (actual <= max) return { ok: true, detail: `実測 ${actual}${unit}` };
+    return { ok: false, detail: `実測 ${actual}${unit} > ${name}=${max}`, suggest: [{ name, delta }] };
+  }
+
+  function pressedStage(o, code, hint) {
+    if (o.buttonsPressed.includes(code)) return { ok: true, detail: `K${code} 1 の報告あり` };
+    return { ok: false, detail: `K${code} 1 の報告なし` + (hint ? `(${hint})` : '') };
+  }
+
+  function releasedStage(o, code) {
+    if (o.buttonsReleased.includes(code)) return { ok: true, detail: `K${code} 0 の報告あり` };
+    return { ok: false, detail: `K${code} 0 の報告なし(ドライバが離していない)` };
+  }
+
+  function hostClickStage(o, bit, label) {
+    if (o.host.stuckBits.includes(bit)) return { ok: false, detail: `ホストで${label}ボタンが押されたまま(タップ後ドラッグ残り)` };
+    if (o.host.down.includes(bit) && o.host.up.includes(bit)) return { ok: true, detail: 'down→up' };
+    return { ok: false, host: true, detail: `ホスト側で${label}ボタンが観測されていない${HOST_CHECK}` };
+  }
+
+  function tapStages(prefix, n, code, bit, click) {
+    const label = BTN_NAMES[code];
+    const maxMsName = `${prefix}_tap_max_ms`;
+    const maxMoveName = `${prefix}_tap_move`;
+    return [
+      { label: () => `指 ${n} 本で接触`, eval: (o) => fingersStage(o, n) },
+      { label: (P) => `押下時間 ≤ ${maxMsName}(${P(maxMsName)}ms)`, eval: (o, P) => atMost(o.touches[0].downMs, maxMsName, P(maxMsName), 'ms', 50) },
+      { label: (P) => `移動量 ≤ ${maxMoveName}(${P(maxMoveName)})`, eval: (o, P) => atMost(o.touches[0].moveSum, maxMoveName, P(maxMoveName), '', 10) },
+      { label: () => `ドライバが${label}ボタンを押した(K${code} 1)`,
+        eval: (o, P, st) => pressedStage(o, code, st[1].ok && st[2].ok ? `${prefix}_tap_enable を確認` : '') },
+      { label: () => `離した(K${code} 0)`, eval: (o, P, st) => (st[3].ok ? releasedStage(o, code) : null) },
+      { label: () => `ホストが${click}を受けた(down→up)`, eval: (o, P, st) => (st[3].ok ? hostClickStage(o, bit, label) : null) },
+    ];
+  }
+
+  const TAPDRAG_STAGES = [
+    { label: (P) => `1 本目の接触がタップ条件を満たす(押下 ≤ 1f_tap_max_ms(${P('1f_tap_max_ms')}ms)、移動 ≤ 1f_tap_move(${P('1f_tap_move')}))`,
+      eval: (o, P) => {
+        const f = fingersStage(o, 1);
+        if (!f.ok) return f;
+        const t = o.touches[0];
+        const bad = [];
+        const suggest = [];
+        if (t.downMs > P('1f_tap_max_ms')) { bad.push(`押下 ${t.downMs}ms > 1f_tap_max_ms=${P('1f_tap_max_ms')}`); suggest.push({ name: '1f_tap_max_ms', delta: 50 }); }
+        if (t.moveSum > P('1f_tap_move')) { bad.push(`移動 ${t.moveSum} > 1f_tap_move=${P('1f_tap_move')}`); suggest.push({ name: '1f_tap_move', delta: 10 }); }
+        if (bad.length) return { ok: false, detail: bad.join('、'), suggest };
+        return { ok: true, detail: `押下 ${t.downMs}ms 移動 ${t.moveSum}` };
+      } },
+    { label: () => 'ドライバが左ボタンを押した(K272 1)', eval: (o, P, st) => pressedStage(o, BTN[0], st[0].ok ? '1f_tap_enable を確認' : '') },
+    { label: (P) => `2 本目の接触が 1f_tapdrag_gap_max_ms(${P('1f_tapdrag_gap_max_ms')}ms)以内`,
+      eval: (o, P) => {
+        if (!o.touches[1]) return { ok: false, detail: '2 本目の接触なし' };
+        return atMost(o.gapMs, '1f_tapdrag_gap_max_ms', P('1f_tapdrag_gap_max_ms'), 'ms', 40);
+      } },
+    { label: () => '2 本目の接触中も押したまま(hold=272)で移動あり',
+      eval: (o) => {
+        const second = o.touches[1];
+        if (!second) return null;
+        if (!second.holds.includes(BTN[0])) {
+          const releasedBefore = o.keys.some((k) => k.code === BTN[0] && k.value === 0 && k.t < second.start);
+          return { ok: false, detail: releasedBefore ? `2 本目の接触前(間隔 ${o.gapMs}ms)にドライバが左ボタンを離した` : 'hold=272 のフレームなし' };
+        }
+        if (second.moveSum === 0) return { ok: false, detail: 'hold=272 はあるが移動なし' };
+        return { ok: true, detail: `hold=272 あり、移動 ${second.moveSum}` };
+      } },
+    { label: () => '離したら左ボタン離し(K272 0)',
+      eval: (o, P, st) => {
+        if (!st[1].ok) return null;
+        const last = o.touches[o.touches.length - 1];
+        const released = o.keys.some((k) => k.code === BTN[0] && k.value === 0 && k.t >= last.end - 30);
+        return released ? { ok: true, detail: 'K272 0 の報告あり' } : { ok: false, detail: 'ドラッグ終了後もドライバが左ボタンを離していない' };
+      } },
+    { label: () => 'ホストで down→move→up',
+      eval: (o, P, st) => {
+        if (!st[1].ok) return null;
+        const h = o.host;
+        if (h.stuckBits.includes(1)) return { ok: false, detail: 'ホストで左ボタンが押されたまま(タップ後ドラッグ残り)' };
+        if (h.down.includes(1) && h.moveCount > 0 && h.up.includes(1)) return { ok: true, detail: `down→move ${h.moveCount} 回→up` };
+        return { ok: false, host: true, detail: `down ${h.down.includes(1) ? 'あり' : 'なし'} / move ${h.moveCount} 回 / up ${h.up.includes(1) ? 'あり' : 'なし'}${HOST_CHECK}` };
+      } },
+  ];
+
+  const SCROLL2_STAGES = [
+    { label: () => '指 2 本で接触', eval: (o) => fingersStage(o, 2) },
+    { label: (P) => `移動量が 2f_scroll_start_move(${P('2f_scroll_start_move')})を超えてスクロール判定(mode2f=1)`,
+      eval: (o, P) => {
+        if (o.mode2fSeen.includes(1)) return { ok: true, detail: `2 本指移動量 ${o.moveSum2}、スクロール判定あり` };
+        const startMove = P('2f_scroll_start_move');
+        if (o.moveSum2 < startMove) return { ok: false, detail: `2 本指移動量 ${o.moveSum2} < 2f_scroll_start_move=${startMove}`, suggest: [{ name: '2f_scroll_start_move', delta: -5 }] };
+        return { ok: false, detail: `2 本指移動量 ${o.moveSum2} はあるがスクロール判定なし(scroll_x_enable / scroll_y_enable を確認)` };
+      } },
+    { label: () => 'wheel 報告あり(R8 / R6)', eval: (o) => (o.wheel.count > 0 ? { ok: true, detail: `wheel ${o.wheel.count} 回` } : { ok: false, detail: 'wheel 報告なし' }) },
+    { label: () => 'ホストが wheel を受けた',
+      eval: (o, P, st) => {
+        if (!st[2].ok) return null;
+        if (o.host.wheelCount > 0) return { ok: true, detail: `wheel ${o.host.wheelCount} 回` };
+        return { ok: false, host: true, detail: `wheel がホストに届いていない${HOST_CHECK}` };
+      } },
+  ];
+
+  const PINCH_STAGES = [
+    { label: () => '指 2 本で接触', eval: (o) => fingersStage(o, 2) },
+    { label: (P) => `距離変化が 2f_pinch_start_distance(${P('2f_pinch_start_distance')})を超えてピンチ判定(mode2f=2)`,
+      eval: (o, P) => {
+        if (o.mode2fSeen.includes(2)) return { ok: true, detail: `距離変化 ${o.distDelta}、ピンチ判定あり` };
+        const startDist = P('2f_pinch_start_distance');
+        if (o.distDelta < startDist) return { ok: false, detail: `距離変化 ${o.distDelta} < 2f_pinch_start_distance=${startDist}`, suggest: [{ name: '2f_pinch_start_distance', delta: -10 }] };
+        return { ok: false, detail: `距離変化 ${o.distDelta} はあるがピンチ判定なし(2f_pinch_enable を確認)` };
+      } },
+    { label: () => 'BTN_7 押し(K279 1)', eval: (o, P, st) => (st[1].ok ? pressedStage(o, BTN[7], '') : null) },
+  ];
+
+  const STAGE_SPECS = {
+    tap1: tapStages('1f', 1, BTN[0], 1, '左クリック'),
+    tapdrag: TAPDRAG_STAGES,
+    scroll2: SCROLL2_STAGES,
+    tap2: tapStages('2f', 2, BTN[1], 2, '右クリック'),
+    pinch: PINCH_STAGES,
+    tap3: tapStages('3f', 3, BTN[2], 4, '中クリック'),
+  };
+
+  function judgeAttempt(kind, o, params) {
+    const spec = STAGE_SPECS[kind];
+    if (!spec) return null;
+    const P = (name) => paramValue(params, name);
+    const stages = [];
+    let stop = false;
+    for (const s of spec) {
+      const st = { label: s.label(P), ok: null, detail: '', host: false, suggest: [] };
+      if (o && !stop) {
+        const r = s.eval(o, P, stages);
+        if (r) {
+          st.ok = r.ok;
+          st.detail = r.detail || '';
+          st.host = !!r.host;
+          st.suggest = r.suggest || [];
+          if (r.stop) stop = true;
+        }
+      }
+      stages.push(st);
+    }
+    const failIndex = o ? stages.findIndex((s) => s.ok !== true) : -1;
+    const fail = failIndex >= 0 ? stages[failIndex] : null;
+    let verdict = 'none';
+    if (o) verdict = !fail ? 'pass' : fail.host ? 'partial' : 'fail';
+    return {
+      kind, stages, verdict, failIndex,
+      reason: fail ? `${fail.label}: ${fail.detail}` : '',
+      suggest: fail ? fail.suggest : [],
     };
   }
 
@@ -462,52 +518,38 @@
     return `${n} ${moving ? '移動中' : '接触中'}`;
   }
 
+
   const HOST_BIT_NAMES = { 1: '左', 2: '右', 4: '中' };
 
-  function attemptTexts(d) {
-    const g = GESTURES.find((x) => x.kind === d.kind);
-    const title = g ? g.title : (d.kind === 'move' ? '移動' : '不明');
-    const btnText = (code) => {
-      const label = BTN_NAMES[code] || String(code);
-      if (d.fw.buttonsPressed.includes(code)) {
-        return `${label}ボタン ` + (d.fw.buttonsReleased.includes(code) ? '押し→離し' : '押し(離しなし)');
-      }
-      return 'ボタン報告なし';
-    };
-    let core;
-    let fw;
-    if (d.kind === 'tapdrag') {
-      const t1 = d.touches[0];
-      const t2 = d.touches[1];
-      core = `タップ ${t1.downMs}ms → 間隔 ${d.fw.gapMs}ms → ドラッグ 移動 ${t2 ? t2.moveSum : 0}`;
-      fw = `${core} → ${btnText(BTN[0])}`;
-    } else if (d.kind === 'scroll2') {
-      core = `2 本指 押下 ${d.fw.downMs}ms 移動 ${d.fw.moveSum}`;
-      fw = `${core} → ${d.fw.mode2fSeen.includes(1) ? 'スクロール判定' : 'スクロール判定なし'}、wheel ${d.fw.wheel.count} 回`;
-    } else if (d.kind === 'pinch') {
-      core = `2 本指 距離変化 ${d.fw.distDelta}`;
-      fw = `${core} → ${d.fw.mode2fSeen.includes(2) ? 'ピンチ判定' : 'ピンチ判定なし'}` + (d.fw.buttonsPressed.includes(BTN[7]) ? ' + BTN_7' : '');
-    } else if (d.kind === 'tap1' || d.kind === 'tap2' || d.kind === 'tap3') {
-      const code = d.kind === 'tap1' ? BTN[0] : d.kind === 'tap2' ? BTN[1] : BTN[2];
-      core = `押下 ${d.fw.downMs}ms 移動 ${d.fw.moveSum}`;
-      fw = `${core} → ${btnText(code)}`;
+  function observationText(o) {
+    const first = o.touches[0];
+    if (!first) return '接触なし';
+    const parts = [`指 ${o.fingersMax} 本`, `押下 ${first.downMs}ms`, `移動 ${first.moveSum}`];
+    const second = o.touches[1];
+    if (second) parts.push(`2 本目 間隔 ${o.gapMs}ms 移動 ${second.moveSum}`);
+    if (o.mode2fSeen.includes(1)) parts.push(`スクロール判定 wheel ${o.wheel.count} 回`);
+    if (o.mode2fSeen.includes(2)) parts.push(`ピンチ判定 距離変化 ${o.distDelta}`);
+    if (o.buttonsPressed.length === 0) {
+      parts.push('ボタン報告なし');
     } else {
-      core = `指 ${d.fw.fingersMax} 本 押下 ${d.fw.downMs}ms 移動 ${d.fw.moveSum}`;
-      fw = `${core}(カード対象外)`;
+      for (const code of o.buttonsPressed) {
+        const label = BTN_NAMES[code] ? `(${BTN_NAMES[code]})` : '';
+        parts.push(`ボタン ${code}${label} ` + (o.buttonsReleased.includes(code) ? '押→離' : '押(離しなし)'));
+      }
     }
+    return parts.join(' / ');
+  }
+
+  function hostText(o) {
     const parts = [];
     for (const bit of [1, 2, 4]) {
-      if (d.host.down.includes(bit)) {
-        parts.push(`${HOST_BIT_NAMES[bit]}クリック(` + (d.host.up.includes(bit) ? 'down→up)' : 'down のみ、up なし)'));
+      if (o.host.down.includes(bit)) {
+        parts.push(`${HOST_BIT_NAMES[bit]}クリック(` + (o.host.up.includes(bit) ? 'down→up)' : 'down のみ、up なし)'));
       }
     }
-    if (d.host.moveCount > 0) parts.push(`移動 ${d.host.moveCount} 回`);
-    if (d.host.wheelCount > 0) parts.push(`wheel ${d.host.wheelCount} 回`);
-    const host = parts.length ? parts.join('、') : 'ホスト側の受信なし';
-    const badge = d.verdict === 'pass' ? '✔' : d.verdict === 'fail' ? '✘' : '△';
-    const result = d.verdict === 'pass' && g ? g.expect : (d.reasons[0] || host);
-    const oneLine = `${title}: ${core} → ${result} ${badge}`;
-    return { title, fw, host, oneLine };
+    if (o.host.moveCount > 0) parts.push(`移動 ${o.host.moveCount} 回`);
+    if (o.host.wheelCount > 0) parts.push(`wheel ${o.host.wheelCount} 回`);
+    return parts.length ? parts.join('、') : 'ホスト側の受信なし';
   }
 
   const api = {
@@ -515,7 +557,8 @@
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
     clockOffset, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
-    paramValue, stepParam, segmentAttempts, describeAttempt, describeState, attemptTexts,
+    paramValue, stepParam, segmentAttempts, observeAttempt, inferKind, judgeAttempt, describeState,
+    observationText, hostText,
   };
   root.TpTuner = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
