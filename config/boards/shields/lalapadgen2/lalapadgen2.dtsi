@@ -28,6 +28,8 @@
 / {
     chosen {
         zmk,physical-layout = &lalapadgen2_physical_layout;
+        // tools/tp-tuner 用シェル(USB CDC)。右手は Studio 用 CDC と合わせて 2 ポートになる
+        zephyr,shell-uart = &tp_shell_uart;
     };
 
     default_transform: keymap_transform_0 {
@@ -294,4 +296,11 @@ status = "okay";
     lock-duration-ms = <200>;
     lock-for-next-n-events = <10>;
     idle-reset-timeout-ms = <500>;
+};
+
+// tools/tp-tuner 用シェル(USB CDC)
+&zephyr_udc0 {
+    tp_shell_uart: tp_shell_uart {
+        compatible = "zephyr,cdc-acm-uart";
+    };
 };
