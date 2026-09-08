@@ -52,12 +52,59 @@
     white-space: pre-wrap; word-break: break-all; border-radius: 4px;
   }
   #main {
-    display: grid; grid-template-columns: minmax(340px, 5fr) minmax(0, 7fr); gap: 12px; margin-top: 10px;
+    display: grid; grid-template-columns: minmax(340px, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 10px;
+    align-items: start;
   }
   @media (max-width: 900px) { #main { grid-template-columns: minmax(0, 1fr); } }
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 10px; min-width: 0; }
-  #left { max-height: calc(100vh - 120px); overflow-y: auto; }
-  #left .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  #stage { position: sticky; top: 10px; }
+  @media (max-width: 900px) { #stage { position: static; } }
+  #pad {
+    position: relative; height: 360px; border: 2px dashed var(--border); border-radius: 8px; background: #f3f4f6;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    user-select: none; touch-action: none; cursor: crosshair; text-align: center; padding: 12px;
+  }
+  #pad:hover { border-color: var(--accent); }
+  #pad.testing { border-style: solid; border-color: var(--accent); background: #eff6ff; }
+  #padState { font-size: 28px; font-weight: 700; color: var(--muted); line-height: 1.3; }
+  #padState.active { color: var(--accent); }
+  #padHint { color: var(--muted); font-size: 12px; max-width: 380px; }
+  #lastAttempt { margin-top: 8px; font-size: 13px; min-height: 20px; }
+  #lastAttempt.pass { color: #166534; }
+  #lastAttempt.fail { color: var(--danger); }
+  #cards { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+  .card {
+    background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--border);
+    border-radius: 6px; padding: 8px 10px; min-width: 0;
+  }
+  .card.pass { border-left-color: #16a34a; }
+  .card.fail { border-left-color: var(--danger); }
+  .card.partial { border-left-color: #f59e0b; }
+  .card .head { display: flex; align-items: center; gap: 8px; }
+  .card .head h3 { margin: 0; font-size: 14px; flex: 1; }
+  .card .hist { font-size: 12px; letter-spacing: 2px; }
+  .card .hist .pass { color: #16a34a; }
+  .card .hist .fail { color: var(--danger); }
+  .card .hist .partial { color: #f59e0b; }
+  .badge { font-size: 11px; padding: 1px 8px; border-radius: 10px; background: #e5e7eb; color: var(--muted); white-space: nowrap; }
+  .badge.pass { background: #dcfce7; color: #166534; }
+  .badge.fail { background: #fee2e2; color: #991b1b; }
+  .badge.partial { background: #fef3c7; color: #92400e; }
+  .card .instr { margin: 4px 0 2px; }
+  .card dl { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 2px 8px; margin: 4px 0; font-size: 12px; }
+  .card dt { color: var(--muted); }
+  .card dd { margin: 0; overflow-wrap: anywhere; }
+  .card .reason { color: var(--danger); font-size: 12px; margin: 2px 0; }
+  .card .knobs { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+  .card .knob { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 1px 4px; border-radius: 4px; flex-wrap: wrap; }
+  .card .knob.suggest { background: #fff6cc; }
+  .card .knob code { font-family: ui-monospace, Menlo, monospace; }
+  .card .knob .val { min-width: 48px; }
+  .card .knob button { padding: 1px 8px; font-size: 11px; }
+  details.section { margin-top: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+  details.section > summary { cursor: pointer; font-weight: 600; color: var(--muted); }
+  details.section > .body { padding-top: 8px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
   fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 10px; padding: 6px 8px 4px; }
   legend { font-weight: 600; padding: 0 4px; }
   fieldset > button { margin-bottom: 4px; }
@@ -73,14 +120,7 @@
   .param button { padding: 1px 6px; font-size: 11px; }
   .param.changed { background: #fff6cc; }
   .param.error { background: #ffd6d6; }
-  #right { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
-  #pad {
-    height: 140px; border: 2px dashed var(--border); border-radius: 6px; background: #f3f4f6;
-    display: flex; align-items: center; justify-content: center; color: var(--muted);
-    user-select: none; touch-action: none; cursor: crosshair;
-  }
-  #pad:hover { border-color: var(--accent); }
-  #hoststate { font-family: ui-monospace, Menlo, monospace; font-size: 12px; margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #hoststate { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
   .row .spacer { flex: 1; }
   #timeline { width: 100%; display: block; border: 1px solid var(--border); border-radius: 4px; }
@@ -110,65 +150,74 @@
 </details>
 
 <div id="main">
-  <div id="left" class="panel">
+  <div id="stage" class="panel">
+    <div class="row">
+      <h2 style="margin:0">テストパッド</h2>
+      <span class="spacer"></span>
+      <button id="btnTest" class="primary">テスト開始</button>
+      <button id="btnClear">記録をクリア</button>
+      <button id="btnDummy">ダミーデータ</button>
+    </div>
+    <div id="pad">
+      <div id="padState">待機</div>
+      <div id="padHint">「テスト開始」でカーソルをこの領域に固定し、右のカードの指示どおりに操作する(Esc で終了)</div>
+    </div>
+    <div id="lastAttempt">直近の試行: -</div>
+    <div id="hoststate">buttons=0 move=- wheel=-</div>
+  </div>
+
+  <div id="cards"></div>
+</div>
+
+<details class="section" id="secParams">
+  <summary>パラメータ一覧</summary>
+  <div class="body">
     <div class="toolbar">
-      <h2 style="margin:0">パラメータ</h2>
-      <span class="spacer" style="flex:1"></span>
       <button id="btnReload" disabled>再読込</button>
       <button id="btnResetAll" disabled>すべて既定に戻す</button>
     </div>
     <div id="params"><span class="legend">接続すると tp list の内容がここに表示されます</span></div>
   </div>
+</details>
 
-  <div id="right">
-    <div class="panel">
-      <h2>テストパッド(この領域でジェスチャを行う)</h2>
-      <div id="hoststate">buttons=0 move=- wheel=-</div>
-      <div id="pad">ここでタップ / ドラッグ / スクロールする</div>
+<details class="section" id="secTimeline">
+  <summary>タイムライン・診断</summary>
+  <div class="body">
+    <div class="row">
+      <span class="legend">表示幅</span>
+      <button class="zoom" data-ms="2000">2s</button>
+      <button class="zoom active" data-ms="5000">5s</button>
+      <button class="zoom" data-ms="10000">10s</button>
+      <span class="spacer"></span>
+      <button id="btnPause">一時停止</button>
     </div>
-
-    <div class="panel">
-      <div class="row">
-        <h2 style="margin:0">タイムライン</h2>
-        <span class="legend">表示幅</span>
-        <button class="zoom" data-ms="2000">2s</button>
-        <button class="zoom active" data-ms="5000">5s</button>
-        <button class="zoom" data-ms="10000">10s</button>
-        <span class="spacer"></span>
-        <button id="btnPause">一時停止</button>
-        <button id="btnClear">クリア</button>
-        <button id="btnDummy">ダミーデータ</button>
-      </div>
-      <canvas id="timeline"></canvas>
-      <div class="legend">
-        ボタン: <i style="background:#3b82f6"></i>左 <i style="background:#22c55e"></i>右 <i style="background:#f97316"></i>中
-        <i style="background:#dc2626"></i>wheel / 診断 <i style="background:#111827"></i>REL X,Y / move
-        <span style="color:#dc2626;margin-left:8px">×</span> = input_report がイベントを捨てた
-      </div>
+    <canvas id="timeline"></canvas>
+    <div class="legend">
+      ボタン: <i style="background:#3b82f6"></i>左 <i style="background:#22c55e"></i>右 <i style="background:#f97316"></i>中
+      <i style="background:#dc2626"></i>wheel / 診断 <i style="background:#111827"></i>REL X,Y / move
+      <span style="color:#dc2626;margin-left:8px">×</span> = input_report がイベントを捨てた
     </div>
+    <h2 style="margin-top:10px">診断(直近 60 秒)</h2>
+    <ul id="diag"></ul>
+  </div>
+</details>
 
-    <div class="panel">
-      <h2>診断(直近 60 秒)</h2>
-      <ul id="diag"></ul>
+<details class="section" id="secExport" open>
+  <summary>エクスポート・プロファイル</summary>
+  <div class="body">
+    <div class="row">
+      <button id="btnCopyDiff">差分を .conf でコピー</button>
+      <button id="btnCopyAll">すべて .conf でコピー</button>
     </div>
-
-    <div class="panel">
-      <div class="row">
-        <h2 style="margin:0">エクスポート / プロファイル</h2>
-        <span class="spacer"></span>
-        <button id="btnCopyDiff">差分を .conf でコピー</button>
-        <button id="btnCopyAll">すべて .conf でコピー</button>
-      </div>
-      <textarea id="conf" readonly spellcheck="false" placeholder="接続してパラメータを変更すると差分がここに表示されます"></textarea>
-      <div class="row" style="margin-top:6px">
-        <select id="profiles"></select>
-        <button id="btnProfileSave">プロファイル保存</button>
-        <button id="btnProfileLoad">読込</button>
-        <button id="btnProfileDelete">削除</button>
-      </div>
+    <textarea id="conf" readonly spellcheck="false" placeholder="接続してパラメータを変更すると差分がここに表示されます"></textarea>
+    <div class="row" style="margin-top:6px">
+      <select id="profiles"></select>
+      <button id="btnProfileSave">プロファイル保存</button>
+      <button id="btnProfileLoad">読込</button>
+      <button id="btnProfileDelete">削除</button>
     </div>
   </div>
-</div>
+</details>
 
 <script src="tuner.js"></script>
 <script>
@@ -186,6 +235,8 @@
   const SETTLE_MS = 200;
   const KEEP_MS = 60000;
   const SET_DEBOUNCE_MS = 150;
+  const ATTEMPT_IDLE_MS = 400;
+  const STATE_STALE_MS = 600;
   const LANE_H = 40;
   const LANES = ['FW 指', 'FW ボタン', 'FW REL/WHEEL', 'HOST ボタン', 'HOST move', 'HOST wheel'];
   const BTN_COLOR = { [T.BTN[0]]: '#3b82f6', [T.BTN[1]]: '#22c55e', [T.BTN[2]]: '#f97316', [T.BTN[7]]: '#a855f7' };
@@ -351,6 +402,7 @@
       $('btnTrace').textContent = 'trace OFF';
       $('btnTrace').classList.remove('active');
     }
+    renderAllCards();
   }
 
   async function connect() {
@@ -443,6 +495,7 @@
     params = lines.map(T.parseListLine).filter(Boolean);
     renderParams();
     updateConfPreview();
+    renderAllCards();
   }
 
   function renderParams() {
@@ -554,6 +607,7 @@
         p.value = value;
         syncRow(row, p);
         updateConfPreview();
+        renderAllCards();
       } else {
         syncRow(row, p, { force: true });
         setStatus(`${p.name}: ${lines.join(' ') || '応答なし'}`, true);
@@ -600,30 +654,224 @@
 
   const pad = $('pad');
   const hostState = { buttons: 0, move: null, wheel: null };
-  pad.addEventListener('contextmenu', (e) => e.preventDefault());
-  for (const type of ['pointerdown', 'pointerup', 'pointermove', 'pointercancel']) {
-    pad.addEventListener(type, (e) => {
-      if (type === 'pointerdown') { try { pad.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } }
-      if (rec.paused) return;
-      const t = performance.now();
-      if (type === 'pointermove') {
-        if (e.movementX === 0 && e.movementY === 0) return;
-        rec.hostMove.push({ t, dx: e.movementX, dy: e.movementY });
-        hostState.move = `${e.movementX},${e.movementY}`;
-      } else {
-        rec.hostBtn.push({ t, buttons: e.buttons });
-        hostState.buttons = e.buttons;
-      }
-      renderHostState();
-    });
+  let testMode = false;
+
+  function padLocked() {
+    return document.pointerLockElement === pad;
   }
-  pad.addEventListener('wheel', (e) => {
-    e.preventDefault();
+
+  function recordPointer(type, e) {
+    if (rec.paused) return;
+    const t = performance.now();
+    if (type === 'pointermove') {
+      if (e.movementX === 0 && e.movementY === 0) return;
+      rec.hostMove.push({ t, dx: e.movementX, dy: e.movementY });
+      hostState.move = `${e.movementX},${e.movementY}`;
+    } else {
+      rec.hostBtn.push({ t, buttons: e.buttons });
+      hostState.buttons = e.buttons;
+    }
+    renderHostState();
+  }
+
+  function recordWheel(e) {
     if (rec.paused) return;
     rec.hostWheel.push({ t: performance.now(), deltaX: e.deltaX, deltaY: e.deltaY });
     hostState.wheel = `${Math.round(e.deltaX)},${Math.round(e.deltaY)}`;
     renderHostState();
+  }
+
+  pad.addEventListener('contextmenu', (e) => e.preventDefault());
+  document.addEventListener('contextmenu', (e) => { if (padLocked()) e.preventDefault(); });
+  for (const type of ['pointerdown', 'pointerup', 'pointermove', 'pointercancel']) {
+    pad.addEventListener(type, (e) => {
+      if (type === 'pointerdown') { try { pad.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } }
+      recordPointer(type, e);
+    });
+    document.addEventListener(type, (e) => { if (padLocked() && e.target !== pad) recordPointer(type, e); });
+  }
+  pad.addEventListener('wheel', (e) => { e.preventDefault(); recordWheel(e); }, { passive: false });
+  document.addEventListener('wheel', (e) => {
+    if (!padLocked() || e.target === pad) return;
+    e.preventDefault();
+    recordWheel(e);
   }, { passive: false });
+
+  function updateTestUi() {
+    pad.classList.toggle('testing', testMode);
+    $('btnTest').textContent = testMode ? 'テスト終了' : 'テスト開始';
+    $('btnTest').classList.toggle('primary', !testMode);
+    let hint = '「テスト開始」でカーソルをこの領域に固定し、右のカードの指示どおりに操作する(Esc で終了)';
+    if (testMode) {
+      hint = padLocked()
+        ? 'カーソルを固定中。右のカードの指示どおりに操作する(Esc で終了)'
+        : 'ポインタロックなし。カーソルをこの領域に置いたまま操作する';
+    }
+    $('padHint').textContent = hint;
+  }
+
+  function startTest() {
+    testMode = true;
+    updateTestUi();
+    if (isConnected() && !traceOn) toggleTrace();
+    else if (!isConnected()) setStatus('未接続です。接続するとドライバ側の判定も表示されます');
+    try {
+      const r = pad.requestPointerLock();
+      if (r && typeof r.catch === 'function') {
+        r.catch((e) => { setStatus('ポインタロックを取得できません: ' + errText(e), true); updateTestUi(); });
+      }
+    } catch (e) {
+      setStatus('ポインタロックを取得できません: ' + errText(e), true);
+    }
+  }
+
+  function stopTest() {
+    testMode = false;
+    if (padLocked()) document.exitPointerLock();
+    updateTestUi();
+  }
+
+  document.addEventListener('pointerlockchange', () => {
+    if (!padLocked() && testMode) testMode = false;
+    updateTestUi();
+  });
+  document.addEventListener('pointerlockerror', () => {
+    setStatus('ポインタロックに失敗しました。カーソルをパッド内に置いたまま操作してください', true);
+    updateTestUi();
+  });
+
+  const cards = {};
+  const processedStarts = new Set();
+
+  function verdictLabel(v) {
+    return v === 'pass' ? '✔ 合格' : v === 'fail' ? '✘ 不合格' : v === 'partial' ? '△ 一部' : '未試行';
+  }
+
+  function renderCards() {
+    const root = $('cards');
+    root.innerHTML = '';
+    for (const g of T.GESTURES) {
+      const el = document.createElement('div');
+      el.className = 'card';
+      el.innerHTML = '<div class="head"><h3></h3><span class="hist"></span><span class="badge"></span></div>'
+        + '<div class="instr"></div>'
+        + '<dl><dt>ドライバ</dt><dd class="fw">-</dd><dt>ホスト</dt><dd class="host">-</dd></dl>'
+        + '<div class="reason" hidden></div><div class="knobs"></div>';
+      el.querySelector('h3').textContent = g.title;
+      el.querySelector('.instr').textContent = `やること: ${g.instruction} → 期待: ${g.expect}`;
+      root.appendChild(el);
+      cards[g.kind] = { el, g, last: null, history: [] };
+      renderCard(g.kind);
+    }
+  }
+
+  function renderCard(kind) {
+    const c = cards[kind];
+    if (!c) return;
+    const d = c.last;
+    const v = d ? d.verdict : 'none';
+    c.el.classList.remove('pass', 'fail', 'partial');
+    if (d) c.el.classList.add(v);
+    const badge = c.el.querySelector('.badge');
+    badge.textContent = verdictLabel(v);
+    badge.className = 'badge' + (d ? ' ' + v : '');
+    const hist = c.el.querySelector('.hist');
+    hist.innerHTML = '';
+    for (const h of c.history) {
+      const s = document.createElement('span');
+      s.className = h;
+      s.textContent = '●';
+      s.title = verdictLabel(h);
+      hist.appendChild(s);
+    }
+    const txt = d ? T.attemptTexts(d) : null;
+    c.el.querySelector('.fw').textContent = txt ? txt.fw : '-';
+    c.el.querySelector('.host').textContent = txt ? txt.host : '-';
+    const reason = c.el.querySelector('.reason');
+    reason.hidden = !(d && v !== 'pass' && d.reasons.length);
+    reason.textContent = d ? '理由: ' + d.reasons.join(' / ') : '';
+    const knobs = c.el.querySelector('.knobs');
+    knobs.innerHTML = '';
+    const map = byName();
+    for (const k of c.g.params) {
+      const p = map[k.name];
+      const row = document.createElement('div');
+      row.className = 'knob' + (d && d.suggest.some((s) => s.name === k.name) ? ' suggest' : '');
+      const code = document.createElement('code');
+      code.textContent = k.name;
+      const val = document.createElement('span');
+      val.className = 'val';
+      val.textContent = p ? `= ${p.value}` : `= ${T.DEFAULT_PARAMS[k.name]}(未接続)`;
+      row.append(code, val);
+      for (const [label, sign] of [['緩める', 1], ['厳しくする', -1]]) {
+        const delta = sign * k.loosen;
+        const b = document.createElement('button');
+        b.textContent = `${label} (${delta > 0 ? '+' : ''}${delta})`;
+        b.disabled = !p || !isConnected();
+        b.onclick = () => { nudgeParam(k.name, delta); };
+        row.appendChild(b);
+      }
+      knobs.appendChild(row);
+    }
+  }
+
+  function renderAllCards() {
+    for (const kind of Object.keys(cards)) renderCard(kind);
+  }
+
+  async function nudgeParam(name, delta) {
+    const p = byName()[name];
+    if (!p) { setStatus(`${name} が読み込まれていません`, true); return; }
+    const before = p.value;
+    const v = T.stepParam(p, delta);
+    if (v === before) { setStatus(`${name} は既に${delta > 0 ? '上限' : '下限'} ${v} です`); return; }
+    if (await applyParam(p, v)) setStatus(`${name}: ${before} → ${v}`);
+  }
+
+  function tailMsFor() {
+    return Math.max(500, T.paramValue(params, '1f_tapdrag_gap_max_ms') + 300);
+  }
+
+  function processAttempts() {
+    const now = nowMs();
+    const attempts = T.segmentAttempts(rec.frames, { idleMs: ATTEMPT_IDLE_MS, now });
+    for (let i = 0; i < attempts.length; i++) {
+      const a = attempts[i];
+      if (!a.closed || processedStarts.has(a.start)) continue;
+      const next = attempts[i + 1];
+      const tail = next ? Math.min(tailMsFor(), next.start - a.end) : tailMsFor();
+      if (now < a.end + tail) continue;
+      processedStarts.add(a.start);
+      const host = { btn: rec.hostBtn, move: rec.hostMove, wheel: rec.hostWheel };
+      onAttempt(T.describeAttempt(a, rec.fw, host, params, { tailMs: tail }));
+    }
+  }
+
+  function onAttempt(d) {
+    const txt = T.attemptTexts(d);
+    const el = $('lastAttempt');
+    el.textContent = '直近の試行: ' + txt.oneLine;
+    el.className = d.kind in cards ? d.verdict : '';
+    const c = cards[d.kind];
+    if (!c) return;
+    c.last = d;
+    c.history.push(d.verdict);
+    while (c.history.length > 3) c.history.shift();
+    renderCard(d.kind);
+  }
+
+  let padStateText = '';
+  function renderPadState() {
+    const last = rec.frames[rec.frames.length - 1];
+    let text;
+    if (!last || nowMs() - last.t > STATE_STALE_MS) text = isConnected() && !traceOn ? '待機(trace OFF)' : '待機';
+    else text = T.describeState(last);
+    if (text === padStateText) return;
+    padStateText = text;
+    const el = $('padState');
+    el.textContent = text;
+    el.classList.toggle('active', !text.startsWith('待機'));
+  }
 
   function renderHostState() {
     const names = [];
@@ -765,6 +1013,7 @@
     let i = 0;
     while (i < rec.hostBtn.length - 1 && rec.hostBtn[i + 1].t < cut) i++;
     if (i) rec.hostBtn.splice(0, i);
+    for (const s of processedStarts) if (s < cut) processedStarts.delete(s);
   }
 
   function refreshDiagnostics() {
@@ -787,10 +1036,11 @@
   setInterval(() => {
     if (rec.paused) return;
     prune();
+    processAttempts();
     refreshDiagnostics();
   }, 500);
   (function loop() {
-    try { drawTimeline(); } catch (e) { /* keep the loop alive */ }
+    try { drawTimeline(); renderPadState(); } catch (e) { /* keep the loop alive */ }
     requestAnimationFrame(loop);
   })();
 
@@ -805,40 +1055,82 @@
   function clearRecords() {
     for (const key of ['frames', 'fw', 'hostBtn', 'hostWheel', 'hostMove']) rec[key].length = 0;
     hostState.buttons = 0; hostState.move = null; hostState.wheel = null;
+    processedStarts.clear();
+    for (const c of Object.values(cards)) { c.last = null; c.history = []; }
+    renderAllCards();
+    $('lastAttempt').textContent = '直近の試行: -';
+    $('lastAttempt').className = '';
     renderHostState();
     refreshDiagnostics();
     if (rec.paused) setPaused(false);
   }
 
+  function setZoom(ms) {
+    view.ms = ms;
+    for (const o of document.querySelectorAll('.zoom')) o.classList.toggle('active', Number(o.dataset.ms) === ms);
+  }
+
   function injectDummy() {
     const now = performance.now();
-    const base = now - 4500;
-    const F = (ms, fingers, relX, relY) => ({ type: 'F', t: base + ms, ms, fingers, relX, relY, f1x: 0, f1y: 0, f2x: 0, f2y: 0, flags: 0, hold: 0, mode2f: 0, pending: 0 });
-    const K = (ms, code, value, ret) => ({ type: 'E', t: base + ms, ms, kind: 'K', code, value, ret: ret || 0 });
-    const R = (ms, code, value, ret) => ({ type: 'E', t: base + ms, ms, kind: 'R', code, value, ret: ret || 0 });
-    for (let ms = 0; ms <= 1400; ms += 10) {
-      const oneFinger = (ms >= 100 && ms <= 240) || (ms >= 340 && ms <= 1100);
-      rec.frames.push(F(ms, oneFinger ? 1 : 0, oneFinger && ms > 400 ? 3 : 0, oneFinger && ms > 400 ? -1 : 0));
-    }
-    for (let ms = 410; ms <= 1100; ms += 20) {
-      rec.fw.push(R(ms, T.REL.X, 3), R(ms, T.REL.Y, -1));
-      rec.hostMove.push({ t: base + ms + 8, dx: 3, dy: -1 });
-    }
-    rec.fw.push(K(350, T.BTN[0], 1));
-    rec.hostBtn.push({ t: base + 358, buttons: 1 });
-    rec.fw.push(K(1110, T.BTN[0], 0));
-    for (let ms = 2000; ms <= 3000; ms += 10) rec.frames.push(F(ms, 2, 0, 4));
-    for (let ms = 2100; ms <= 3000; ms += 50) {
+    const base = now - 9500;
+    const F = (ms, fingers, relX, relY, extra) => ({
+      type: 'F', t: base + ms, ms, fingers, relX, relY, f1x: 0, f1y: 0, f2x: 0, f2y: 0, flags: 0,
+      hold: 0, mode2f: 0, pending: 0, ...(extra || {}),
+    });
+    const K = (ms, code, value) => ({ type: 'E', t: base + ms, ms, kind: 'K', code, value, ret: 0 });
+    const R = (ms, code, value) => ({ type: 'E', t: base + ms, ms, kind: 'R', code, value, ret: 0 });
+    const touch = (from, to, fingers, relX, relY, extra) => {
+      for (let ms = from; ms <= to; ms += 10) rec.frames.push(F(ms, fingers, relX, relY, extra));
+    };
+    const idle = (from, to, extra) => touch(from, to, 0, 0, 0, extra);
+    const drag = (from, to, extra) => {
+      touch(from, to, 1, 3, -1, extra);
+      for (let ms = from + 10; ms <= to; ms += 20) {
+        rec.fw.push(R(ms, T.REL.X, 3), R(ms, T.REL.Y, -1));
+        rec.hostMove.push({ t: base + ms + 8, dx: 3, dy: -1 });
+      }
+    };
+    const press = (ms) => { rec.fw.push(K(ms, T.BTN[0], 1)); rec.hostBtn.push({ t: base + ms + 7, buttons: 1 }); };
+    const release = (ms, hostToo) => { rec.fw.push(K(ms, T.BTN[0], 0)); if (hostToo) rec.hostBtn.push({ t: base + ms + 7, buttons: 0 }); };
+
+    touch(0, 120, 1, 0, 0);
+    press(125);
+    idle(130, 280, { hold: T.BTN[0], pending: 1 });
+    release(290, true);
+    idle(290, 1490);
+
+    touch(1500, 1620, 1, 0, 0);
+    press(1625);
+    idle(1630, 1690, { hold: T.BTN[0], pending: 1 });
+    drag(1700, 2400, { hold: T.BTN[0] });
+    release(2405, false);
+    idle(2410, 3990);
+
+    touch(4000, 4050, 2, 0, 4);
+    touch(4060, 4800, 2, 0, 4, { mode2f: 1 });
+    for (let ms = 4100; ms <= 4800; ms += 50) {
       rec.fw.push(R(ms, T.REL.WHEEL, -1));
       rec.hostWheel.push({ t: base + ms + 12, deltaX: 0, deltaY: 24 });
     }
-    rec.frames.push(F(3010, 0, 0, 0));
+    idle(4810, 6490);
+
+    touch(6500, 6620, 1, 0, 0);
+    press(6625);
+    idle(6630, 6780, { hold: T.BTN[0], pending: 1 });
+    release(6790, true);
+    idle(6790, 6850);
+    drag(6860, 7500);
+    idle(7510, 8500);
+
     rec.fw.sort((a, b) => a.t - b.t);
     rec.frames.sort((a, b) => a.t - b.t);
+    rec.hostBtn.sort((a, b) => a.t - b.t);
     hostState.buttons = 1; hostState.move = '3,-1'; hostState.wheel = '0,24';
     renderHostState();
+    setZoom(10000);
     setPaused(true);
-    setStatus('ダミーデータ(1本指タップ→ドラッグ、ホスト側はボタンを離さない)を投入して一時停止しました');
+    processAttempts();
+    setStatus('ダミーデータ(1本指タップ ✔ / タップドラッグ ✘ ホスト側ボタン残り / 2本指スクロール ✔ / タップドラッグ ✘ 間隔超過)を投入して一時停止しました');
   }
 
   function updateConfPreview() {
@@ -947,20 +1239,20 @@
   $('btnPause').onclick = () => setPaused(!rec.paused);
   $('btnClear').onclick = clearRecords;
   $('btnDummy').onclick = injectDummy;
+  $('btnTest').onclick = () => { if (testMode) stopTest(); else startTest(); };
   $('btnCopyDiff').onclick = () => { copyConf(true); };
   $('btnCopyAll').onclick = () => { copyConf(false); };
   $('btnProfileSave').onclick = saveProfile;
   $('btnProfileLoad').onclick = () => { loadProfile(); };
   $('btnProfileDelete').onclick = deleteProfile;
   for (const b of document.querySelectorAll('.zoom')) {
-    b.onclick = () => {
-      view.ms = Number(b.dataset.ms);
-      for (const o of document.querySelectorAll('.zoom')) o.classList.toggle('active', o === b);
-    };
+    b.onclick = () => setZoom(Number(b.dataset.ms));
   }
   window.addEventListener('beforeunload', () => { if (serial.port) disconnect(null, true); });
 
   renderProfiles();
+  renderCards();
+  updateTestUi();
   renderHostState();
   refreshDiagnostics();
   setConnectedUi(false);
