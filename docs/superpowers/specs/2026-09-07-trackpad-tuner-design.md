@@ -162,9 +162,11 @@ CONFIG_SHELL_LOG_BACKEND=y
 CONFIG_LOG_DEFAULT_LEVEL=1
 CONFIG_INPUT_IQS9151_LOG_LEVEL=3
 CONFIG_INPUT_IQS9151_SHELL=y
+CONFIG_SENSOR_SHELL=n
 ```
 
-- devicetree: XIAO BLE の board dts に `usb_cdc_acm_uart` ノードと `zephyr,shell-uart` の chosen が既にある(zmk v0.3.0 `seeeduino_xiao_ble.dts:15,180`)ため、overlay の追加は不要。右手は Studio 用スニペットの CDC と合わせて 2 ポート構成になる。**要検証**: この複合構成でのビルド通過と、macOS で 2 つの `/dev/cu.usbmodem*` が見えること
+- devicetree: ZMK の XIAO BLE board dts はシェル用の CDC を chosen しておらず(生成される dts では `zephyr,shell-uart = &uart0`)、左手には CDC ACM ノード自体が無い。そのため両半分共通の `config/boards/shields/lalapadgen2/lalapadgen2.dtsi` に `zephyr,cdc-acm-uart` ノード `tp_shell_uart` を `&zephyr_udc0` 配下に追加し、`chosen { zephyr,shell-uart = &tp_shell_uart; }` を指定する。右手は Studio 用スニペットの CDC と合わせて 2 ポート構成になる
+- `CONFIG_SENSOR_SHELL=n` を追加する。`SHELL && SENSOR` で既定 y になる `SENSOR_SHELL` が `CBPRINTF_FP_SUPPORT` を select し、ZMK の `CBPRINTF_COMPLETE=n` と衝突して Kconfig 警告でビルドが中断するため
 - 左手(peripheral)は `ZMK_USB` が central 限定(zmk `app/Kconfig` の `depends on`)だが、`USB_DEVICE_STACK` を直接有効化すれば `src/usb.c` がコンパイルされ `usb_enable` が呼ばれる(`app/CMakeLists.txt:101`)。`ZMK_USB_LOGGING` が peripheral で動くのと同じ仕組み
 - 既存の `#Debug only` コメント内の `CONFIG_ZMK_USB_LOGGING` は `zephyr,console` を同じ CDC に向けるため、本機能と併用できない旨を注記する
 
