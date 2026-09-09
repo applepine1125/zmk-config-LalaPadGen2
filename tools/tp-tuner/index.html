@@ -146,7 +146,6 @@
     border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
   }
   .nowtext { font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
-  .nowdetail { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; min-height: 1.4em; }
   .oplabel { font-weight: 600; flex: none; }
   .opslog ol { margin: 0; padding: 0; list-style: none; max-height: 420px; overflow-y: auto; }
   .opslog li {
@@ -260,12 +259,10 @@
       <div class="nowcard">
         <span class="sidebadge">左手</span>
         <div class="nowtext" id="nowL">-</div>
-        <div class="nowdetail" id="nowDetailL"></div>
       </div>
       <div class="nowcard">
         <span class="sidebadge">右手</span>
         <div class="nowtext" id="nowR">-</div>
-        <div class="nowdetail" id="nowDetailR"></div>
       </div>
     </div>
     <div class="card opslog">
@@ -362,7 +359,6 @@
   const PAD_W = Math.round(PAD_H * (2457 / 3072));
   const SIDE_LABEL = { R: '右手', L: '左手' };
   const OPS_LOG_MAX = 30;
-  const SUMMARY_NOW_DISPLAY_MS = 4000;
   const WHEEL_BURST_GAP_MS = 300;
 
   const GROUPS = [
@@ -1269,15 +1265,8 @@
     return '待機';
   }
 
-  function currentDetailText(sideKey) {
-    if (!isSideActive(sideKey) || !lastObs[sideKey]) return '';
-    if (hasLiveFrame(sideKey) && performance.now() - lastObsAt[sideKey] >= SUMMARY_NOW_DISPLAY_MS) return '';
-    return T.recognitionText(lastKind[sideKey], lastObs[sideKey], paramsForSuggest(sideKey));
-  }
-
   function renderNow(sideKey) {
     $(`now${sideKey}`).textContent = currentActionText(sideKey);
-    $(`nowDetail${sideKey}`).textContent = currentDetailText(sideKey);
   }
 
   function renderPadStatus(sideKey) {
