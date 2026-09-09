@@ -20,7 +20,6 @@
     --danger-weak: rgba(220, 38, 38, .1);
     --warn: #b45309;
     --warn-weak: rgba(217, 119, 6, .12);
-    --ok: #16a34a;
     --radius: 14px;
     --radius-sm: 9px;
     --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 30px -16px rgba(15, 23, 42, .22);
@@ -47,7 +46,6 @@
       --danger-weak: rgba(248, 113, 113, .14);
       --warn: #fbbf24;
       --warn-weak: rgba(251, 191, 36, .14);
-      --ok: #4ade80;
       --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -16px rgba(0, 0, 0, .6);
     }
   }
@@ -115,6 +113,7 @@
   #liveRow label { display: inline-flex; align-items: center; gap: 6px; }
   #workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; align-items: start; }
   @media (max-width: 860px) { #workspace { grid-template-columns: 1fr; } }
+  .padscol, .opscol { min-width: 0; }
   .padgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media (max-width: 520px) { .padgrid { grid-template-columns: 1fr; } }
   .padcard {
@@ -249,27 +248,27 @@
 <div id="workspace">
   <section class="padscol">
     <div class="padgrid">
-      <div class="padcard" id="padCardR" data-side="R">
-        <div class="padhead"><span class="sidebadge">右手</span></div>
-        <canvas class="padcanvas" id="padR"></canvas>
-        <div class="padstatus" id="padStatusR">未接続</div>
-      </div>
       <div class="padcard" id="padCardL" data-side="L">
         <div class="padhead"><span class="sidebadge">左手</span></div>
         <canvas class="padcanvas" id="padL"></canvas>
         <div class="padstatus" id="padStatusL">未接続</div>
+      </div>
+      <div class="padcard" id="padCardR" data-side="R">
+        <div class="padhead"><span class="sidebadge">右手</span></div>
+        <canvas class="padcanvas" id="padR"></canvas>
+        <div class="padstatus" id="padStatusR">未接続</div>
       </div>
     </div>
   </section>
   <section class="opscol">
     <div class="nowgrid">
       <div class="nowcard">
-        <span class="sidebadge">右手</span>
-        <div class="nowtext" id="nowR">-</div>
-      </div>
-      <div class="nowcard">
         <span class="sidebadge">左手</span>
         <div class="nowtext" id="nowL">-</div>
+      </div>
+      <div class="nowcard">
+        <span class="sidebadge">右手</span>
+        <div class="nowtext" id="nowR">-</div>
       </div>
     </div>
     <div class="card opslog">
@@ -360,7 +359,10 @@
   const LANES = ['指の本数', 'ファームが送った操作', 'Mac が受けた操作'];
   const BTN_COLOR = { [T.BTN[0]]: '#3b82f6', [T.BTN[1]]: '#22c55e', [T.BTN[2]]: '#f97316', [T.BTN[7]]: '#a855f7' };
   const HOST_BITS = [[1, T.BTN[0]], [2, T.BTN[1]], [4, T.BTN[2]]];
-  const PAD_COLOR = { idle: '#94a3b8', blue: '#38bdf8', green: '#34d399', orange: '#fb923c', purple: '#c084fc' };
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  const PAD_COLOR = { blue: '#38bdf8', green: '#34d399', orange: '#fb923c', purple: '#c084fc' };
   const PAD_H = 200;
   const PAD_W = Math.round(PAD_H * (2457 / 3072));
   const SIDE_LABEL = { R: '右手', L: '左手' };
@@ -1326,8 +1328,9 @@
     const card = $(`padCard${sideKey}`);
     card.dataset.state = st.color;
     card.dataset.dragging = st.dragging ? '1' : '0';
-    ctx.fillStyle = PAD_COLOR[st.color];
-    ctx.shadowColor = PAD_COLOR[st.color];
+    const color = PAD_COLOR[st.color] || cssVar('--pad-idle');
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
     for (const pt of trail) {
       const age = now - pt.t;
       const alpha = Math.max(0, 1 - age / 300);
@@ -1423,10 +1426,6 @@
       li.textContent = `${(d.t / 1000).toFixed(2)}s ${d.msg}`;
       ul.appendChild(li);
     }
-  }
-
-  function cssVar(name) {
-    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
 
   function buildTimelineLanes() {
