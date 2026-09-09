@@ -4,6 +4,8 @@
   const BTN = { 0: 0x110, 1: 0x111, 2: 0x112, 7: 0x117 };
   const REL = { X: 0, Y: 1, HWHEEL: 6, WHEEL: 8 };
   const CONF_PREFIX = 'CONFIG_INPUT_IQS9151_';
+  const PAD_RES_X = 2457;
+  const PAD_RES_Y = 3072;
   const ANSI_RE = /\x1b(\[[0-9;?]*[ -/]*[@-~]|[0-Z\\-~])/g;
   const PROMPT_PREFIX_RE = /^[^\s$]*:~\$ /;
 
@@ -1096,14 +1098,76 @@
     return out;
   }
 
+  function mergeParams(paramsR, paramsL) {
+    const R = paramsR || [];
+    const L = paramsL || [];
+    const byNameL = new Map(L.map((p) => [p.name, p]));
+    const seen = new Set();
+    const out = [];
+    for (const pr of R) {
+      const pl = byNameL.get(pr.name);
+      seen.add(pr.name);
+      out.push({
+        name: pr.name, min: pr.min, max: pr.max, kind: pr.kind, def: pr.def,
+        value: pr.value, valueR: pr.value, valueL: pl ? pl.value : null,
+        differs: !!pl && pl.value !== pr.value,
+      });
+    }
+    for (const pl of L) {
+      if (seen.has(pl.name)) continue;
+      out.push({
+        name: pl.name, min: pl.min, max: pl.max, kind: pl.kind, def: pl.def,
+        value: pl.value, valueR: null, valueL: pl.value, differs: false,
+      });
+    }
+    return out;
+  }
+
+  function pendingCommands(pending, sides) {
+    const list = sides && sides.length ? sides : ['R', 'L'];
+    const common = (pending && pending.common) || {};
+    const out = [];
+    for (const s of list) {
+      const perSide = (pending && pending[s]) || {};
+      const names = new Set([...Object.keys(common), ...Object.keys(perSide)]);
+      for (const name of names) {
+        const value = Object.prototype.hasOwnProperty.call(perSide, name) ? perSide[name] : common[name];
+        out.push({ side: s, cmd: `tp set ${name} ${value}` });
+      }
+    }
+    return out;
+  }
+
+  function padStateFromFrame(frame) {
+    if (!frame || !frame.fingers) return { fingers: 0, state: frame && frame.hold ? 'ドラッグ中' : '待機', color: 'idle', dragging: !!(frame && frame.hold) };
+    const dragging = !!frame.hold;
+    if (frame.fingers === 1) return { fingers: 1, state: dragging ? 'ドラッグ中' : '1 本指', color: 'blue', dragging };
+    if (frame.fingers === 2) {
+      if (dragging) return { fingers: 2, state: 'ドラッグ中', color: 'green', dragging };
+      if (frame.mode2f === 2) return { fingers: 2, state: 'ピンチ', color: 'orange', dragging };
+      if (frame.mode2f === 1) return { fingers: 2, state: 'スクロール', color: 'green', dragging };
+      return { fingers: 2, state: '2 本指', color: 'green', dragging };
+    }
+    return { fingers: frame.fingers, state: dragging ? 'ドラッグ中' : '3 本指', color: 'purple', dragging };
+  }
+
+  function frameToPadPoints(frame, w, h) {
+    if (!frame || !frame.fingers) return [];
+    const scale = (x, y) => ({ x: (x / PAD_RES_X) * w, y: (y / PAD_RES_Y) * h });
+    const pts = [scale(frame.f1x || 0, frame.f1y || 0)];
+    if (frame.fingers >= 2) pts.push(scale(frame.f2x || 0, frame.f2y || 0));
+    return pts;
+  }
+
   const api = {
     BTN, REL, BTN_NAMES, GESTURES, DEFAULT_PARAMS,
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
     splitSidePrefix, bleCommand, isEndMarker, orderDevices, pickDevice,
     clockOffset, pickPortOrder, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
-    paramValue, stepParam, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, judgeAttempt, whyNot, describeState,
+    paramValue, stepParam, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, whyNot, describeState,
     observationText, hostText, sentText, recognitionText, feedbackOptions, suggestFor,
+    mergeParams, pendingCommands, padStateFromFrame, frameToPadPoints,
   };
   root.TpTuner = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

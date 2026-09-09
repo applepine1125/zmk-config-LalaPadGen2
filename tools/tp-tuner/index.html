@@ -13,6 +13,8 @@
     --panel: #ffffff;
     --accent: #2563eb;
     --danger: #dc2626;
+    --warn: #92400e;
+    --warnbg: #fffbeb;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--fg); }
@@ -37,125 +39,76 @@
     padding: 8px 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
   }
   #topbar .sep { width: 1px; height: 20px; background: var(--border); }
-  #info { color: var(--muted); }
+  #connStatus { color: var(--muted); }
   #devicePanel:not([hidden]) {
     display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 10px;
     background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
   }
   #autoConnectLabel { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); cursor: pointer; white-space: nowrap; }
-  #dirtyIndicator { color: #92400e; font-weight: 600; white-space: nowrap; }
+  #dirtyIndicator { color: var(--warn); font-weight: 600; white-space: nowrap; }
   #status { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #status.error { color: var(--danger); }
   #notice {
     margin: 8px 0 0; padding: 8px 10px; border-radius: 6px;
     background: #fef3c7; border: 1px solid #f59e0b; color: #78350f;
   }
-  details#logbox { margin-top: 8px; }
+  details#logbox { margin-top: 12px; }
   details#logbox summary { cursor: pointer; color: var(--muted); }
   #log {
     margin: 4px 0 0; max-height: 160px; overflow: auto; padding: 6px 8px;
     background: #111827; color: #e5e7eb; font: 11px/1.4 ui-monospace, Menlo, monospace;
     white-space: pre-wrap; word-break: break-all; border-radius: 4px;
   }
-  #main {
-    display: grid; grid-template-columns: minmax(340px, 1fr) minmax(0, 1fr); gap: 12px; margin-top: 10px;
-    align-items: start;
-  }
-  @media (max-width: 900px) { #main { grid-template-columns: minmax(0, 1fr); } }
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 10px; min-width: 0; }
-  #stage { position: sticky; top: 10px; }
-  @media (max-width: 900px) { #stage { position: static; } }
-  #pad {
-    position: relative; height: 360px; border: 2px dashed var(--border); border-radius: 8px; background: #f3f4f6;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-    user-select: none; touch-action: none; cursor: crosshair; text-align: center; padding: 12px;
-  }
-  #pad:hover { border-color: var(--accent); }
-  #pad.testing { border-style: solid; border-color: var(--accent); background: #eff6ff; }
-  #padState { font-size: 28px; font-weight: 700; color: var(--muted); line-height: 1.3; }
-  #padState.active { color: var(--accent); }
-  #padHint { color: var(--muted); font-size: 12px; max-width: 380px; }
-  #pad.armed { border-style: solid; border-color: #f59e0b; background: #fffbeb; }
-  #padArmed { font-size: 15px; font-weight: 600; color: var(--muted); max-width: 420px; }
-  #pad.armed #padArmed { color: #92400e; }
-  #padArmed .instr { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
-  #observed { margin-top: 8px; font-size: 12px; min-height: 20px; color: var(--muted); overflow-wrap: anywhere; }
-  #observed b { color: var(--fg); }
-  #cards { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
-  .card {
-    background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--border);
-    border-radius: 6px; padding: 8px 10px; min-width: 0;
-  }
-  .card.done { border-left-color: var(--accent); }
-  .card.armed { border-color: #f59e0b; border-left-color: #f59e0b; background: #fffbeb; box-shadow: 0 0 0 2px #fde68a; }
-  .card .head { display: flex; align-items: center; gap: 8px; }
-  .card .head h3 { margin: 0; font-size: 14px; flex: 1; }
-  .badge { font-size: 11px; padding: 1px 8px; border-radius: 10px; background: #e5e7eb; color: var(--muted); white-space: nowrap; }
-  .badge.armed { background: #fde68a; color: #92400e; }
-  .card .arm { padding: 2px 10px; font-size: 12px; white-space: nowrap; }
-  .card.armed .arm { background: #f59e0b; border-color: #f59e0b; color: #fff; }
-  .card .instr { margin: 4px 0 2px; }
-  .card .note { font-size: 11px; color: var(--muted); margin: 0 0 2px; }
-  .card .recog { margin: 6px 0 4px; font-weight: 700; font-size: 13px; overflow-wrap: anywhere; }
-  .card .recog.pending { color: #92400e; }
-  .card .recog.empty { color: var(--muted); font-weight: 400; }
-  .card details.breakdown { font-size: 12px; margin: 2px 0 4px; }
-  .card details.breakdown summary { cursor: pointer; color: var(--muted); }
-  .card details.breakdown ul { margin: 2px 0 0; padding-left: 18px; color: var(--muted); }
-  .card details.breakdown li b { color: var(--fg); font-weight: 600; }
-  .card .feel { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 2px; align-items: center; }
-  .card .feel .lead { font-size: 12px; color: var(--muted); margin-right: 2px; }
-  .card .feel button { padding: 2px 8px; font-size: 12px; }
-  .card .feel button.sel { background: #dbeafe; border-color: var(--accent); }
-  .card .feel .sub { display: flex; flex-wrap: wrap; gap: 4px; flex-basis: 100%; padding-left: 12px; }
-  .card .proposal { margin: 6px 0 4px; padding: 6px 8px; border: 1px solid #f59e0b; border-radius: 6px; background: #fffbeb; font-size: 12px; }
-  .card .proposal .title { font-weight: 600; margin-bottom: 4px; }
-  .card .proposal .item { margin: 3px 0; padding-left: 8px; border-left: 3px solid #f59e0b; overflow-wrap: anywhere; }
-  .card .proposal .item code { font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
-  .card .proposal .item .why { color: var(--fg); }
-  .card .proposal .item .help { color: var(--muted); font-size: 11px; }
-  .card .proposal .note { margin: 3px 0; }
-  .card .proposal .actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
-  .card .history { margin: 4px 0 0; padding-left: 0; list-style: none; font-size: 11px; color: var(--muted); }
-  .card .history li { overflow-wrap: anywhere; padding: 1px 0; border-top: 1px dashed var(--border); }
-  .card .history li b { color: var(--fg); font-weight: 600; }
-  .card details.knobbox { margin-top: 6px; font-size: 12px; }
-  .card details.knobbox summary { cursor: pointer; color: var(--muted); }
-  .card .knobs { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
-  .card .knob { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 1px 4px; border-radius: 4px; flex-wrap: wrap; }
-  .card .knob code { font-family: ui-monospace, Menlo, monospace; }
-  .card .knob .val { min-width: 48px; }
-  .card .knob button { padding: 1px 8px; font-size: 11px; }
-  .card .knob .help { flex-basis: 100%; color: var(--muted); font-size: 11px; padding-left: 4px; }
+  #padrow { display: flex; gap: 16px; margin-top: 10px; flex-wrap: wrap; }
+  .padcol { flex: 1 1 320px; min-width: 280px; display: flex; gap: 10px; }
+  .padwrap { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .padcanvas { border-radius: 10px; border: 1px solid var(--border); }
+  .padside { font-weight: 600; }
+  .padstatus { color: var(--muted); font-size: 11px; text-align: center; max-width: 160px; }
+  .padinfo { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+  .padinfo .now { color: var(--fg); }
+  .padinfo .now b { color: var(--muted); font-weight: 600; }
+  .padinfo .recog { overflow-wrap: anywhere; }
+  .padinfo .recog b { color: var(--muted); font-weight: 600; }
+  .padinfo .recog.empty { color: var(--muted); }
+  .intent { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .intent select { max-width: 160px; }
+  .suggestion { padding: 5px 8px; border: 1px solid #f59e0b; border-radius: 6px; background: var(--warnbg); font-size: 12px; overflow-wrap: anywhere; }
+  .suggestion .actions { margin-top: 4px; }
   details.section { margin-top: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
   details.section > summary { cursor: pointer; font-weight: 600; color: var(--muted); }
   details.section > .body { padding-top: 8px; }
   .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .toolbar label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
   fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 10px; padding: 6px 8px 4px; }
   legend { font-weight: 600; padding: 0 4px; }
   fieldset > button { margin-bottom: 4px; }
   .param {
-    display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(60px, 1fr) 64px auto;
+    display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(0, 1fr);
     gap: 6px; align-items: center; padding: 3px 4px; border-radius: 4px;
   }
+  .param.detail { grid-template-columns: minmax(120px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); }
   .param label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
   .param .desc { grid-column: 1 / -1; color: var(--muted); font-size: 11px; margin-top: -2px; }
-  .param input[type=range] { width: 100%; min-width: 0; margin: 0; }
-  .param input[type=number] { width: 64px; }
+  .param .cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .param .cell .sidelabel { color: var(--muted); font-size: 11px; width: 14px; flex: none; }
+  .param input[type=range] { flex: 1 1 auto; min-width: 0; margin: 0; }
+  .param input[type=number] { width: 60px; flex: none; }
   .param.bool input[type=checkbox] { justify-self: start; }
-  .param button { padding: 1px 6px; font-size: 11px; }
   .param.changed { background: #fff6cc; }
   .param.error { background: #ffd6d6; }
-  #hoststate { font-family: ui-monospace, Menlo, monospace; font-size: 12px; color: var(--muted); margin-top: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pendingmark { color: var(--warn); font-size: 11px; font-weight: 600; white-space: nowrap; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
   .row .spacer { flex: 1; }
   #timeline { width: 100%; display: block; border: 1px solid var(--border); border-radius: 4px; }
+  #timelineLegend { margin: 6px 0 0; padding-left: 0; list-style: none; color: var(--muted); font-size: 11px; }
+  #timelineLegend li { margin: 2px 0; }
   #diag { margin: 0; padding-left: 18px; max-height: 140px; overflow-y: auto; }
   #diag li { color: var(--danger); }
   #diag li.none { color: var(--muted); list-style: none; margin-left: -18px; }
   #conf { width: 100%; height: 120px; font: 11px/1.4 ui-monospace, Menlo, monospace; resize: vertical; border: 1px solid var(--border); border-radius: 4px; }
   .legend { color: var(--muted); font-size: 11px; }
-  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; vertical-align: -1px; margin: 0 2px 0 8px; }
 </style>
 </head>
 <body>
@@ -165,16 +118,9 @@
   <button id="btnConnect" class="primary">接続</button>
   <button id="btnDisconnect" disabled>切断</button>
   <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
-  <span id="info">未接続</span>
-  <select id="selSide" hidden>
-    <option value="R">右手 (R)</option>
-    <option value="L">左手 (L)</option>
-  </select>
+  <span id="connStatus">未接続</span>
   <span class="sep"></span>
-  <button id="btnSave" disabled>ファームに保存</button>
-  <span id="dirtyIndicator" hidden>未保存の変更あり</span>
-  <span class="sep"></span>
-  <button id="btnTrace" disabled>trace OFF</button>
+  <span id="dirtyIndicator" hidden>未書き込みの変更 0 件</span>
   <span id="status"></span>
 </div>
 <div id="devicePanel" hidden>
@@ -182,40 +128,55 @@
   <button id="btnConnectDevice">この機器に接続</button>
 </div>
 <div id="notice" hidden></div>
-<details id="logbox">
-  <summary>シリアルログ</summary>
-  <pre id="log"></pre>
-</details>
 
-<div id="main">
-  <div id="stage" class="panel">
-    <div class="row">
-      <h2 style="margin:0">テストパッド</h2>
-      <span class="spacer"></span>
-      <button id="btnTest" class="primary">テスト開始</button>
-      <button id="btnClear">記録をクリア</button>
-      <button id="btnDummy">ダミーデータ</button>
+<div id="padrow">
+  <div class="padcol">
+    <div class="padwrap">
+      <div class="padside">右手</div>
+      <canvas class="padcanvas" id="padR"></canvas>
+      <div class="padstatus" id="padStatusR">未接続</div>
     </div>
-    <div id="pad">
-      <div id="padArmed"></div>
-      <div id="padState">待機</div>
-      <div id="padHint"></div>
+    <div class="padinfo">
+      <div class="now" id="nowR"><b>今の操作:</b> -</div>
+      <div class="recog empty" id="recogR"><b>直近の試行:</b> 未試行</div>
+      <div class="intent" id="intentR" hidden>
+        <span class="legend">意図と違う ▾</span>
+        <select id="intentSelectR"><option value="">選択してください</option></select>
+      </div>
+      <div class="suggestion" id="suggestionR" hidden></div>
     </div>
-    <div id="observed">直近の動作: -</div>
-    <div id="hoststate">buttons=0 move=- wheel=-</div>
   </div>
-
-  <div id="cards"></div>
+  <div class="padcol">
+    <div class="padwrap">
+      <div class="padside">左手</div>
+      <canvas class="padcanvas" id="padL"></canvas>
+      <div class="padstatus" id="padStatusL">未接続</div>
+    </div>
+    <div class="padinfo">
+      <div class="now" id="nowL"><b>今の操作:</b> -</div>
+      <div class="recog empty" id="recogL"><b>直近の試行:</b> 未試行</div>
+      <div class="intent" id="intentL" hidden>
+        <span class="legend">意図と違う ▾</span>
+        <select id="intentSelectL"><option value="">選択してください</option></select>
+      </div>
+      <div class="suggestion" id="suggestionL" hidden></div>
+    </div>
+  </div>
 </div>
 
-<details class="section" id="secParams">
-  <summary>パラメータ一覧</summary>
+<details class="section" id="secParams" open>
+  <summary>パラメータ</summary>
   <div class="body">
     <div class="toolbar">
-      <button id="btnReload" disabled>再読込</button>
-      <button id="btnResetAll" disabled>すべて既定に戻す</button>
+      <button id="btnWrite" class="primary" disabled>書き込む</button>
+      <button id="btnReload" disabled>再読み込み</button>
+      <button id="btnResetAll" disabled>全て既定に</button>
+      <button id="btnExport">.conf をエクスポート</button>
+      <span class="spacer"></span>
+      <label><input type="checkbox" id="chkDetail">詳細: 左右別に設定</label>
     </div>
     <div id="params"><span class="legend">接続すると tp list の内容がここに表示されます</span></div>
+    <textarea id="conf" readonly spellcheck="false" placeholder="「.conf をエクスポート」で全パラメータの CONFIG_ 行がここに表示されます"></textarea>
   </div>
 </details>
 
@@ -223,39 +184,24 @@
   <summary>タイムライン・診断</summary>
   <div class="body">
     <div class="row">
-      <span class="legend">表示幅</span>
-      <button class="zoom" data-ms="2000">2s</button>
-      <button class="zoom active" data-ms="5000">5s</button>
-      <button class="zoom" data-ms="10000">10s</button>
+      <span class="legend">表示幅 10 秒固定</span>
       <span class="spacer"></span>
       <button id="btnPause">一時停止</button>
     </div>
     <canvas id="timeline"></canvas>
-    <div class="legend">
-      ボタン: <i style="background:#3b82f6"></i>左 <i style="background:#22c55e"></i>右 <i style="background:#f97316"></i>中
-      <i style="background:#dc2626"></i>wheel / 診断 <i style="background:#111827"></i>REL X,Y / move
-      <span style="color:#dc2626;margin-left:8px">×</span> = input_report がイベントを捨てた
-    </div>
+    <ul id="timelineLegend">
+      <li><b>指の本数</b>: ドライバが検出した指の本数(0〜3 を高さで表す)。両手から来るときは R / L を添える</li>
+      <li><b>ファームが送った操作</b>: ドライバが送ったクリック(青=左、緑=右、橙=中)の押下区間・移動(黒)・wheel(赤)の報告。赤い × は input_report がイベントを捨てたこと</li>
+      <li><b>Mac が受けた操作</b>: アプリのウィンドウ上でブラウザが受け取った pointerdown/up/move(黒)・wheel(赤)。ポインタロックは使わないため、ウィンドウの上でのみ検出できる</li>
+    </ul>
     <h2 style="margin-top:10px">診断(直近 60 秒)</h2>
     <ul id="diag"></ul>
   </div>
 </details>
 
-<details class="section" id="secExport" open>
-  <summary>エクスポート・プロファイル</summary>
-  <div class="body">
-    <div class="row">
-      <button id="btnCopyDiff">差分を .conf でコピー</button>
-      <button id="btnCopyAll">すべて .conf でコピー</button>
-    </div>
-    <textarea id="conf" readonly spellcheck="false" placeholder="接続してパラメータを変更すると差分がここに表示されます"></textarea>
-    <div class="row" style="margin-top:6px">
-      <select id="profiles"></select>
-      <button id="btnProfileSave">プロファイル保存</button>
-      <button id="btnProfileLoad">読込</button>
-      <button id="btnProfileDelete">削除</button>
-    </div>
-  </div>
+<details id="logbox">
+  <summary>シリアルログ</summary>
+  <pre id="log"></pre>
 </details>
 
 <script src="tuner.js"></script>
@@ -279,7 +225,6 @@
   const PROBE_TIMEOUT_MS = 1500;
   const SETTLE_MS = 200;
   const KEEP_MS = 60000;
-  const SET_DEBOUNCE_MS = 150;
   const ATTEMPT_IDLE_MS = 400;
   const SUMMARY_WAIT_MS = 600;
   const PROCESS_INTERVAL_MS = 250;
@@ -289,10 +234,14 @@
   const LASTPORT_KEY = 'tp-tuner.lastPort';
   const DISCONNECTED_MSG = '切断されました。再接続を待っています';
   const LANE_H = 40;
-  const LANES = ['FW 指', 'FW ボタン', 'FW REL/WHEEL', 'HOST ボタン', 'HOST move', 'HOST wheel'];
+  const LANES = ['指の本数', 'ファームが送った操作', 'Mac が受けた操作'];
   const BTN_COLOR = { [T.BTN[0]]: '#3b82f6', [T.BTN[1]]: '#22c55e', [T.BTN[2]]: '#f97316', [T.BTN[7]]: '#a855f7' };
   const HOST_BITS = [[1, T.BTN[0]], [2, T.BTN[1]], [4, T.BTN[2]]];
-  const PROFILE_KEY = 'tp-tuner.profiles';
+  const PAD_COLOR = { idle: '#9ca3af', blue: '#3b82f6', green: '#22c55e', orange: '#f97316', purple: '#a855f7' };
+  const PAD_H = 200;
+  const PAD_W = Math.round(PAD_H * (2457 / 3072));
+  const SIDE_LABEL = { R: '右手', L: '左手' };
+  const NOT_HAPPENED_FEEDBACK = { tap1: 'none', tap2: 'none', tap3: 'none', tapdrag: 'nodrag', scroll2: 'none', pinch: 'none' };
 
   const GROUPS = [
     { title: '1本指タップ / タップドラッグ', names: ['1f_tap_enable', '1f_tap_max_ms', '1f_tap_move', '1f_presshold_enable', '1f_tapdrag_gap_max_ms'] },
@@ -373,36 +322,58 @@
   let transport = null;
   let connected = false;
   let buffer = '';
-  let side = 'R';
+  let usbSide = null;
+  let bleLeftAvailable = false;
   let awaitingDevicePick = false;
   let lastDevices = [];
   let lastFailedDeviceSetKey = null;
   const clock = { offset: { R: 0, L: 0 } };
-  const view = { ms: 5000, frozenNow: null };
-  const rec = { frames: [], fw: [], hostBtn: [], hostWheel: [], hostMove: [], paused: false };
-  let params = [];
+  const view = { ms: 10000, frozenNow: null };
+  const rec = {
+    R: { frames: [], fw: [] }, L: { frames: [], fw: [] },
+    host: { btn: [], move: [], wheel: [] },
+    paused: false,
+  };
+  const processedStarts = { R: new Set(), L: new Set() };
+  const pendingSummaries = { R: [], L: [] };
+  const params = { R: [], L: [] };
+  const connInfo = { R: null, L: null };
+  let pending = { common: {}, R: {}, L: {} };
+  let detailMode = false;
   let diag = [];
-  let traceOn = false;
   let busyConnecting = false;
   let autoConnectEnabled = true;
-  let dirty = false;
-  let lastConnInfo = null;
-  const setTimers = {};
+  const lastFrame = { R: null, L: null };
+  const padTrail = { R: [], L: [] };
+  const padFlash = { R: 0, L: 0 };
+  const lastObs = { R: null, L: null };
+  const lastKind = { R: null, L: null };
+  const intentSuggestion = { R: null, L: null };
 
-  function setDirty(v) {
-    dirty = v;
-    $('dirtyIndicator').hidden = !dirty;
+  function emptyPending() {
+    return { common: {}, R: {}, L: {} };
   }
 
-  function savedLabel(saved) {
-    if (saved === null || saved === undefined) return '';
-    return saved ? ' ・保存済み' : ' ・未保存';
+  function isConnected() {
+    return !!(transport && connected);
   }
 
-  function renderConnInfo() {
-    if (!lastConnInfo) { $('info').textContent = '未接続'; return; }
-    const info = lastConnInfo;
-    $('info').textContent = `${info.side === 'central' ? '右(central)' : '左(peripheral)'} uptime=${(info.uptimeMs / 1000).toFixed(1)}s params=${info.params}${savedLabel(info.saved)}`;
+  function activeSides() {
+    if (!isConnected()) return [];
+    if (transport.kind === 'ble') return bleLeftAvailable ? ['R', 'L'] : ['R'];
+    return usbSide ? [usbSide] : [];
+  }
+
+  function isSideActive(sideKey) {
+    return activeSides().includes(sideKey);
+  }
+
+  function nowMs() {
+    return rec.paused && view.frozenNow !== null ? view.frozenNow : performance.now();
+  }
+
+  function errText(e) {
+    return e && e.message ? e.message : String(e);
   }
 
   function setStatus(msg, isError) {
@@ -427,23 +398,11 @@
     el.scrollTop = el.scrollHeight;
   }
 
-  function errText(e) {
-    return e && e.message ? e.message : String(e);
-  }
-
-  function isConnected() {
-    return !!(transport && connected);
-  }
-
-  function nowMs() {
-    return rec.paused && view.frozenNow !== null ? view.frozenNow : performance.now();
-  }
-
   function handleUsbLine(raw) {
     const line = T.stripPromptPrefix(raw);
     const trace = T.parseTraceLine(line);
     if (trace) {
-      if (link.onTrace) link.onTrace(trace);
+      if (link.onTrace) link.onTrace(trace, usbSide);
       return;
     }
     const p = link.pending;
@@ -459,16 +418,13 @@
 
   function handleBleLine(line) {
     const parsed = T.splitSidePrefix(line);
-    if (parsed && parsed.side === side) {
-      if (T.isEndMarker(parsed.rest)) {
-        finishPending(null, link.lines);
-      } else {
-        const trace = T.parseTraceLine(parsed.rest);
-        if (trace) {
-          if (link.onTrace) link.onTrace(trace);
-        } else if (link.pending && parsed.rest.trim() !== '') {
-          link.lines.push(parsed.rest);
-        }
+    if (parsed) {
+      const trace = T.parseTraceLine(parsed.rest);
+      if (trace) {
+        if (link.onTrace) link.onTrace(trace, parsed.side);
+      } else if (link.pending && parsed.side === link.pending.side) {
+        if (T.isEndMarker(parsed.rest)) finishPending(null, link.lines);
+        else if (parsed.rest.trim() !== '') link.lines.push(parsed.rest);
       }
     }
     if (link.onLog) link.onLog(line);
@@ -616,7 +572,7 @@
     p.timer = setTimeout(() => {
       if (link.pending === p) finishPending(new Error('タイムアウト: ' + p.cmd));
     }, p.timeoutMs);
-    const wireText = transport.kind === 'ble' ? T.bleCommand(side, p.cmd) : p.cmd;
+    const wireText = transport.kind === 'ble' ? T.bleCommand(p.side || 'R', p.cmd) : p.cmd;
     transport.write(wireText).catch((e) => {
       if (link.pending === p) finishPending(new Error('送信失敗: ' + errText(e)));
     });
@@ -627,44 +583,81 @@
     return CMD_TIMEOUT_MS;
   }
 
-  function send(cmd, timeoutMs) {
+  function send(cmd, opts) {
+    const side = opts && opts.side;
+    const timeoutMs = (opts && opts.timeoutMs) || defaultTimeoutFor(cmd);
     return new Promise((resolve, reject) => {
       if (!isConnected()) return reject(new Error('未接続です: ' + cmd));
-      link.queue.push({ cmd, resolve, reject, timer: null, seen: false, timeoutMs: timeoutMs || defaultTimeoutFor(cmd) });
+      link.queue.push({ cmd, side: side || null, resolve, reject, timer: null, seen: false, timeoutMs });
       pump();
     });
   }
 
-  function updateModeUi() {
-    const ble = isConnected() && transport && transport.kind === 'ble';
-    $('selSide').hidden = !ble;
-    if (ble) $('selSide').value = side;
-    $('btnTrace').hidden = ble;
+  function sendTo(sideKey, cmd, timeoutMs) {
+    if (transport && transport.kind === 'ble') return send(cmd, { side: sideKey, timeoutMs });
+    return send(cmd, { timeoutMs });
   }
 
-  function setConnectedUi(connected) {
-    $('btnConnect').disabled = connected || (!navigator.serial && !hasNativeBridge);
-    $('btnDisconnect').disabled = !connected;
-    $('btnSave').disabled = !connected;
-    $('btnTrace').disabled = !connected;
-    $('btnReload').disabled = !connected;
-    $('btnResetAll').disabled = !connected;
-    if (!connected) {
-      lastConnInfo = null;
-      renderConnInfo();
-      setDirty(false);
-      traceOn = false;
-      side = 'R';
-      $('btnTrace').textContent = 'trace OFF';
-      $('btnTrace').classList.remove('active');
+  async function runSimpleOnSide(sideKey, cmd) {
+    try {
+      const lines = await sendTo(sideKey, cmd);
+      const ok = lines.some((l) => l.startsWith('OK'));
+      log(`[${sideKey}] ` + lines.join('\n'));
+      return ok;
+    } catch (e) {
+      log(`[${sideKey}] ` + errText(e));
+      return false;
+    }
+  }
+
+  function sideStatusText(sideKey, info, unavailable) {
+    const label = SIDE_LABEL[sideKey];
+    if (unavailable) return `${label} ✗応答なし`;
+    if (!info) return `${label} -`;
+    const saved = info.saved === null || info.saved === undefined ? '' : info.saved ? '(保存済み)' : '(未保存)';
+    return `${label} ✓${saved}`;
+  }
+
+  function pendingCount() {
+    return new Set([...Object.keys(pending.common), ...Object.keys(pending.R), ...Object.keys(pending.L)]).size;
+  }
+
+  function renderHeader() {
+    const modeText = transport ? (transport.kind === 'ble' ? 'BT' : 'USB') : '';
+    let text = '未接続';
+    if (isConnected()) {
+      const parts = transport.kind === 'ble'
+        ? [sideStatusText('R', connInfo.R), sideStatusText('L', connInfo.L, !bleLeftAvailable)]
+        : [sideStatusText(usbSide, connInfo[usbSide])];
+      text = `${modeText}: ${parts.join(' ／ ')}`;
+    }
+    $('connStatus').textContent = text;
+    const n = pendingCount();
+    $('dirtyIndicator').hidden = n === 0;
+    $('dirtyIndicator').textContent = `未書き込みの変更 ${n} 件`;
+  }
+
+  function setConnectedUi(isConn) {
+    $('btnConnect').disabled = isConn || (!navigator.serial && !hasNativeBridge);
+    $('btnDisconnect').disabled = !isConn;
+    $('btnWrite').disabled = !isConn;
+    $('btnReload').disabled = !isConn;
+    $('btnResetAll').disabled = !isConn;
+    if (!isConn) {
+      connInfo.R = null; connInfo.L = null;
+      usbSide = null;
+      bleLeftAvailable = false;
+      pending = emptyPending();
+      params.R = []; params.L = [];
       hideDevicePanel();
       lastFailedDeviceSetKey = null;
     }
-    updateModeUi();
-    renderAllCards();
+    renderHeader();
+    renderParams();
+    for (const s of ['R', 'L']) renderPadStatus(s);
   }
 
-  async function establishConnection(target) {
+  async function establishUsb(target) {
     buffer = '';
     await transport.connect(target);
     connected = true;
@@ -672,26 +665,77 @@
     buffer = '';
     let info = null;
     try {
-      if (transport.kind !== 'ble') await send('tp trace off', PROBE_TIMEOUT_MS);
+      await send('tp trace off', { timeoutMs: PROBE_TIMEOUT_MS });
       for (let attempt = 0; attempt < 2 && !info; attempt++) {
         const before = performance.now();
-        const infoLines = await send('tp info', PROBE_TIMEOUT_MS);
+        const infoLines = await send('tp info', { timeoutMs: PROBE_TIMEOUT_MS });
         const after = performance.now();
         info = infoLines.map(T.parseInfoLine).find(Boolean);
-        if (info) clock.offset[side] = T.clockOffset(before, after, info.uptimeMs);
+        if (info) {
+          usbSide = info.side === 'central' ? 'R' : 'L';
+          clock.offset[usbSide] = T.clockOffset(before, after, info.uptimeMs);
+        }
       }
     } catch (e) {
       log('接続確認に失敗: ' + errText(e));
     }
     if (!info) throw new Error('このポートは tp コマンドに応答しません。もう一方のポートを選んでください');
+    connInfo[usbSide] = info;
+    sendTo(usbSide, 'tp trace on').catch((e) => log('trace on に失敗: ' + errText(e)));
     return info;
   }
 
-  function finalizeConnected(target, info) {
-    if (!transport.isNative) rememberPort(target, info);
-    lastConnInfo = info;
-    renderConnInfo();
-    setDirty(false);
+  async function establishBle(target) {
+    buffer = '';
+    await transport.connect(target);
+    connected = true;
+    await new Promise((r) => setTimeout(r, SETTLE_MS));
+    buffer = '';
+    let infoR = null;
+    for (let attempt = 0; attempt < 2 && !infoR; attempt++) {
+      const before = performance.now();
+      const lines = await send('tp info', { side: 'R', timeoutMs: PROBE_TIMEOUT_MS });
+      const after = performance.now();
+      infoR = lines.map(T.parseInfoLine).find(Boolean);
+      if (infoR) clock.offset.R = T.clockOffset(before, after, infoR.uptimeMs);
+    }
+    if (!infoR) throw new Error('右手(central)が tp コマンドに応答しません');
+    connInfo.R = infoR;
+    bleLeftAvailable = false;
+    try {
+      const before = performance.now();
+      const lines = await send('tp info', { side: 'L', timeoutMs: PROBE_TIMEOUT_MS });
+      const after = performance.now();
+      const infoL = lines.map(T.parseInfoLine).find(Boolean);
+      if (infoL) {
+        connInfo.L = infoL;
+        clock.offset.L = T.clockOffset(before, after, infoL.uptimeMs);
+        bleLeftAvailable = true;
+      }
+    } catch (e) {
+      log('左手が応答しません(' + errText(e) + ')。右手だけで続行します');
+    }
+    return infoR;
+  }
+
+  async function loadParamsForSide(sideKey) {
+    const lines = await sendTo(sideKey, 'tp list');
+    params[sideKey] = lines.map(T.parseListLine).filter(Boolean);
+  }
+
+  async function loadAllParams() {
+    let count = 0;
+    for (const s of activeSides()) {
+      await loadParamsForSide(s);
+      count += params[s].length;
+    }
+    renderParams();
+    updateConfPreview();
+    return count;
+  }
+
+  function finalizeConnected(target, isNativeTarget) {
+    if (!isNativeTarget && transport.kind !== 'ble') rememberPort(target, connInfo[usbSide]);
     setConnectedUi(true);
   }
 
@@ -712,11 +756,11 @@
       transport = createWebSerialTransport();
       attachTransportHandlers(transport);
       setStatus('接続中...');
-      const info = await establishConnection(port);
-      finalizeConnected(port, info);
+      await establishUsb(port);
+      finalizeConnected(port, false);
       setStatus('接続しました');
-      await loadParams();
-      setStatus(`パラメータ ${params.length} 件を読み込みました`);
+      const count = await loadAllParams();
+      setStatus(`パラメータ ${count} 件を読み込みました`);
     } catch (e) {
       setStatus(errText(e), true);
       log('接続失敗: ' + errText(e));
@@ -740,11 +784,11 @@
     hideDevicePanel();
     try {
       setStatus(`接続中... (${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
-      const info = await establishConnection(device.id);
-      finalizeConnected(device.id, info);
+      if (device.kind === 'ble') await establishBle(device.id); else await establishUsb(device.id);
+      finalizeConnected(device.id, true);
       setStatus('接続しました');
-      await loadParams();
-      setStatus(`パラメータ ${params.length} 件を読み込みました`);
+      const count = await loadAllParams();
+      setStatus(`パラメータ ${count} 件を読み込みました`);
     } catch (e) {
       setStatus(errText(e), true);
       log('接続失敗: ' + errText(e));
@@ -785,11 +829,11 @@
         if (isConnected()) return;
         try {
           setStatus(`自動接続を試しています... (${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
-          const info = await establishConnection(device.id);
-          finalizeConnected(device.id, info);
+          if (device.kind === 'ble') await establishBle(device.id); else await establishUsb(device.id);
+          finalizeConnected(device.id, true);
           setStatus(`自動接続しました(${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
-          await loadParams();
-          setStatus(`パラメータ ${params.length} 件を読み込みました`);
+          const count = await loadAllParams();
+          setStatus(`パラメータ ${count} 件を読み込みました`);
           return;
         } catch (e) {
           log('自動接続の候補が応答しませんでした: ' + errText(e));
@@ -873,12 +917,12 @@
           setStatus('自動接続を試しています...');
           transport = createWebSerialTransport();
           attachTransportHandlers(transport);
-          const info = await establishConnection(port);
-          finalizeConnected(port, info);
+          await establishUsb(port);
+          finalizeConnected(port, false);
           const pi = port.getInfo ? port.getInfo() : {};
           setStatus(`自動接続しました(vendorId=${pi.usbVendorId ?? '?'} productId=${pi.usbProductId ?? '?'})`);
-          await loadParams();
-          setStatus(`パラメータ ${params.length} 件を読み込みました`);
+          const count = await loadAllParams();
+          setStatus(`パラメータ ${count} 件を読み込みました`);
           return;
         } catch (e) {
           log('自動接続の候補ポートが応答しませんでした: ' + errText(e));
@@ -921,247 +965,244 @@
     else if (!isError) setStatus('切断しました');
   }
 
-  async function toggleTrace(quiet) {
-    if (transport && transport.kind === 'ble') return;
-    const next = !traceOn;
-    try {
-      const lines = await send('tp trace ' + (next ? 'on' : 'off'));
-      const ok = lines.some((l) => l.startsWith('OK '));
-      if (!ok) throw new Error(lines.join(' ') || 'trace の切替に失敗しました');
-      traceOn = next;
-      $('btnTrace').textContent = traceOn ? 'trace ON' : 'trace OFF';
-      $('btnTrace').classList.toggle('active', traceOn);
-      if (!quiet) setStatus(traceOn ? 'trace ON: パッドに触れるとタイムラインが動きます' : 'trace OFF');
-    } catch (e) {
-      setStatus(errText(e), true);
+  function tailMsFor(sideKey) {
+    return Math.max(500, T.paramValue(params[sideKey], '1f_tapdrag_gap_max_ms') + 300);
+  }
+
+  function paramsForSuggest(sideKey) {
+    return params[sideKey] && params[sideKey].length ? params[sideKey] : T.DEFAULT_PARAMS;
+  }
+
+  function onRecognized(sideKey, obs) {
+    lastObs[sideKey] = obs;
+    lastKind[sideKey] = T.inferKind(obs, paramsForSuggest(sideKey));
+    intentSuggestion[sideKey] = null;
+    renderRecog(sideKey);
+    renderIntentSelect(sideKey);
+    renderSuggestion(sideKey);
+  }
+
+  function processAttemptsForSide(sideKey) {
+    const now = nowMs();
+    const attempts = T.segmentAttempts(rec[sideKey].frames, { idleMs: ATTEMPT_IDLE_MS, now });
+    for (let i = 0; i < attempts.length; i++) {
+      const a = attempts[i];
+      if (!a.closed || processedStarts[sideKey].has(a.start)) continue;
+      const next = attempts[i + 1];
+      const tail = next ? Math.min(tailMsFor(sideKey), next.start - a.end) : tailMsFor(sideKey);
+      if (now < a.end + Math.max(tail, SUMMARY_WAIT_MS)) continue;
+      processedStarts[sideKey].add(a.start);
+      const obs = T.observeAttempt(a, rec[sideKey].fw, rec.host, { tailMs: tail });
+      onRecognized(sideKey, obs);
     }
   }
 
-  async function switchSide(newSide) {
-    if (newSide === side) return;
-    if (dirty && !window.confirm('未保存の変更があります。側を切り替えると破棄されます。よろしいですか?')) {
-      $('selSide').value = side;
-      return;
+  function nextKnownStartAfter(sideKey, afterT) {
+    let best = null;
+    const attempts = T.segmentAttempts(rec[sideKey].frames, { idleMs: ATTEMPT_IDLE_MS, now: nowMs() });
+    for (const a of attempts) {
+      if (a.start > afterT && (best === null || a.start < best)) best = a.start;
     }
-    for (const q of link.queue.splice(0)) q.reject(new Error('側を切り替えました'));
-    finishPending(new Error('側を切り替えました'));
-    side = newSide;
-    pendingSummaries.length = 0;
-    try {
-      const before = performance.now();
-      const lines = await send('tp info');
-      const after = performance.now();
-      const info = lines.map(T.parseInfoLine).find(Boolean);
-      if (info) {
-        clock.offset[side] = T.clockOffset(before, after, info.uptimeMs);
-        lastConnInfo = info;
-        renderConnInfo();
-      }
-    } catch (e) {
-      setStatus(errText(e), true);
+    for (const p of pendingSummaries[sideKey]) {
+      if (p.start > afterT && (best === null || p.start < best)) best = p.start;
     }
-    try {
-      await loadParams();
-    } catch (e) {
-      setStatus(errText(e), true);
-    }
-    setDirty(false);
-    updateModeUi();
-    renderAllCards();
+    return best;
   }
 
-  const byName = () => Object.fromEntries(params.map((p) => [p.name, p]));
-
-  async function loadParams() {
-    const lines = await send('tp list');
-    params = lines.map(T.parseListLine).filter(Boolean);
-    renderParams();
-    updateConfPreview();
-    renderAllCards();
+  function handleSummary(sideKey, tr) {
+    const start = tr.startMs + clock.offset[sideKey];
+    if (processedStarts[sideKey].has(start)) return;
+    pendingSummaries[sideKey].push({ tr, start, end: tr.endMs + clock.offset[sideKey] });
+    processPendingSummariesForSide(sideKey);
   }
 
-  function renderParams() {
-    const root = $('params');
-    root.innerHTML = '';
-    if (params.length === 0) {
-      root.innerHTML = '<span class="legend">パラメータがありません</span>';
-      return;
-    }
-    const seen = new Set();
-    const known = new Set(GROUPS.flatMap((g) => g.names));
-    const groups = GROUPS.concat([{ title: 'その他', names: params.map((p) => p.name).filter((n) => !known.has(n)) }]);
-    const map = byName();
-    for (const g of groups) {
-      const box = document.createElement('fieldset');
-      const legend = document.createElement('legend');
-      legend.textContent = g.title;
-      box.appendChild(legend);
-      if (g.ic) {
-        const b = document.createElement('button');
-        b.textContent = 'Re-ATI';
-        b.onclick = () => runSimple('tp reati', 'Re-ATI を実行しました');
-        box.appendChild(b);
-      }
-      let rows = 0;
-      for (const name of g.names) {
-        const p = map[name];
-        if (!p || seen.has(name)) continue;
-        seen.add(name);
-        box.appendChild(renderParamRow(p));
-        rows++;
-      }
-      if (rows > 0) root.appendChild(box);
+  function processPendingSummariesForSide(sideKey) {
+    const now = nowMs();
+    const queue = pendingSummaries[sideKey];
+    for (let i = queue.length - 1; i >= 0; i--) {
+      const p = queue[i];
+      if (processedStarts[sideKey].has(p.start)) { queue.splice(i, 1); continue; }
+      const nextStart = nextKnownStartAfter(sideKey, p.end);
+      const { ready, tailMs } = T.summaryHostWindow(p.end, nextStart, now, tailMsFor(sideKey));
+      if (!ready) continue;
+      processedStarts[sideKey].add(p.start);
+      queue.splice(i, 1);
+      const obs = T.observationFromSummary(p.tr, rec.host, clock.offset[sideKey], { tailMs });
+      onRecognized(sideKey, obs);
     }
   }
 
-  function renderParamRow(p) {
-    const row = document.createElement('div');
-    row.className = 'param' + (p.kind === 'driver_bool' ? ' bool' : '');
-    row.dataset.name = p.name;
-    const label = document.createElement('label');
-    label.textContent = p.name;
-    label.title = `[${p.kind}] 範囲 ${p.min}..${p.max} 既定 ${p.def}`;
-    row.appendChild(label);
-    if (p.kind === 'driver_bool') {
-      const cb = document.createElement('input');
-      cb.type = 'checkbox';
-      cb.checked = !!p.value;
-      cb.onchange = () => setParam(p, cb.checked ? 1 : 0);
-      row.appendChild(cb);
-      row.appendChild(document.createElement('span'));
+  link.onTrace = (tr, sideKey) => {
+    if (!sideKey || rec.paused) return;
+    if (tr.type === 'S') { handleSummary(sideKey, tr); return; }
+    const t = tr.ms + (clock.offset[sideKey] || 0);
+    if (tr.type === 'F') {
+      const frame = { ...tr, t };
+      rec[sideKey].frames.push(frame);
+      lastFrame[sideKey] = frame;
+      for (const pt of T.frameToPadPoints(frame, PAD_W, PAD_H)) padTrail[sideKey].push({ ...pt, t });
     } else {
-      const range = document.createElement('input');
-      range.type = 'range';
-      range.min = p.min; range.max = p.max; range.value = p.value;
-      const num = document.createElement('input');
-      num.type = 'number';
-      num.min = p.min; num.max = p.max; num.value = p.value;
-      range.oninput = () => { num.value = range.value; setParam(p, Number(range.value)); };
-      num.onchange = () => {
-        const v = Math.min(p.max, Math.max(p.min, Math.round(Number(num.value) || 0)));
-        num.value = v; range.value = v; setParam(p, v);
-      };
-      row.appendChild(range);
-      row.appendChild(num);
+      rec[sideKey].fw.push({ ...tr, t });
+      if (tr.kind === 'K' && tr.value !== 0) padFlash[sideKey] = performance.now();
     }
-    const reset = document.createElement('button');
-    reset.textContent = '既定に戻す';
-    reset.onclick = () => setParam(p, p.def);
-    row.appendChild(reset);
-    const help = helpText(p.name);
-    if (help) {
-      const d = document.createElement('div');
-      d.className = 'desc';
-      d.textContent = help;
-      row.appendChild(d);
+  };
+  link.onLog = (line) => { if (line.trim() !== '') log(line); };
+
+  function hasLiveFrame(sideKey) {
+    const last = lastFrame[sideKey];
+    return !!last && performance.now() - last.t <= STATE_STALE_MS;
+  }
+
+  function currentActionText(sideKey) {
+    if (!isSideActive(sideKey)) return isConnected() ? 'USB では接続側のみ' : '未接続';
+    if (!hasLiveFrame(sideKey)) return transport.kind === 'ble' ? '(要約のみ。フレーム表示なし)' : '待機';
+    return T.describeState(lastFrame[sideKey]);
+  }
+
+  function renderNow(sideKey) {
+    $(`now${sideKey}`).innerHTML = '';
+    const b = document.createElement('b');
+    b.textContent = '今の操作:';
+    $(`now${sideKey}`).append(b, document.createTextNode(' ' + currentActionText(sideKey)));
+  }
+
+  function renderRecog(sideKey) {
+    const el = $(`recog${sideKey}`);
+    el.innerHTML = '';
+    const b = document.createElement('b');
+    b.textContent = '直近の試行:';
+    const obs = lastObs[sideKey];
+    el.classList.toggle('empty', !obs);
+    if (!obs) {
+      el.append(b, document.createTextNode(' 未試行'));
+      return;
     }
-    syncRow(row, p);
-    return row;
+    const text = `${SIDE_LABEL[sideKey]}: ${T.recognitionText(lastKind[sideKey], obs, paramsForSuggest(sideKey))}`;
+    el.append(b, document.createTextNode(' ' + text));
   }
 
-  function rowOf(p) {
-    return document.querySelector(`.param[data-name="${p.name}"]`);
-  }
-
-  function syncRow(row, p, opts) {
-    if (!row) return;
-    const force = !!(opts && opts.force);
-    row.classList.toggle('changed', p.value !== p.def);
-    const inputs = row.querySelectorAll('input');
-    for (const el of inputs) {
-      if (!force && el === document.activeElement) continue;
-      if (el.type === 'checkbox') el.checked = !!p.value;
-      else el.value = p.value;
-    }
-  }
-
-  function setParam(p, value) {
-    clearTimeout(setTimers[p.name]);
-    setTimers[p.name] = setTimeout(() => applyParam(p, value), SET_DEBOUNCE_MS);
-  }
-
-  async function applyParam(p, value) {
-    const row = rowOf(p);
-    try {
-      const lines = await send(`tp set ${p.name} ${value}`);
-      const ok = lines.some((l) => l.startsWith('OK '));
-      if (row) row.classList.toggle('error', !ok);
-      if (ok) {
-        p.value = value;
-        syncRow(row, p);
-        updateConfPreview();
-        renderAllCards();
-        setDirty(true);
-      } else {
-        syncRow(row, p, { force: true });
-        setStatus(`${p.name}: ${lines.join(' ') || '応答なし'}`, true);
+  function renderIntentSelect(sideKey) {
+    const wrap = $(`intent${sideKey}`);
+    wrap.hidden = !lastObs[sideKey];
+    const sel = $(`intentSelect${sideKey}`);
+    if (sel.dataset.filled !== '1') {
+      for (const g of T.GESTURES) {
+        if (g.kind === 'cursor') continue;
+        const o = document.createElement('option');
+        o.value = g.kind;
+        o.textContent = g.title;
+        sel.appendChild(o);
       }
-      log(lines.join('\n'));
-      return ok;
-    } catch (e) {
-      if (row) row.classList.add('error');
-      syncRow(row, p, { force: true });
-      setStatus(errText(e), true);
-      return false;
+      sel.dataset.filled = '1';
+    }
+    sel.value = '';
+  }
+
+  function renderSuggestion(sideKey) {
+    const box = $(`suggestion${sideKey}`);
+    const s = intentSuggestion[sideKey];
+    box.hidden = !s;
+    box.innerHTML = '';
+    if (!s) return;
+    const line = document.createElement('div');
+    if (s.r.suggestions.length) {
+      line.textContent = s.r.suggestions.map((sg) => `${sg.name}: ${sg.from ?? '?'} → ${sg.to ?? '?'}`).join('、')
+        + `(${s.r.suggestions[0].reason})`;
+    } else {
+      line.textContent = s.r.notes[0] || '観測からは原因を絞れません';
+    }
+    box.appendChild(line);
+    if (s.r.suggestions.length) {
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      const apply = document.createElement('button');
+      apply.className = 'primary';
+      apply.textContent = '適用';
+      apply.onclick = () => applyIntentSuggestion(sideKey);
+      actions.appendChild(apply);
+      box.appendChild(actions);
     }
   }
 
-  async function runSimple(cmd, okMsg) {
-    try {
-      const lines = await send(cmd);
-      const ok = lines.some((l) => l.startsWith('OK'));
-      log(lines.join('\n'));
-      setStatus(ok ? okMsg : (lines.join(' ') || `${cmd} に応答がありません`), !ok);
-      return ok;
-    } catch (e) {
-      setStatus(errText(e), true);
-      return false;
+  function onIntentChange(sideKey, kind) {
+    const obs = lastObs[sideKey];
+    if (!obs || !kind) {
+      intentSuggestion[sideKey] = null;
+      renderSuggestion(sideKey);
+      return;
     }
+    const feedback = NOT_HAPPENED_FEEDBACK[kind] || 'none';
+    const r = T.suggestFor(kind, feedback, obs, paramsForSuggest(sideKey));
+    intentSuggestion[sideKey] = { kind, r };
+    renderSuggestion(sideKey);
   }
 
-  async function resetAll() {
-    if (!isConnected()) { setStatus('未接続です', true); return; }
-    if (!window.confirm('すべてのパラメータをファームの既定値に戻します。保存済みの値も削除されます。よろしいですか?')) return;
-    if (await runSimple('tp reset', 'すべて既定に戻しました')) {
-      setDirty(false);
-      if (lastConnInfo) { lastConnInfo = { ...lastConnInfo, saved: false }; renderConnInfo(); }
-      try { await loadParams(); } catch (e) { setStatus(errText(e), true); }
+  function applyIntentSuggestion(sideKey) {
+    const s = intentSuggestion[sideKey];
+    if (!s || !s.r.suggestions.length) return;
+    for (const sg of s.r.suggestions) {
+      if (sg.to !== null) pending.common[sg.name] = sg.to;
     }
+    intentSuggestion[sideKey] = null;
+    $(`intentSelect${sideKey}`).value = '';
+    renderSuggestion(sideKey);
+    renderHeader();
+    renderParams();
+    setStatus('提案を保留に積みました。「書き込む」で反映します');
   }
 
-  async function saveToFirmware() {
-    if (!isConnected()) { setStatus('未接続です', true); return; }
-    try {
-      const lines = await send('tp save');
-      const ok = lines.some((l) => l.startsWith('OK'));
-      log(lines.join('\n'));
-      if (ok) {
-        setDirty(false);
-        if (lastConnInfo) { lastConnInfo = { ...lastConnInfo, saved: true }; renderConnInfo(); }
-        setStatus('ファームに保存しました(OK saved)');
-      } else {
-        setStatus(lines.join(' ') || 'tp save に応答がありません', true);
-      }
-    } catch (e) {
-      setStatus(errText(e), true);
+  function renderPadStatus(sideKey) {
+    const el = $(`padStatus${sideKey}`);
+    if (!isConnected()) { el.textContent = '未接続'; return; }
+    if (!isSideActive(sideKey)) {
+      el.textContent = transport.kind === 'usb' ? 'USB では接続側のみ' : '応答なし';
+      return;
     }
+    if (transport.kind === 'ble' && !hasLiveFrame(sideKey)) { el.textContent = 'ライブ表示なし(要約のみ)'; return; }
+    el.textContent = '接続';
   }
 
-  async function reload() {
-    try {
-      await loadParams();
-      setStatus(`パラメータ ${params.length} 件を再読込しました`);
-    } catch (e) {
-      setStatus(errText(e), true);
+  function drawPad(sideKey) {
+    const cv = $(`pad${sideKey}`);
+    const ctx = cv.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    if (cv.width !== Math.round(PAD_W * dpr) || cv.height !== Math.round(PAD_H * dpr)) {
+      cv.width = Math.round(PAD_W * dpr);
+      cv.height = Math.round(PAD_H * dpr);
+      cv.style.width = PAD_W + 'px';
+      cv.style.height = PAD_H + 'px';
     }
-  }
-
-  const pad = $('pad');
-  const hostState = { buttons: 0, move: null, wheel: null };
-  let testMode = false;
-
-  function padLocked() {
-    return document.pointerLockElement === pad;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, PAD_W, PAD_H);
+    ctx.fillStyle = '#f3f4f6';
+    ctx.fillRect(0, 0, PAD_W, PAD_H);
+    const now = performance.now();
+    const trail = padTrail[sideKey];
+    while (trail.length && now - trail[0].t > 300) trail.shift();
+    const last = lastFrame[sideKey];
+    const fresh = last && now - last.t <= STATE_STALE_MS;
+    const st = T.padStateFromFrame(fresh ? last : null);
+    ctx.fillStyle = PAD_COLOR[st.color];
+    for (const pt of trail) {
+      const age = now - pt.t;
+      ctx.globalAlpha = Math.max(0, 1 - age / 300);
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    if (padFlash[sideKey] && now - padFlash[sideKey] < 150) {
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillRect(0, 0, PAD_W, PAD_H);
+    }
+    if (st.dragging) {
+      ctx.strokeStyle = '#dc2626';
+      ctx.lineWidth = 4;
+      ctx.strokeRect(2, 2, PAD_W - 4, PAD_H - 4);
+    }
+    ctx.fillStyle = '#374151';
+    ctx.font = '12px sans-serif';
+    ctx.fillText(st.state, 6, 16);
   }
 
   function recordPointer(type, e) {
@@ -1169,569 +1210,77 @@
     const t = performance.now();
     if (type === 'pointermove') {
       if (e.movementX === 0 && e.movementY === 0) return;
-      rec.hostMove.push({ t, dx: e.movementX, dy: e.movementY });
-      hostState.move = `${e.movementX},${e.movementY}`;
+      rec.host.move.push({ t, dx: e.movementX, dy: e.movementY });
     } else {
-      rec.hostBtn.push({ t, buttons: e.buttons });
-      hostState.buttons = e.buttons;
+      rec.host.btn.push({ t, buttons: e.buttons });
     }
-    renderHostState();
   }
 
   function recordWheel(e) {
     if (rec.paused) return;
-    rec.hostWheel.push({ t: performance.now(), deltaX: e.deltaX, deltaY: e.deltaY });
-    hostState.wheel = `${Math.round(e.deltaX)},${Math.round(e.deltaY)}`;
-    renderHostState();
+    rec.host.wheel.push({ t: performance.now(), deltaX: e.deltaX, deltaY: e.deltaY });
   }
 
-  pad.addEventListener('contextmenu', (e) => e.preventDefault());
-  document.addEventListener('contextmenu', (e) => { if (padLocked()) e.preventDefault(); });
   for (const type of ['pointerdown', 'pointerup', 'pointermove', 'pointercancel']) {
-    pad.addEventListener(type, (e) => {
-      if (type === 'pointerdown') { try { pad.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } }
-      recordPointer(type, e);
-    });
-    document.addEventListener(type, (e) => { if (padLocked() && e.target !== pad) recordPointer(type, e); });
+    document.addEventListener(type, (e) => recordPointer(type, e));
   }
-  pad.addEventListener('wheel', (e) => { e.preventDefault(); recordWheel(e); }, { passive: false });
-  document.addEventListener('wheel', (e) => {
-    if (!padLocked() || e.target === pad) return;
-    e.preventDefault();
-    recordWheel(e);
-  }, { passive: false });
+  document.addEventListener('wheel', (e) => recordWheel(e), { passive: true });
 
-  function updateTestUi() {
-    pad.classList.toggle('testing', testMode);
-    $('btnTest').textContent = testMode ? 'テスト終了' : 'テスト開始';
-    $('btnTest').classList.toggle('primary', !testMode);
-    let hint = '「テスト開始」でカーソルをこの領域に固定するとホストが受け取ったクリック・移動・wheel も認識文に載る(Esc で終了)';
-    if (testMode) {
-      hint = padLocked()
-        ? 'カーソル固定中(Esc で終了)。キー 1〜7 でカードを選択、Space で同じカードをもう一度'
-        : 'ポインタロックなし。カーソルをこの領域に置いたまま操作する';
-    }
-    $('padHint').textContent = hint;
-  }
-
-  function startTest() {
-    testMode = true;
-    updateTestUi();
-    if (isConnected() && !traceOn) toggleTrace();
-    else if (!isConnected()) setStatus('未接続です。接続するとドライバ側の判定も表示されます');
-    try {
-      const r = pad.requestPointerLock();
-      if (r && typeof r.catch === 'function') {
-        r.catch((e) => { setStatus('ポインタロックを取得できません: ' + errText(e), true); updateTestUi(); });
+  function prune() {
+    const cut = performance.now() - KEEP_MS;
+    for (const s of ['R', 'L']) {
+      for (const key of ['frames', 'fw']) {
+        const arr = rec[s][key];
+        let i = 0;
+        while (i < arr.length && arr[i].t < cut) i++;
+        if (i) arr.splice(0, i);
       }
-    } catch (e) {
-      setStatus('ポインタロックを取得できません: ' + errText(e), true);
+      for (const v of [...processedStarts[s]]) if (v < cut) processedStarts[s].delete(v);
+      for (let i = pendingSummaries[s].length - 1; i >= 0; i--) if (pendingSummaries[s][i].end < cut) pendingSummaries[s].splice(i, 1);
+      let j = 0;
+      while (j < padTrail[s].length && padTrail[s][j].t < cut) j++;
+      if (j) padTrail[s].splice(0, j);
     }
+    for (const key of ['move', 'wheel']) {
+      const arr = rec.host[key];
+      let i = 0;
+      while (i < arr.length && arr[i].t < cut) i++;
+      if (i) arr.splice(0, i);
+    }
+    let i = 0;
+    while (i < rec.host.btn.length - 1 && rec.host.btn[i + 1].t < cut) i++;
+    if (i) rec.host.btn.splice(0, i);
   }
 
-  function stopTest() {
-    testMode = false;
-    if (padLocked()) document.exitPointerLock();
-    updateTestUi();
-  }
-
-  document.addEventListener('pointerlockchange', () => {
-    if (!padLocked() && testMode) testMode = false;
-    updateTestUi();
-  });
-  document.addEventListener('pointerlockerror', () => {
-    setStatus('ポインタロックに失敗しました。カーソルをパッド内に置いたまま操作してください', true);
-    updateTestUi();
-  });
-
-  const cards = {};
-  const processedStarts = new Set();
-  const pendingSummaries = [];
-  const HISTORY_MAX = 5;
-  let armed = null;
-  let armedAt = 0;
-  let lastJudgedKind = null;
-
-  function renderCards() {
-    const root = $('cards');
-    root.innerHTML = '';
-    T.GESTURES.forEach((g, i) => {
-      const el = document.createElement('div');
-      el.className = 'card';
-      el.innerHTML = '<div class="head"><h3></h3><span class="badge" hidden></span><button class="arm"></button></div>'
-        + '<div class="instr"></div><div class="note" hidden></div><div class="recog"></div>'
-        + '<details class="breakdown" hidden><summary>認識の内訳</summary><ul></ul></details>'
-        + '<div class="feel" hidden></div><div class="proposal" hidden></div><ol class="history" hidden></ol>'
-        + '<details class="knobbox"><summary>関係するパラメータ</summary><div class="knobs"></div></details>';
-      el.querySelector('h3').textContent = `${i + 1}. ${g.title}`;
-      el.querySelector('.instr').textContent = `やること: ${g.instruction} → 期待: ${g.expect}`;
-      if (g.kind === 'cursor') {
-        const note = el.querySelector('.note');
-        note.hidden = false;
-        note.textContent = 'ポインタ速度そのものはキーマップの zip_xy_scaler(ビルドが必要)で決まる。システムレイヤー(レイヤー 1+2 同時押し)の ZDS_XY INC/DEC で実行時にも段階調整できる';
-      }
-      el.querySelector('.arm').onclick = () => { armCard(g.kind); };
-      root.appendChild(el);
-      cards[g.kind] = { el, g, obs: null, feedback: null, proposal: null, history: [] };
-      renderCard(g.kind);
-    });
-  }
-
-  function breakdownItems(kind, o) {
+  function runDiagnostics() {
     const items = [];
-    const li = (label, text) => items.push({ label, text });
-    const first = o.touches[0];
-    if (!first) {
-      li('接触', 'なし(指が認識されていない)');
-    } else {
-      li('指本数', `最大 ${o.fingersMax} 本、接触 ${o.touches.length} 回`);
-      li('押下時間', `1 回目 ${first.downMs}ms` + (o.touches[1] ? `、2 回目 ${o.touches[1].downMs}ms` : ''));
-      li('移動量', `1 回目 ${first.moveSum}` + (o.touches[1] ? `、2 回目 ${o.touches[1].moveSum}` : '') + (o.fingersMax >= 2 ? `、2 本指時 ${o.moveSum2}、距離変化 ${o.distDelta}` : ''));
-      li('2 回目の接触までの間隔', o.gapMs === null ? 'なし' : `${o.gapMs}ms` + (o.touches[1].holds.length ? `(保持: ${o.touches[1].holds.map((h) => T.BTN_NAMES[h] || h).join('、')})` : '(保持なし)'));
-      if (o.mode2fSeen.length) li('2 本指モード', o.mode2fSeen.map((m) => (m === 1 ? 'スクロール' : m === 2 ? 'ピンチ' : String(m))).join('、'));
+    for (const s of ['R', 'L']) {
+      if (!rec[s].frames.length && !rec[s].fw.length) continue;
+      const label = SIDE_LABEL[s];
+      for (const d of T.detectDrops(rec[s].fw)) items.push({ t: d.t, msg: `[${label}] input_report が ${d.kind} ${d.code} を捨てた` });
+      for (const d of T.detectStuckButton(rec[s].fw, rec.host.btn, { holdMs: 300, now: performance.now() })) items.push({ t: d.t, msg: `[${label}] ドライバは離したがホストのボタン(${d.code})が押されたまま` });
+      for (const d of T.detectMissingWheel(rec[s].fw, rec.host.wheel, { windowMs: 200 })) items.push({ t: d.t, msg: `[${label}] ドライバは wheel を送ったがホストに届いていない` });
+      for (const d of T.detectTwoFingerNoScroll(rec[s].frames, rec[s].fw, { minMove: 30, windowMs: 200 })) items.push({ t: d.t, msg: `[${label}] 2本指で動いているがドライバが wheel を出していない` });
     }
-    li('ドライバの報告', T.sentText(o) || 'なし');
-    li('ホストの受信', T.hostText(o));
-    li('ret≠0(input_report が捨てた)', o.drops ? `${o.drops} 件` : 'なし');
-    if (kind === 'cursor') {
-      const m = o.cursor;
-      li('移動量合計', `ファーム ${m.fwMove}(|rel_x|+|rel_y|)、ホスト ${m.hostMove}(movementX/Y)`);
-      if (m.approx) {
-        li('動き出し遅延・フレーム間隔・微小動き・慣性', '要約のみでは算出不可(トレース ON で取得)');
-      } else {
-        li('動き出し遅延', m.startDelayMs === null ? '動きなし' : `${m.startDelayMs}ms(接触フレームから最初の非ゼロ rel まで)`);
-        li('フレーム間隔の平均', `${m.frameGapMs}ms`);
-        li('微小動き(|rel|≤2)の割合', `${m.tinyRatio}%(静止時のふらつきの目安)`);
-        li('慣性', m.inertiaCount ? `離した後に移動 ${m.inertiaCount} 回、${m.inertiaMs}ms 継続` : 'なし');
-      }
-    } else {
-      const r = T.judgeAttempt(kind, o, params);
-      if (r) for (const st of r.stages) if (st.ok !== null) li(st.label, st.detail);
-    }
-    return items;
+    return items.sort((a, b) => a.t - b.t);
   }
 
-  function renderProposal(c) {
-    const box = c.el.querySelector('.proposal');
-    box.innerHTML = '';
-    const pr = c.proposal;
-    box.hidden = !pr;
-    if (!pr) return;
-    const title = document.createElement('div');
-    title.className = 'title';
-    title.textContent = `体感「${pr.label}」への提案`;
-    box.appendChild(title);
-    for (const sg of pr.suggestions) {
-      const item = document.createElement('div');
-      item.className = 'item';
-      const code = document.createElement('code');
-      code.textContent = sg.name;
-      const cur = sg.from === null ? '現在値 不明(未接続)' : `${sg.from}`;
-      const to = sg.to === null ? `${sg.delta > 0 ? '+' : ''}${sg.delta}` : `${sg.to}`;
-      item.append(code, document.createTextNode(`: ${cur} → ${to}(${sg.delta > 0 ? '+' : ''}${sg.delta})`));
-      const why = document.createElement('div');
-      why.className = 'why';
-      why.textContent = `理由: ${sg.reason}。副作用: ${sg.side}`;
-      item.appendChild(why);
-      const help = helpText(sg.name);
-      if (help) {
-        const h = document.createElement('div');
-        h.className = 'help';
-        h.textContent = help;
-        item.appendChild(h);
-      }
-      box.appendChild(item);
-    }
-    for (const n of pr.notes) {
-      const d = document.createElement('div');
-      d.className = 'note';
-      d.textContent = n;
-      box.appendChild(d);
-    }
-    const actions = document.createElement('div');
-    actions.className = 'actions';
-    if (pr.suggestions.length) {
-      const apply = document.createElement('button');
-      apply.className = 'primary';
-      apply.textContent = '適用して再試行';
-      const map = byName();
-      const missing = pr.suggestions.filter((sg) => !map[sg.name]);
-      apply.disabled = !isConnected() || missing.length > 0;
-      apply.title = !isConnected() ? '接続すると適用できます' : missing.length ? `${missing.map((m) => m.name).join(', ')} が読み込まれていません` : '';
-      apply.onclick = () => { applyProposal(c.g.kind); };
-      actions.appendChild(apply);
-    }
-    const dismiss = document.createElement('button');
-    dismiss.textContent = pr.suggestions.length ? '適用しない' : '閉じる';
-    dismiss.onclick = () => { c.proposal = null; renderCard(c.g.kind); };
-    actions.appendChild(dismiss);
-    const retry = document.createElement('button');
-    retry.textContent = 'そのままもう一度試す';
-    retry.onclick = () => { c.proposal = null; armCard(c.g.kind, { force: true }); };
-    actions.appendChild(retry);
-    box.appendChild(actions);
-  }
-
-  function renderFeel(c) {
-    const feel = c.el.querySelector('.feel');
-    feel.innerHTML = '';
-    feel.hidden = !c.obs || armed === c.g.kind;
-    if (feel.hidden) return;
-    const lead = document.createElement('span');
-    lead.className = 'lead';
-    lead.textContent = '体感は?';
-    feel.appendChild(lead);
-    const options = T.feedbackOptions(c.g.kind);
-    const selectedTop = c.feedback ? c.feedback.split(':')[0] : null;
-    let subRow = null;
-    for (const f of options) {
-      const b = document.createElement('button');
-      b.textContent = f.label;
-      b.classList.toggle('sel', selectedTop === f.id);
-      b.onclick = () => { giveFeedback(c.g.kind, f.sub ? (c.feedback && c.feedback.startsWith(f.id + ':') ? c.feedback : f.id) : f.id, f.label); };
-      feel.appendChild(b);
-      if (f.sub && selectedTop === f.id) {
-        subRow = document.createElement('div');
-        subRow.className = 'sub';
-        for (const sf of f.sub) {
-          const sb = document.createElement('button');
-          sb.textContent = sf.label;
-          sb.classList.toggle('sel', c.feedback === sf.id);
-          sb.onclick = () => { giveFeedback(c.g.kind, sf.id, `${f.label}: ${sf.label}`); };
-          subRow.appendChild(sb);
-        }
-      }
-    }
-    if (subRow) feel.appendChild(subRow);
-  }
-
-  function renderCard(kind) {
-    const c = cards[kind];
-    if (!c) return;
-    const isArmed = armed === kind;
-    c.el.classList.toggle('armed', isArmed);
-    c.el.classList.toggle('done', !isArmed && !!c.obs);
-    const badge = c.el.querySelector('.badge');
-    badge.hidden = !isArmed;
-    badge.textContent = '待機中';
-    badge.className = 'badge armed';
-    c.el.querySelector('.arm').textContent = isArmed ? '待機を解除' : c.obs ? 'もう一度試す' : 'この操作を試す';
-    const recog = c.el.querySelector('.recog');
-    if (isArmed) {
-      recog.className = 'recog pending';
-      recog.textContent = '待機中: 次の動作をこの操作として認識します(指を離してから約 1 秒で表示)';
-    } else if (c.obs) {
-      recog.className = 'recog';
-      recog.textContent = `PC の認識: ${T.recognitionText(kind, c.obs, params)}`;
-    } else {
-      recog.className = 'recog empty';
-      recog.textContent = '未試行。「この操作を試す」を押してから動作すると、PC が何を認識したかがここに出ます';
-    }
-    const bd = c.el.querySelector('.breakdown');
-    bd.hidden = !c.obs || isArmed;
-    const ul = bd.querySelector('ul');
+  function refreshDiagnostics() {
+    diag = runDiagnostics();
+    const ul = $('diag');
     ul.innerHTML = '';
-    if (!bd.hidden) {
-      for (const it of breakdownItems(kind, c.obs)) {
-        const li = document.createElement('li');
-        const b = document.createElement('b');
-        b.textContent = it.label + ': ';
-        li.append(b, document.createTextNode(it.text));
-        ul.appendChild(li);
-      }
-    }
-    renderFeel(c);
-    renderProposal(c);
-    const hist = c.el.querySelector('.history');
-    hist.innerHTML = '';
-    hist.hidden = c.history.length === 0;
-    c.history.forEach((h, i) => {
+    if (diag.length === 0) {
       const li = document.createElement('li');
-      const b = document.createElement('b');
-      b.textContent = `#${c.history.length - i} `;
-      li.append(b, document.createTextNode(`認識: ${h.recog} ／ 体感: ${h.feel || '未回答'} ／ 適用: ${h.applied || 'なし'}`));
-      hist.appendChild(li);
-    });
-    const knobs = c.el.querySelector('.knobs');
-    knobs.innerHTML = '';
-    const map = byName();
-    for (const k of c.g.params) {
-      const p = map[k.name];
-      const row = document.createElement('div');
-      row.className = 'knob';
-      const code = document.createElement('code');
-      code.textContent = k.name;
-      const val = document.createElement('span');
-      val.className = 'val';
-      const isBool = p ? p.kind === 'driver_bool' : !k.step;
-      const shown = p ? p.value : T.DEFAULT_PARAMS[k.name];
-      const fmt = (v) => (isBool ? (v ? 'ON' : 'OFF') : String(v));
-      val.textContent = shown === undefined ? '= ?(未接続)' : `= ${fmt(shown)}` + (p ? '' : '(未接続)');
-      row.append(code, val);
-      if (isBool) {
-        const b = document.createElement('button');
-        b.textContent = 'ON/OFF 切替';
-        b.disabled = !p || !isConnected();
-        b.onclick = () => { nudgeParam(k.name, p.value ? -1 : 1, kind); };
-        row.appendChild(b);
-      } else {
-        for (const sign of [-1, 1]) {
-          const delta = sign * k.step;
-          const b = document.createElement('button');
-          b.textContent = `${delta > 0 ? '+' : ''}${delta}`;
-          b.disabled = !p || !isConnected();
-          b.onclick = () => { nudgeParam(k.name, delta, kind); };
-          row.appendChild(b);
-        }
-      }
-      const help = helpText(k.name);
-      if (help) {
-        const h = document.createElement('div');
-        h.className = 'help';
-        h.textContent = help;
-        row.appendChild(h);
-      }
-      knobs.appendChild(row);
+      li.className = 'none';
+      li.textContent = '問題は検出されていません';
+      ul.appendChild(li);
+    }
+    for (const d of diag.slice(-20)) {
+      const li = document.createElement('li');
+      li.textContent = `${(d.t / 1000).toFixed(2)}s ${d.msg}`;
+      ul.appendChild(li);
     }
   }
-
-  function renderAllCards() {
-    for (const kind of Object.keys(cards)) renderCard(kind);
-  }
-
-  function renderPadArmed() {
-    const el = $('padArmed');
-    pad.classList.toggle('armed', !!armed);
-    if (armed) {
-      const g = cards[armed].g;
-      el.textContent = `次の動作を「${g.title}」として認識します`;
-      const instr = document.createElement('span');
-      instr.className = 'instr';
-      instr.textContent = g.instruction;
-      el.appendChild(instr);
-    } else {
-      el.textContent = 'カードの「この操作を試す」(またはキー 1〜7)を押してから動作すると、PC が認識した内容がカードに出ます';
-    }
-  }
-
-  function armCard(kind, opts) {
-    const force = !!(opts && opts.force);
-    armed = armed === kind && !force ? null : kind;
-    armedAt = opts && typeof opts.since === 'number' ? opts.since : nowMs();
-    if (armed && isConnected() && !traceOn) toggleTrace(true);
-    renderAllCards();
-    renderPadArmed();
-    if (opts && opts.quiet) return;
-    if (armed) {
-      const g = cards[armed].g;
-      setStatus(`「${g.title}」を待機中: ${g.instruction}`);
-    } else {
-      setStatus('待機を解除しました');
-    }
-  }
-
-  function giveFeedback(kind, id, label) {
-    const c = cards[kind];
-    if (!c.obs) return;
-    c.feedback = id;
-    const top = T.feedbackOptions(kind).find((f) => f.id === id);
-    if (top && top.sub) {
-      c.proposal = null;
-      if (c.history[0]) c.history[0].feel = label;
-      renderCard(kind);
-      setStatus(`「${label}」: どう違ったかを選んでください`);
-      return;
-    }
-    const r = T.suggestFor(kind, id, c.obs, params.length ? params : T.DEFAULT_PARAMS);
-    c.proposal = { label, suggestions: r.suggestions, notes: r.notes };
-    if (c.history[0]) c.history[0].feel = label;
-    renderCard(kind);
-    setStatus(r.suggestions.length ? `「${label}」: 提案 ${r.suggestions.length} 件。「適用して再試行」で tp set して再待機します` : `「${label}」: ${r.notes[0] || ''}`);
-  }
-
-  async function applyProposal(kind) {
-    const c = cards[kind];
-    const pr = c.proposal;
-    if (!pr) return;
-    const map = byName();
-    const applied = [];
-    for (const sg of pr.suggestions) {
-      const p = map[sg.name];
-      if (!p || sg.to === null) continue;
-      const before = p.value;
-      if (before === sg.to) continue;
-      if (await applyParam(p, sg.to)) applied.push(`${sg.name}: ${before} → ${sg.to}`);
-    }
-    if (c.history[0]) c.history[0].applied = applied.length ? applied.join('、') : '失敗';
-    c.proposal = null;
-    c.feedback = null;
-    if (!applied.length) { renderCard(kind); setStatus('パラメータを適用できませんでした', true); return; }
-    armCard(kind, { force: true, quiet: true });
-    setStatus(`${applied.join('、')}。「${c.g.title}」を再待機中: ${c.g.instruction}`);
-  }
-
-  async function nudgeParam(name, delta, rearmKind) {
-    const p = byName()[name];
-    if (!p) { setStatus(`${name} が読み込まれていません`, true); return; }
-    const before = p.value;
-    const v = T.stepParam(p, delta);
-    if (v === before) { setStatus(`${name} は既に${delta > 0 ? '上限' : '下限'} ${v} です`); return; }
-    if (!(await applyParam(p, v))) return;
-    if (rearmKind) {
-      const c = cards[rearmKind];
-      if (c.history[0]) c.history[0].applied = (c.history[0].applied && c.history[0].applied !== 'なし' ? c.history[0].applied + '、' : '') + `${name}: ${before} → ${v}`;
-      armCard(rearmKind, { force: true, quiet: true });
-      setStatus(`${name}: ${before} → ${v}。「${c.g.title}」を再待機中: ${c.g.instruction}`);
-    } else {
-      setStatus(`${name}: ${before} → ${v}`);
-    }
-  }
-
-  function tailMsFor() {
-    return Math.max(500, T.paramValue(params, '1f_tapdrag_gap_max_ms') + 300);
-  }
-
-  function processAttempts() {
-    const now = nowMs();
-    const attempts = T.segmentAttempts(rec.frames, { idleMs: ATTEMPT_IDLE_MS, now });
-    for (let i = 0; i < attempts.length; i++) {
-      const a = attempts[i];
-      if (!a.closed || processedStarts.has(a.start)) continue;
-      const next = attempts[i + 1];
-      const tail = next ? Math.min(tailMsFor(), next.start - a.end) : tailMsFor();
-      // T S (試行要約)が届けば handleSummary が先に processedStarts へ積むので、旧ファーム
-      // (要約なし)のときだけここまで待ってフレームから判定する
-      if (now < a.end + Math.max(tail, SUMMARY_WAIT_MS)) continue;
-      processedStarts.add(a.start);
-      const host = { btn: rec.hostBtn, move: rec.hostMove, wheel: rec.hostWheel };
-      const obs = T.observeAttempt(a, rec.fw, host, { tailMs: tail });
-      if (armed && a.start >= armedAt) {
-        const kind = armed;
-        armed = null;
-        onRecognized(kind, obs);
-      } else {
-        showObserved(obs, null);
-      }
-    }
-  }
-
-  function nextKnownStartAfter(afterT) {
-    let best = null;
-    const attempts = T.segmentAttempts(rec.frames, { idleMs: ATTEMPT_IDLE_MS, now: nowMs() });
-    for (const a of attempts) {
-      if (a.start > afterT && (best === null || a.start < best)) best = a.start;
-    }
-    for (const p of pendingSummaries) {
-      if (p.start > afterT && (best === null || p.start < best)) best = p.start;
-    }
-    return best;
-  }
-
-  function handleSummary(tr) {
-    const start = tr.startMs + clock.offset[side];
-    if (processedStarts.has(start)) return;
-    pendingSummaries.push({ tr, start, end: tr.endMs + clock.offset[side] });
-    processPendingSummaries();
-  }
-
-  function processPendingSummaries() {
-    const now = nowMs();
-    for (let i = pendingSummaries.length - 1; i >= 0; i--) {
-      const p = pendingSummaries[i];
-      if (processedStarts.has(p.start)) { pendingSummaries.splice(i, 1); continue; }
-      // 次の試行の開始が分かれば、その手前までにホスト取得窓を切り詰めて隣の試行の
-      // ホストイベントを取り込まないようにする(フレーム経路の next.start と同じ考え方)
-      const nextStart = nextKnownStartAfter(p.end);
-      const { ready, tailMs } = T.summaryHostWindow(p.end, nextStart, now, tailMsFor());
-      if (!ready) continue;
-      processedStarts.add(p.start);
-      pendingSummaries.splice(i, 1);
-      const host = { btn: rec.hostBtn, move: rec.hostMove, wheel: rec.hostWheel };
-      const obs = T.observationFromSummary(p.tr, host, clock.offset[side], { tailMs });
-      if (armed && obs.start >= armedAt) {
-        const kind = armed;
-        armed = null;
-        onRecognized(kind, obs);
-      } else {
-        showObserved(obs, null);
-      }
-    }
-  }
-
-  function showObserved(obs, kind) {
-    const inferred = T.inferKind(obs, params);
-    const ig = T.GESTURES.find((g) => g.kind === inferred);
-    const inferredText = ig ? ig.title : inferred === 'move' ? 'カーソル移動' : '不明';
-    const el = $('observed');
-    el.innerHTML = '';
-    const head = document.createElement('b');
-    if (kind) {
-      head.textContent = `「${cards[kind].g.title}」として認識: `;
-      el.append(head, document.createTextNode(T.recognitionText(kind, obs, params)));
-    } else {
-      head.textContent = '直近の動作(カード未選択): ';
-      el.append(head, document.createTextNode(`ドライバの見え方: ${T.observationText(obs)} ｜ ホスト: ${T.hostText(obs)} ｜ 参考推定: ${inferredText}`));
-    }
-  }
-
-  function onRecognized(kind, obs) {
-    const c = cards[kind];
-    c.obs = obs;
-    c.feedback = null;
-    c.proposal = null;
-    c.history.unshift({ recog: T.recognitionText(kind, obs, params), feel: null, applied: null });
-    while (c.history.length > HISTORY_MAX) c.history.pop();
-    lastJudgedKind = kind;
-    renderAllCards();
-    renderPadArmed();
-    showObserved(obs, kind);
-    setStatus(`「${c.g.title}」の認識結果をカードに表示しました。体感と違えばカードのボタンで答えてください(Space で同じカードをもう一度)`);
-  }
-
-  document.addEventListener('keydown', (e) => {
-    const tag = e.target && e.target.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (/^[1-7]$/.test(e.key) && T.GESTURES[Number(e.key) - 1]) {
-      armCard(T.GESTURES[Number(e.key) - 1].kind, { force: true });
-      e.preventDefault();
-    } else if ((e.key === ' ' || e.key === 'Enter') && tag !== 'BUTTON' && lastJudgedKind) {
-      armCard(lastJudgedKind, { force: true });
-      e.preventDefault();
-    }
-  });
-
-  let padStateText = '';
-  function renderPadState() {
-    const last = rec.frames[rec.frames.length - 1];
-    let text;
-    if (!last || nowMs() - last.t > STATE_STALE_MS) {
-      const ble = isConnected() && transport && transport.kind === 'ble';
-      text = ble ? '待機(要約で判定)' : isConnected() && !traceOn ? '待機(trace OFF)' : '待機';
-    }
-    else text = T.describeState(last);
-    if (text === padStateText) return;
-    padStateText = text;
-    const el = $('padState');
-    el.textContent = text;
-    el.classList.toggle('active', !text.startsWith('待機'));
-  }
-
-  function renderHostState() {
-    const names = [];
-    if (hostState.buttons & 1) names.push('左');
-    if (hostState.buttons & 2) names.push('右');
-    if (hostState.buttons & 4) names.push('中');
-    $('hoststate').textContent =
-      `buttons=${hostState.buttons}${names.length ? '(' + names.join('+') + ')' : ''} move=${hostState.move || '-'} wheel=${hostState.wheel || '-'}`;
-  }
-
-  link.onTrace = (tr) => {
-    if (rec.paused) return;
-    if (tr.type === 'S') { handleSummary(tr); return; }
-    const t = tr.ms + clock.offset[side];
-    if (tr.type === 'F') rec.frames.push({ ...tr, t }); else rec.fw.push({ ...tr, t });
-  };
-  link.onLog = (line) => { if (line.trim() !== '') log(line); };
 
   function drawTimeline() {
     const cv = $('timeline');
@@ -1763,71 +1312,79 @@
       ctx.beginPath(); ctx.moveTo(x(s), 0); ctx.lineTo(x(s), H); ctx.stroke();
     }
 
-    ctx.strokeStyle = '#111827';
-    ctx.lineWidth = 1.5;
-    ctx.beginPath();
-    let prev = null;
-    for (const f of rec.frames) {
-      if (f.t < t0) continue;
-      const y = laneY(0) + 36 - Math.min(3, f.fingers) * 8;
-      if (prev) ctx.lineTo(x(f.t), y); else ctx.moveTo(x(f.t), y);
-      prev = f;
+    const bothSides = rec.R.frames.length > 0 && rec.L.frames.length > 0;
+    const FINGER_STROKE = { R: '#111827', L: '#2563eb' };
+    for (const s of ['R', 'L']) {
+      if (!rec[s].frames.length) continue;
+      ctx.strokeStyle = FINGER_STROKE[s];
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      let prev = null;
+      for (const f of rec[s].frames) {
+        if (f.t < t0) continue;
+        const y = laneY(0) + 36 - Math.min(3, f.fingers) * 8;
+        if (prev) ctx.lineTo(x(f.t), y); else ctx.moveTo(x(f.t), y);
+        prev = f;
+      }
+      ctx.stroke();
+      if (bothSides && prev) { ctx.fillStyle = FINGER_STROKE[s]; ctx.fillText(s, Math.max(2, x(prev.t) - 6), laneY(0) + 10); }
     }
-    ctx.stroke();
     ctx.lineWidth = 1;
 
-    const open = {};
-    for (const e of rec.fw) {
-      if (e.kind === 'K') {
-        if (e.value) {
-          open[e.code] = e.t;
-        } else if (open[e.code] !== undefined) {
-          ctx.fillStyle = BTN_COLOR[e.code] || '#9ca3af';
-          const x0 = Math.max(0, x(open[e.code]));
-          ctx.fillRect(x0, laneY(1) + 14, Math.max(2, x(e.t) - x0), 20);
-          delete open[e.code];
+    for (const s of ['R', 'L']) {
+      const open = {};
+      for (const e of rec[s].fw) {
+        if (e.kind === 'K') {
+          if (e.value) {
+            open[e.code] = e.t;
+          } else if (open[e.code] !== undefined) {
+            ctx.fillStyle = BTN_COLOR[e.code] || '#9ca3af';
+            const x0 = Math.max(0, x(open[e.code]));
+            ctx.fillRect(x0, laneY(1) + 14, Math.max(2, x(e.t) - x0), 20);
+            delete open[e.code];
+          }
+          if (e.ret !== 0 && e.t >= t0) {
+            ctx.fillStyle = '#dc2626';
+            ctx.fillText('×', x(e.t) - 3, laneY(1) + 12);
+          }
+        } else if (e.t >= t0) {
+          const isWheel = e.code === T.REL.WHEEL || e.code === T.REL.HWHEEL;
+          ctx.fillStyle = isWheel ? '#dc2626' : '#111827';
+          const h = Math.min(16, Math.abs(e.value));
+          ctx.fillRect(x(e.t), laneY(1) + 30 - h, 2, 2 + h);
+          if (e.ret !== 0) ctx.fillText('×', x(e.t) - 3, laneY(1) + 12);
         }
-        if (e.ret !== 0 && e.t >= t0) {
-          ctx.fillStyle = '#dc2626';
-          ctx.fillText('×', x(e.t) - 3, laneY(1) + 12);
-        }
-      } else if (e.t >= t0) {
-        const isWheel = e.code === T.REL.WHEEL || e.code === T.REL.HWHEEL;
-        ctx.fillStyle = isWheel ? '#dc2626' : '#111827';
-        const h = Math.min(16, Math.abs(e.value));
-        ctx.fillRect(x(e.t), laneY(2) + 30 - h, 2, 2 + h);
-        if (e.ret !== 0) { ctx.fillText('×', x(e.t) - 3, laneY(2) + 12); }
+        if (bothSides) { ctx.fillStyle = '#6b7280'; ctx.fillText(s, x(e.t) - 3, laneY(1) + 38); }
       }
-    }
-    for (const code of Object.keys(open)) {
-      ctx.fillStyle = BTN_COLOR[code] || '#9ca3af';
-      const x0 = Math.max(0, x(open[code]));
-      ctx.fillRect(x0, laneY(1) + 14, Math.max(2, W - x0), 20);
+      for (const code of Object.keys(open)) {
+        ctx.fillStyle = BTN_COLOR[code] || '#9ca3af';
+        const x0 = Math.max(0, x(open[code]));
+        ctx.fillRect(x0, laneY(1) + 14, Math.max(2, W - x0), 20);
+      }
     }
 
     let last = { t: t0, buttons: 0 };
-    for (const s of rec.hostBtn) {
+    for (const s of rec.host.btn) {
       if (s.t >= t0) break;
       last = { t: t0, buttons: s.buttons };
     }
-    const samples = rec.hostBtn.filter((s) => s.t >= t0).concat([{ t: now, buttons: null }]);
+    const samples = rec.host.btn.filter((s) => s.t >= t0).concat([{ t: now, buttons: null }]);
     for (const s of samples) {
       HOST_BITS.forEach(([bit, code], i) => {
         if (last.buttons & bit) {
           ctx.fillStyle = BTN_COLOR[code];
-          ctx.fillRect(x(last.t), laneY(3) + 12 + i * 8, Math.max(1, x(s.t) - x(last.t)), 7);
+          ctx.fillRect(x(last.t), laneY(2) + 12 + i * 8, Math.max(1, x(s.t) - x(last.t)), 7);
         }
       });
       if (s.buttons !== null) last = s;
     }
-
     ctx.fillStyle = '#111827';
-    for (const m of rec.hostMove) if (m.t >= t0) ctx.fillRect(x(m.t), laneY(4) + 18, 2, 4);
+    for (const m of rec.host.move) if (m.t >= t0) ctx.fillRect(x(m.t), laneY(2) + 30, 2, 4);
     ctx.fillStyle = '#dc2626';
-    for (const w of rec.hostWheel) {
+    for (const w of rec.host.wheel) {
       if (w.t < t0) continue;
       const h = Math.min(16, Math.abs(w.deltaY) + Math.abs(w.deltaX));
-      ctx.fillRect(x(w.t), laneY(5) + 30 - h, 2, 2 + h);
+      ctx.fillRect(x(w.t), laneY(2) + 34 - h, 2, 2 + h);
     }
 
     ctx.strokeStyle = '#dc2626';
@@ -1837,61 +1394,6 @@
     }
   }
 
-  function runDiagnostics() {
-    const items = [];
-    for (const d of T.detectDrops(rec.fw)) items.push({ t: d.t, msg: `input_report が ${d.kind} ${d.code} を捨てた` });
-    for (const d of T.detectStuckButton(rec.fw, rec.hostBtn, { holdMs: 300, now: performance.now() })) items.push({ t: d.t, msg: `ドライバは離したがホストのボタン(${d.code})が押されたまま` });
-    for (const d of T.detectMissingWheel(rec.fw, rec.hostWheel, { windowMs: 200 })) items.push({ t: d.t, msg: 'ドライバは wheel を送ったがホストに届いていない' });
-    for (const d of T.detectTwoFingerNoScroll(rec.frames, rec.fw, { minMove: 30, windowMs: 200 })) items.push({ t: d.t, msg: '2本指で動いているがドライバが wheel を出していない' });
-    return items.sort((a, b) => a.t - b.t);
-  }
-
-  function prune() {
-    const cut = performance.now() - KEEP_MS;
-    for (const key of ['frames', 'fw', 'hostMove', 'hostWheel']) {
-      const arr = rec[key];
-      let i = 0;
-      while (i < arr.length && arr[i].t < cut) i++;
-      if (i) arr.splice(0, i);
-    }
-    let i = 0;
-    while (i < rec.hostBtn.length - 1 && rec.hostBtn[i + 1].t < cut) i++;
-    if (i) rec.hostBtn.splice(0, i);
-    for (const s of processedStarts) if (s < cut) processedStarts.delete(s);
-    for (let i = pendingSummaries.length - 1; i >= 0; i--) if (pendingSummaries[i].end < cut) pendingSummaries.splice(i, 1);
-  }
-
-  function refreshDiagnostics() {
-    diag = runDiagnostics();
-    const ul = $('diag');
-    ul.innerHTML = '';
-    if (diag.length === 0) {
-      const li = document.createElement('li');
-      li.className = 'none';
-      li.textContent = '問題は検出されていません';
-      ul.appendChild(li);
-    }
-    for (const d of diag.slice(-20)) {
-      const li = document.createElement('li');
-      li.textContent = `${(d.t / 1000).toFixed(2)}s ${d.msg}`;
-      ul.appendChild(li);
-    }
-  }
-
-  setInterval(() => {
-    if (rec.paused) return;
-    prune();
-    // T S (要約)を先に処理する。フレーム経路の SUMMARY_WAIT_MS 猶予とタイムアウトが
-    // 同時に切れた場合でも要約側が processedStarts を先に埋め、要約を優先させるため
-    processPendingSummaries();
-    processAttempts();
-    refreshDiagnostics();
-  }, PROCESS_INTERVAL_MS);
-  (function loop() {
-    try { drawTimeline(); renderPadState(); } catch (e) { /* keep the loop alive */ }
-    requestAnimationFrame(loop);
-  })();
-
   function setPaused(paused) {
     rec.paused = paused;
     view.frozenNow = paused ? performance.now() : null;
@@ -1900,93 +1402,185 @@
     if (paused) refreshDiagnostics();
   }
 
-  function clearRecords() {
-    for (const key of ['frames', 'fw', 'hostBtn', 'hostWheel', 'hostMove']) rec[key].length = 0;
-    hostState.buttons = 0; hostState.move = null; hostState.wheel = null;
-    processedStarts.clear();
-    pendingSummaries.length = 0;
-    for (const c of Object.values(cards)) { c.obs = null; c.feedback = null; c.proposal = null; c.history = []; }
-    armed = null;
-    lastJudgedKind = null;
-    renderAllCards();
-    renderPadArmed();
-    $('observed').textContent = '直近の動作: -';
-    renderHostState();
+  setInterval(() => {
+    if (rec.paused) return;
+    prune();
+    for (const s of ['R', 'L']) {
+      processPendingSummariesForSide(s);
+      processAttemptsForSide(s);
+    }
     refreshDiagnostics();
-    if (rec.paused) setPaused(false);
+  }, PROCESS_INTERVAL_MS);
+
+  (function loop() {
+    try {
+      drawTimeline();
+      for (const s of ['R', 'L']) { drawPad(s); renderNow(s); renderPadStatus(s); }
+    } catch (e) { /* keep the loop alive */ }
+    requestAnimationFrame(loop);
+  })();
+
+  function updateRowMark(nameKey, bucket) {
+    const row = document.querySelector(`.param[data-name="${CSS.escape(nameKey)}"]`);
+    if (!row) return;
+    const cell = bucket === 'common' ? row.querySelector('.cell') : row.querySelector(`.cell[data-side="${bucket}"]`);
+    if (!cell) return;
+    const mark = cell.querySelector('.pendingmark');
+    if (mark) mark.remove();
+    const value = bucket === 'common' ? pending.common[nameKey] : pending[bucket][nameKey];
+    if (value !== undefined) {
+      const m = document.createElement('span');
+      m.className = 'pendingmark';
+      m.textContent = `→ ${value}`;
+      cell.appendChild(m);
+    }
+    const rowHasPending = pending.common[nameKey] !== undefined || pending.R[nameKey] !== undefined || pending.L[nameKey] !== undefined;
+    row.classList.toggle('changed', rowHasPending);
   }
 
-  function setZoom(ms) {
-    view.ms = ms;
-    for (const o of document.querySelectorAll('.zoom')) o.classList.toggle('active', Number(o.dataset.ms) === ms);
+  function setPendingCommon(p, value) {
+    if (value === p.value) delete pending.common[p.name]; else pending.common[p.name] = value;
+    updateRowMark(p.name, 'common');
+    renderHeader();
   }
 
-  function injectDummy() {
-    const now = performance.now();
-    const base = now - 7000;
-    const F = (ms, fingers, relX, relY, extra) => ({
-      type: 'F', t: base + ms, ms, fingers, relX, relY, f1x: 0, f1y: 0, f2x: 0, f2y: 0, flags: 0,
-      hold: 0, mode2f: 0, pending: 0, ...(extra || {}),
-    });
-    const K = (ms, code, value) => ({ type: 'E', t: base + ms, ms, kind: 'K', code, value, ret: 0 });
-    const R = (ms, code, value) => ({ type: 'E', t: base + ms, ms, kind: 'R', code, value, ret: 0 });
-    const touch = (from, to, fingers, relX, relY, extra) => {
-      for (let ms = from; ms <= to; ms += 10) rec.frames.push(F(ms, fingers, relX, relY, extra));
-    };
-    const idle = (from, to, extra) => touch(from, to, 0, 0, 0, extra);
-    const move = (from, to, relX, relY, extra) => {
-      touch(from, to, 1, relX, relY, extra);
-      for (let ms = from + 10; ms <= to; ms += 10) {
-        rec.fw.push(R(ms, T.REL.X, relX), R(ms, T.REL.Y, relY));
-        rec.hostMove.push({ t: base + ms + 8, dx: relX, dy: relY });
+  function setPendingSide(p, sideKey, value) {
+    const current = sideKey === 'R' ? p.valueR : p.valueL;
+    if (value === current) delete pending[sideKey][p.name]; else pending[sideKey][p.name] = value;
+    updateRowMark(p.name, sideKey);
+    renderHeader();
+  }
+
+  function buildEditor(kind, min, max, value, onChange) {
+    const wrap = document.createElement('span');
+    wrap.className = 'cell';
+    if (kind === 'driver_bool') {
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!value;
+      cb.onchange = () => onChange(cb.checked ? 1 : 0);
+      wrap.appendChild(cb);
+    } else {
+      const range = document.createElement('input');
+      range.type = 'range'; range.min = min; range.max = max; range.value = value;
+      const num = document.createElement('input');
+      num.type = 'number'; num.min = min; num.max = max; num.value = value;
+      range.oninput = () => { num.value = range.value; onChange(Number(range.value)); };
+      num.onchange = () => {
+        const v = Math.min(max, Math.max(min, Math.round(Number(num.value) || 0)));
+        num.value = v; range.value = v; onChange(v);
+      };
+      wrap.append(range, num);
+    }
+    return wrap;
+  }
+
+  function renderCommonCell(p) {
+    const displayValue = Object.prototype.hasOwnProperty.call(pending.common, p.name) ? pending.common[p.name] : p.value;
+    const wrap = buildEditor(p.kind, p.min, p.max, displayValue, (v) => setPendingCommon(p, v));
+    if (Object.prototype.hasOwnProperty.call(pending.common, p.name)) {
+      const m = document.createElement('span');
+      m.className = 'pendingmark';
+      m.textContent = `→ ${pending.common[p.name]}`;
+      wrap.appendChild(m);
+    }
+    return wrap;
+  }
+
+  function renderSideCell(p, sideKey) {
+    const has = sideKey === 'R' ? p.valueR !== null : p.valueL !== null;
+    const wrap = document.createElement('span');
+    wrap.className = 'cell';
+    wrap.dataset.side = sideKey;
+    if (!has) { wrap.textContent = '-'; return wrap; }
+    const current = sideKey === 'R' ? p.valueR : p.valueL;
+    const bucket = pending[sideKey];
+    const displayValue = Object.prototype.hasOwnProperty.call(bucket, p.name) ? bucket[p.name] : current;
+    const editor = buildEditor(p.kind, p.min, p.max, displayValue, (v) => setPendingSide(p, sideKey, v));
+    wrap.append(...editor.childNodes);
+    if (Object.prototype.hasOwnProperty.call(bucket, p.name)) {
+      const m = document.createElement('span');
+      m.className = 'pendingmark';
+      m.textContent = `→ ${bucket[p.name]}`;
+      wrap.appendChild(m);
+    }
+    return wrap;
+  }
+
+  function renderParamRow(p) {
+    const row = document.createElement('div');
+    row.className = 'param' + (p.kind === 'driver_bool' ? ' bool' : '') + (detailMode ? ' detail' : '');
+    row.dataset.name = p.name;
+    const label = document.createElement('label');
+    label.textContent = p.name;
+    label.title = `[${p.kind}] 範囲 ${p.min}..${p.max} 既定 ${p.def}`;
+    row.appendChild(label);
+    if (detailMode) {
+      row.appendChild(renderSideCell(p, 'R'));
+      row.appendChild(renderSideCell(p, 'L'));
+    } else {
+      row.appendChild(renderCommonCell(p));
+    }
+    const help = helpText(p.name);
+    if (help || (p.differs && !detailMode)) {
+      const d = document.createElement('div');
+      d.className = 'desc';
+      const differsText = p.differs && !detailMode ? `左右で違う(右 ${p.valueR} / 左 ${p.valueL})` : '';
+      d.textContent = [differsText, help].filter(Boolean).join(' ・ ');
+      row.appendChild(d);
+    }
+    return row;
+  }
+
+  function renderParams() {
+    const root = $('params');
+    root.innerHTML = '';
+    const merged = T.mergeParams(params.R, params.L);
+    if (merged.length === 0) {
+      root.innerHTML = '<span class="legend">接続すると tp list の内容がここに表示されます</span>';
+      return;
+    }
+    const seen = new Set();
+    const known = new Set(GROUPS.flatMap((g) => g.names));
+    const groups = GROUPS.concat([{ title: 'その他', names: merged.map((p) => p.name).filter((n) => !known.has(n)) }]);
+    const byName = Object.fromEntries(merged.map((p) => [p.name, p]));
+    for (const g of groups) {
+      const box = document.createElement('fieldset');
+      const legend = document.createElement('legend');
+      legend.textContent = g.title;
+      box.appendChild(legend);
+      if (g.ic) {
+        const b = document.createElement('button');
+        b.textContent = 'Re-ATI';
+        b.disabled = activeSides().length === 0;
+        b.onclick = async () => {
+          for (const s of activeSides()) await runSimpleOnSide(s, 'tp reati');
+          setStatus('Re-ATI を実行しました');
+        };
+        box.appendChild(b);
       }
-    };
-    const press = (ms) => { rec.fw.push(K(ms, T.BTN[0], 1)); rec.hostBtn.push({ t: base + ms + 7, buttons: 1 }); };
-    const release = (ms) => { rec.fw.push(K(ms, T.BTN[0], 0)); rec.hostBtn.push({ t: base + ms + 7, buttons: 0 }); };
-    const sortAll = () => { for (const key of ['frames', 'fw', 'hostBtn', 'hostMove']) rec[key].sort((a, b) => a.t - b.t); };
-
-    setZoom(10000);
-    setPaused(true);
-
-    touch(0, 40, 1, 0, 0);
-    move(50, 700, 1, 1);
-    move(710, 1000, 8, -2);
-    idle(1010, 1500);
-    sortAll();
-    armCard('cursor', { since: base - 1, force: true, quiet: true });
-    processAttempts();
-
-    touch(2000, 2320, 1, 0, 0);
-    idle(2330, 3490);
-    sortAll();
-    armCard('tap1', { since: base + 1999, force: true, quiet: true });
-    processAttempts();
-
-    touch(3500, 3620, 1, 0, 0);
-    press(3625);
-    idle(3630, 3780, { hold: T.BTN[0], pending: 1 });
-    release(3790);
-    idle(3790, 3850);
-    move(3860, 4500, 3, -1);
-    idle(4510, 5500);
-    sortAll();
-    armCard('tapdrag', { since: base + 3499, force: true, quiet: true });
-    processAttempts();
-
-    hostState.buttons = 0; hostState.move = '3,-1'; hostState.wheel = null;
-    renderHostState();
-    setStatus('ダミーデータ: 「カーソル移動」「1本指タップ(押下が長くクリックにならない)」「タップドラッグ(2 回目の接触が遅い)」の 3 試行を投入して一時停止しました。体感ボタンを押すと提案が出ます');
+      let rows = 0;
+      for (const name of g.names) {
+        const p = byName[name];
+        if (!p || seen.has(name)) continue;
+        seen.add(name);
+        box.appendChild(renderParamRow(p));
+        rows++;
+      }
+      if (rows > 0) root.appendChild(box);
+    }
   }
 
   function updateConfPreview() {
-    $('conf').value = T.exportConf(params, { diffOnly: true });
+    const merged = T.mergeParams(params.R, params.L);
+    $('conf').value = merged.length ? T.exportConf(merged, { diffOnly: false }) : '';
   }
 
-  async function copyConf(diffOnly) {
-    if (params.length === 0) { setStatus('パラメータが読み込まれていません', true); return; }
-    const text = T.exportConf(params, { diffOnly });
+  async function exportConfNow() {
+    const merged = T.mergeParams(params.R, params.L);
+    if (merged.length === 0) { setStatus('パラメータが読み込まれていません', true); return; }
+    const text = T.exportConf(merged, { diffOnly: false });
     $('conf').value = text;
-    if (text === '') { setStatus('既定値との差分はありません'); return; }
     try {
       await navigator.clipboard.writeText(text);
       setStatus(`${text.split('\n').filter(Boolean).length} 行を .conf 形式でコピーしました`);
@@ -1998,103 +1592,70 @@
     }
   }
 
-  function readProfiles() {
+  function rebuildPendingFromFailures(failed) {
+    const next = emptyPending();
+    for (const f of failed) next[f.side][f.name] = f.value;
+    return next;
+  }
+
+  async function writeAll() {
+    const sides = activeSides();
+    if (!sides.length) { setStatus('未接続です', true); return; }
+    const cmds = T.pendingCommands(pending, sides);
+    if (!cmds.length) { setStatus('書き込む変更がありません'); return; }
+    const failed = [];
+    for (const c of cmds) {
+      const parts = c.cmd.split(' ');
+      const name = parts[2];
+      const value = Number(parts[3]);
+      const lines = await sendTo(c.side, c.cmd).catch((e) => { log(`[${c.side}] ` + errText(e)); return []; });
+      const ok = lines.some((l) => l.startsWith('OK'));
+      if (!ok) failed.push({ side: c.side, name, value });
+    }
+    for (const s of sides) await runSimpleOnSide(s, 'tp save');
+    pending = rebuildPendingFromFailures(failed);
+    for (const s of sides) await loadParamsForSide(s);
+    renderHeader();
+    renderParams();
+    setStatus(failed.length
+      ? `書き込み: ${cmds.length - failed.length}/${cmds.length} 件成功。失敗した行は保留のままです`
+      : `${cmds.length} 件を書き込みました`, failed.length > 0);
+  }
+
+  async function reloadAll() {
+    pending = emptyPending();
     try {
-      const raw = localStorage.getItem(PROFILE_KEY);
-      const obj = raw ? JSON.parse(raw) : {};
-      return obj && typeof obj === 'object' ? obj : {};
+      const count = await loadAllParams();
+      renderHeader();
+      setStatus(`パラメータ ${count} 件を再読み込みしました`);
     } catch (e) {
-      return {};
+      setStatus(errText(e), true);
     }
   }
 
-  function writeProfiles(obj) {
-    try {
-      localStorage.setItem(PROFILE_KEY, JSON.stringify(obj));
-      return true;
-    } catch (e) {
-      setStatus('localStorage に保存できません: ' + errText(e), true);
-      return false;
-    }
-  }
-
-  function renderProfiles(selected) {
-    const sel = $('profiles');
-    sel.innerHTML = '';
-    const names = Object.keys(readProfiles()).sort();
-    if (names.length === 0) {
-      const o = document.createElement('option');
-      o.value = ''; o.textContent = '(プロファイルなし)';
-      sel.appendChild(o);
-    }
-    for (const n of names) {
-      const o = document.createElement('option');
-      o.value = n; o.textContent = n;
-      sel.appendChild(o);
-    }
-    if (selected) sel.value = selected;
-  }
-
-  function saveProfile() {
-    if (params.length === 0) { setStatus('パラメータが読み込まれていません', true); return; }
-    const name = (window.prompt('プロファイル名', $('profiles').value || '') || '').trim();
-    if (!name) return;
-    const profiles = readProfiles();
-    profiles[name] = Object.fromEntries(params.map((p) => [p.name, p.value]));
-    if (writeProfiles(profiles)) {
-      renderProfiles(name);
-      setStatus(`プロファイル「${name}」を保存しました`);
-    }
-  }
-
-  async function loadProfile() {
-    const name = $('profiles').value;
-    if (!name) { setStatus('プロファイルを選んでください', true); return; }
-    if (!isConnected()) { setStatus('未接続です', true); return; }
-    const values = readProfiles()[name];
-    if (!values) { setStatus('プロファイルが見つかりません', true); return; }
-    const map = byName();
-    let ok = 0, ng = 0, skipped = 0;
-    for (const [pname, v] of Object.entries(values)) {
-      const p = map[pname];
-      if (!p) { skipped++; continue; }
-      if (p.value === v) continue;
-      if (await applyParam(p, v)) ok++; else ng++;
-    }
-    setStatus(`プロファイル「${name}」を適用: 変更 ${ok} 件` + (ng ? ` 失敗 ${ng} 件` : '') + (skipped ? ` 未知 ${skipped} 件` : ''), ng > 0);
-  }
-
-  function deleteProfile() {
-    const name = $('profiles').value;
-    if (!name) return;
-    if (!window.confirm(`プロファイル「${name}」を削除しますか?`)) return;
-    const profiles = readProfiles();
-    delete profiles[name];
-    if (writeProfiles(profiles)) {
-      renderProfiles();
-      setStatus(`プロファイル「${name}」を削除しました`);
-    }
+  async function resetAll() {
+    const sides = activeSides();
+    if (!sides.length) { setStatus('未接続です', true); return; }
+    if (!window.confirm('すべてのパラメータをファームの既定値に戻します。保存済みの値も削除されます。よろしいですか?')) return;
+    let allOk = true;
+    for (const s of sides) allOk = (await runSimpleOnSide(s, 'tp reset')) && allOk;
+    pending = emptyPending();
+    for (const s of sides) await loadParamsForSide(s);
+    renderHeader();
+    renderParams();
+    setStatus(allOk ? 'すべて既定に戻しました' : '一部の側で失敗しました', !allOk);
   }
 
   $('btnConnect').onclick = () => { connect(); };
   $('btnDisconnect').onclick = () => { disconnect(); };
-  $('btnSave').onclick = () => { saveToFirmware(); };
-  $('btnTrace').onclick = () => { toggleTrace(); };
-  $('btnReload').onclick = () => { reload(); };
+  $('btnWrite').onclick = () => { writeAll(); };
+  $('btnReload').onclick = () => { reloadAll(); };
   $('btnResetAll').onclick = () => { resetAll(); };
+  $('btnExport').onclick = () => { exportConfNow(); };
   $('btnPause').onclick = () => setPaused(!rec.paused);
-  $('btnClear').onclick = clearRecords;
-  $('btnDummy').onclick = injectDummy;
-  $('btnTest').onclick = () => { if (testMode) stopTest(); else startTest(); };
-  $('btnCopyDiff').onclick = () => { copyConf(true); };
-  $('btnCopyAll').onclick = () => { copyConf(false); };
-  $('btnProfileSave').onclick = saveProfile;
-  $('btnProfileLoad').onclick = () => { loadProfile(); };
-  $('btnProfileDelete').onclick = deleteProfile;
-  for (const b of document.querySelectorAll('.zoom')) {
-    b.onclick = () => setZoom(Number(b.dataset.ms));
-  }
-  $('selSide').onchange = () => { switchSide($('selSide').value); };
+  $('chkDetail').onchange = () => { detailMode = $('chkDetail').checked; renderParams(); };
+  $('intentSelectR').onchange = () => onIntentChange('R', $('intentSelectR').value);
+  $('intentSelectL').onchange = () => onIntentChange('L', $('intentSelectL').value);
   $('btnConnectDevice').onclick = () => {
     const id = $('selDevice').value;
     const device = lastDevices.find((d) => d.id === id);
@@ -2102,11 +1663,8 @@
   };
   window.addEventListener('beforeunload', () => { if (isConnected()) disconnect(null, true); });
 
-  renderProfiles();
-  renderCards();
-  renderPadArmed();
-  updateTestUi();
-  renderHostState();
+  renderIntentSelect('R');
+  renderIntentSelect('L');
   refreshDiagnostics();
   setConnectedUi(false);
   autoConnectEnabled = readAutoConnectPref();
@@ -2122,7 +1680,7 @@
     setStatus('「接続」を押して機器を選んでください');
     if (autoConnectEnabled) transport.listDevices();
   } else if (!navigator.serial) {
-    showNotice('このブラウザは Web Serial API に対応していません。Google Chrome または Microsoft Edge で開いてください。接続なしでも「ダミーデータ」で表示は確認できます');
+    showNotice('このブラウザは Web Serial API に対応していません。Google Chrome または Microsoft Edge で開いてください');
   } else {
     setStatus('「接続」を押してトラックパッド側の USB シリアルポートを選んでください');
     if (autoConnectEnabled) tryAutoConnect();
