@@ -79,12 +79,23 @@
             compatible = "zmk,input-split";
             reg = <1>;
         };
+        // tp-tuner: 左手からの応答・試行要約(左右のオーバーレイで okay にする)
+        tp_tuner_split_L: tp_tuner_split_L@2 {
+            compatible = "zmk,input-split";
+            reg = <2>;
+            status = "disabled";
+        };
     };
 
     behaviors {
         tp_to_pos: tp_to_pos {
             compatible = "zmk,behavior-trackpad-to-pos";
             #binding-cells = <1>;
+        };
+        // tp-tuner: 右手から左手へのパラメータ転送(split 経由で呼ぶ。keymap には置かない)
+        tp_param: tp_param {
+            compatible = "lalapad,behavior-tp-param";
+            #binding-cells = <2>;
         };
     };
 

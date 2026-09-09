@@ -19,3 +19,16 @@
     status = "disabled";
     device = <&iqs9151>;
 };
+
+// tp-tuner: peripheral 側の zmk,input-split は okay かつ device 必須なので、
+// 何も report しない空デバイスを与える(送信は tp_tuner_peripheral.c が直接行う)
+/ {
+    tp_tuner_src_L: tp_tuner_src_L {
+        compatible = "lalapad,tp-tuner-source";
+    };
+};
+
+&tp_tuner_split_L {
+    status = "okay";
+    device = <&tp_tuner_src_L>;
+};
