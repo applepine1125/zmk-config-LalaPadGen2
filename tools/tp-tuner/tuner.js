@@ -82,6 +82,33 @@
     return (hostSentMs + hostRecvMs) / 2 - uptimeMs;
   }
 
+  function splitSidePrefix(line) {
+    if (line.startsWith('R ')) return { side: 'R', rest: line.slice(2) };
+    if (line.startsWith('L ')) return { side: 'L', rest: line.slice(2) };
+    return null;
+  }
+
+  function bleCommand(side, cmd) {
+    const rest = cmd.startsWith('tp ') ? cmd.slice(3) : cmd;
+    return `${side} ${rest}`;
+  }
+
+  function isEndMarker(rest) {
+    return rest === '.';
+  }
+
+  function orderDevices(devices) {
+    if (!devices || !devices.length) return [];
+    const ble = devices.filter((d) => d.kind === 'ble');
+    const usb = devices.filter((d) => d.kind === 'usb');
+    return ble.concat(usb);
+  }
+
+  function pickDevice(devices) {
+    const ordered = orderDevices(devices);
+    return ordered.length ? ordered[0] : null;
+  }
+
   function pickPortOrder(ports, lastInfo) {
     if (!lastInfo || typeof lastInfo !== 'object') return ports.slice();
     const matches = (port) => {
@@ -1072,6 +1099,7 @@
   const api = {
     BTN, REL, BTN_NAMES, GESTURES, DEFAULT_PARAMS,
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
+    splitSidePrefix, bleCommand, isEndMarker, orderDevices, pickDevice,
     clockOffset, pickPortOrder, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
     paramValue, stepParam, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, judgeAttempt, whyNot, describeState,
