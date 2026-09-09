@@ -638,3 +638,10 @@ test('frameToPadPoints は 2 本指なら 2 点、接触なしなら空配列を
   assert.deepEqual(T.frameToPadPoints({ fingers: 0 }, 100, 100), []);
   assert.deepEqual(T.frameToPadPoints(null, 100, 100), []);
 });
+
+test('操作種別に対して、kindLabel は短い日本語の名前を返し未知は不明な操作になる', () => {
+  assert.equal(T.kindLabel('tap1'), '1 本指タップ');
+  assert.equal(T.kindLabel('tapdrag'), 'タップドラッグ');
+  assert.equal(T.kindLabel('scroll2'), '2 本指スクロール');
+  assert.equal(T.kindLabel('nope'), '不明な操作');
+});

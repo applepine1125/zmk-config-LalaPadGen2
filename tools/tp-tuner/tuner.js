@@ -748,6 +748,15 @@
     return text;
   }
 
+  const KIND_LABELS = {
+    tap1: '1 本指タップ', tapdrag: 'タップドラッグ', tap2: '2 本指タップ', scroll2: '2 本指スクロール',
+    pinch: 'ピンチ', tap3: '3 本指タップ', move: 'カーソル移動', cursor: 'カーソル移動',
+  };
+
+  function kindLabel(kind) {
+    return KIND_LABELS[kind] || '不明な操作';
+  }
+
   function recognitionText(kind, o, params) {
     if (!o.touches.length) return '接触なし(指が認識されていません)';
     const sent = sentText(o);
@@ -860,7 +869,7 @@
     clockOffset, pickPortOrder, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
     paramValue, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, whyNot, describeState,
-    observationText, hostText, sentText, recognitionText,
+    observationText, hostText, sentText, recognitionText, kindLabel,
     mergeParams, pendingCommands, liveCommands, padStateFromFrame, frameToPadPoints,
   };
   root.TpTuner = api;

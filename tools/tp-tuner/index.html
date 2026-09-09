@@ -145,7 +145,9 @@
     display: flex; flex-direction: column; gap: 6px; padding: 12px 14px;
     border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
   }
-  .nowtext { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+  .nowtext { font-size: 18px; font-weight: 700; overflow-wrap: anywhere; }
+  .nowdetail { font-size: 12px; color: var(--muted); overflow-wrap: anywhere; min-height: 1.4em; }
+  .oplabel { font-weight: 600; flex: none; }
   .opslog ol { margin: 0; padding: 0; list-style: none; max-height: 420px; overflow-y: auto; }
   .opslog li {
     display: flex; gap: 8px; align-items: baseline; padding: 6px 2px; border-bottom: 1px solid var(--border);
@@ -196,8 +198,6 @@
   .pendingmark { color: var(--warn); font-size: 11px; font-weight: 600; white-space: nowrap; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
   .row .spacer { flex: 1; }
-  #liveRatePanel:not([hidden]) { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
-  #liveRatePanel input[type=number] { width: 56px; }
   .timelinewrap { display: flex; gap: 0; align-items: stretch; }
   #timelineLanes { display: flex; flex-direction: column; flex: none; width: 108px; border-radius: var(--radius-sm) 0 0 var(--radius-sm); overflow: hidden; }
   #timelineLanes div {
@@ -238,11 +238,6 @@
 
 <div class="row" id="liveRow">
   <label><input type="checkbox" id="chkLive" checked>ライブ表示</label>
-  <button id="btnLiveRate" type="button">レート</button>
-  <span id="liveRatePanel" hidden>
-    右 <input type="number" id="liveRateR" min="5" max="100"> 回/秒
-    左 <input type="number" id="liveRateL" min="5" max="100"> 回/秒
-  </span>
 </div>
 
 <div id="workspace">
@@ -265,10 +260,12 @@
       <div class="nowcard">
         <span class="sidebadge">左手</span>
         <div class="nowtext" id="nowL">-</div>
+        <div class="nowdetail" id="nowDetailL"></div>
       </div>
       <div class="nowcard">
         <span class="sidebadge">右手</span>
         <div class="nowtext" id="nowR">-</div>
+        <div class="nowdetail" id="nowDetailR"></div>
       </div>
     </div>
     <div class="card opslog">
@@ -290,7 +287,7 @@
       <label><input type="checkbox" id="chkDetail">詳細: 左右別に設定</label>
     </div>
     <div id="params"><span class="legend">接続すると tp list の内容がここに表示されます</span></div>
-    <textarea id="conf" readonly spellcheck="false" placeholder="「.conf をエクスポート」で全パラメータの CONFIG_ 行がここに表示されます"></textarea>
+    <textarea id="conf" readonly spellcheck="false" hidden></textarea>
   </div>
 </details>
 
@@ -350,10 +347,8 @@
   const AUTOCONNECT_KEY = 'tp-tuner.autoconnect';
   const LASTPORT_KEY = 'tp-tuner.lastPort';
   const LIVE_ENABLED_KEY = 'tp-tuner.live.enabled';
-  const LIVE_RATE_KEY = { R: 'tp-tuner.live.rateR', L: 'tp-tuner.live.rateL' };
-  const DEFAULT_LIVE_RATE = { R: 60, L: 30 };
-  const LIVE_RATE_MIN = 5;
-  const LIVE_RATE_MAX = 100;
+  // 右手は Mac への BLE、左手は split リンク経由なので控えめにする
+  const LIVE_RATE = { R: 60, L: 30 };
   const DISCONNECTED_MSG = '切断されました。再接続を待っています';
   const LANE_H = 40;
   const LANES = ['指の本数', 'ファームが送った操作', 'Mac が受けた操作'];
@@ -471,7 +466,6 @@
   let busyConnecting = false;
   let autoConnectEnabled = true;
   let liveEnabled = true;
-  const liveRates = { R: DEFAULT_LIVE_RATE.R, L: DEFAULT_LIVE_RATE.L };
   const lastFrame = { R: null, L: null };
   const padTrail = { R: [], L: [] };
   const padFlash = { R: 0, L: 0 };
@@ -1032,25 +1026,11 @@
     } catch (e) { /* localStorage が使えない環境では無視 */ }
   }
 
-  function readLiveRate(sideKey) {
-    try {
-      const v = Number(localStorage.getItem(LIVE_RATE_KEY[sideKey]));
-      if (Number.isFinite(v) && v >= LIVE_RATE_MIN && v <= LIVE_RATE_MAX) return v;
-    } catch (e) { /* localStorage が使えない環境では無視 */ }
-    return DEFAULT_LIVE_RATE[sideKey];
-  }
-
-  function writeLiveRate(sideKey, hz) {
-    try {
-      localStorage.setItem(LIVE_RATE_KEY[sideKey], String(hz));
-    } catch (e) { /* localStorage が使えない環境では無視 */ }
-  }
-
   async function sendLiveCommands() {
     if (!isConnected() || transport.kind !== 'ble') return;
     const sides = activeSides();
     if (!sides.length) return;
-    for (const c of T.liveCommands(sides, liveRates, liveEnabled)) {
+    for (const c of T.liveCommands(sides, LIVE_RATE, liveEnabled)) {
       await runSimpleOnSide(c.side, c.cmd);
     }
   }
@@ -1153,13 +1133,13 @@
     return `${String(m).padStart(2, '0')}:${secInt.padStart(2, '0')}.${secDec}`;
   }
 
-  function pushOp(sideKey, text, t) {
+  function pushOp(sideKey, label, text, t) {
     const last = opsLog[0];
-    if (last && last.side === sideKey && last.text === text) {
+    if (last && last.side === sideKey && last.label === label && last.text === text) {
       last.count++;
       last.t = t;
     } else {
-      opsLog.unshift({ side: sideKey, text, t, count: 1 });
+      opsLog.unshift({ side: sideKey, label, text, t, count: 1 });
       if (opsLog.length > OPS_LOG_MAX) opsLog.length = OPS_LOG_MAX;
     }
     renderOpsLog();
@@ -1183,10 +1163,13 @@
       const side = document.createElement('span');
       side.className = 'opside';
       side.textContent = SIDE_LABEL[e.side];
+      const label = document.createElement('span');
+      label.className = 'oplabel';
+      label.textContent = e.label + (e.count > 1 ? ` ×${e.count}` : '');
       const text = document.createElement('span');
       text.className = 'optext';
-      text.textContent = e.text + (e.count > 1 ? ` ×${e.count}` : '');
-      li.append(time, side, text);
+      text.textContent = e.text;
+      li.append(time, side, label, text);
       ul.appendChild(li);
     }
   }
@@ -1196,7 +1179,8 @@
     lastObs[sideKey] = obs;
     lastKind[sideKey] = T.inferKind(obs, paramsForSuggest(sideKey));
     lastObsAt[sideKey] = t;
-    pushOp(sideKey, T.recognitionText(lastKind[sideKey], obs, paramsForSuggest(sideKey)), t);
+    pushOp(sideKey, T.kindLabel(lastKind[sideKey]),
+           T.recognitionText(lastKind[sideKey], obs, paramsForSuggest(sideKey)), t);
   }
 
   function processAttemptsForSide(sideKey) {
@@ -1264,9 +1248,9 @@
       if (tr.kind === 'K') {
         if (tr.value !== 0) padFlash[sideKey] = performance.now();
         const label = T.BTN_NAMES[tr.code] || String(tr.code);
-        pushOp(sideKey, `${label}ボタン ${tr.value ? '押す' : '離す'}`, t);
+        pushOp(sideKey, `${label}ボタン ${tr.value ? '押す' : '離す'}`, '', t);
       } else if (tr.kind === 'R' && (tr.code === T.REL.WHEEL || tr.code === T.REL.HWHEEL)) {
-        if (t - lastWheelOpAt[sideKey] > WHEEL_BURST_GAP_MS) pushOp(sideKey, 'スクロール開始', t);
+        if (t - lastWheelOpAt[sideKey] > WHEEL_BURST_GAP_MS) pushOp(sideKey, 'スクロール開始', '', t);
         lastWheelOpAt[sideKey] = t;
       }
     }
@@ -1281,14 +1265,19 @@
   function currentActionText(sideKey) {
     if (!isSideActive(sideKey)) return isConnected() ? 'USB では接続側のみ' : '未接続';
     if (hasLiveFrame(sideKey)) return T.describeState(lastFrame[sideKey]);
-    if (lastObs[sideKey] && performance.now() - lastObsAt[sideKey] < SUMMARY_NOW_DISPLAY_MS) {
-      return T.recognitionText(lastKind[sideKey], lastObs[sideKey], paramsForSuggest(sideKey));
-    }
-    return transport.kind === 'ble' ? '(要約のみ。フレーム表示なし)' : '待機';
+    if (lastObs[sideKey]) return T.kindLabel(lastKind[sideKey]);
+    return '待機';
+  }
+
+  function currentDetailText(sideKey) {
+    if (!isSideActive(sideKey) || !lastObs[sideKey]) return '';
+    if (hasLiveFrame(sideKey) && performance.now() - lastObsAt[sideKey] >= SUMMARY_NOW_DISPLAY_MS) return '';
+    return T.recognitionText(lastKind[sideKey], lastObs[sideKey], paramsForSuggest(sideKey));
   }
 
   function renderNow(sideKey) {
     $(`now${sideKey}`).textContent = currentActionText(sideKey);
+    $(`nowDetail${sideKey}`).textContent = currentDetailText(sideKey);
   }
 
   function renderPadStatus(sideKey) {
@@ -1298,8 +1287,7 @@
       el.textContent = transport.kind === 'usb' ? 'USB では接続側のみ' : '応答なし';
       return;
     }
-    if (transport.kind === 'ble' && !hasLiveFrame(sideKey)) { el.textContent = 'ライブ表示なし(要約のみ)'; return; }
-    el.textContent = '接続';
+    el.textContent = '';
   }
 
   function drawPad(sideKey) {
@@ -1741,6 +1729,7 @@
     if (merged.length === 0) { setStatus('パラメータが読み込まれていません', true); return; }
     const text = T.exportConf(merged, { diffOnly: false });
     $('conf').value = text;
+    $('conf').hidden = false;
     try {
       await navigator.clipboard.writeText(text);
       setStatus(`${text.split('\n').filter(Boolean).length} 行を .conf 形式でコピーしました`);
@@ -1819,17 +1808,6 @@
     writeLiveEnabledPref(liveEnabled);
     sendLiveCommands();
   };
-  $('btnLiveRate').onclick = () => { $('liveRatePanel').hidden = !$('liveRatePanel').hidden; };
-  function onLiveRateChange(sideKey) {
-    const input = $(`liveRate${sideKey}`);
-    const v = Math.min(LIVE_RATE_MAX, Math.max(LIVE_RATE_MIN, Math.round(Number(input.value) || DEFAULT_LIVE_RATE[sideKey])));
-    input.value = v;
-    liveRates[sideKey] = v;
-    writeLiveRate(sideKey, v);
-    sendLiveCommands();
-  }
-  $('liveRateR').onchange = () => onLiveRateChange('R');
-  $('liveRateL').onchange = () => onLiveRateChange('L');
   $('btnConnectDevice').onclick = () => {
     const id = $('selDevice').value;
     const device = lastDevices.find((d) => d.id === id);
@@ -1843,10 +1821,6 @@
   setConnectedUi(false);
   liveEnabled = readLiveEnabledPref();
   $('chkLive').checked = liveEnabled;
-  liveRates.R = readLiveRate('R');
-  liveRates.L = readLiveRate('L');
-  $('liveRateR').value = liveRates.R;
-  $('liveRateL').value = liveRates.L;
   autoConnectEnabled = readAutoConnectPref();
   $('chkAutoConnect').checked = autoConnectEnabled;
   $('chkAutoConnect').onchange = () => {
