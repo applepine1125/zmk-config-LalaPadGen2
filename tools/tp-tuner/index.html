@@ -101,6 +101,8 @@
   .pendingmark { color: var(--warn); font-size: 11px; font-weight: 600; white-space: nowrap; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
   .row .spacer { flex: 1; }
+  #liveRatePanel:not([hidden]) { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+  #liveRatePanel input[type=number] { width: 56px; }
   #timeline { width: 100%; display: block; border: 1px solid var(--border); border-radius: 4px; }
   #timelineLegend { margin: 6px 0 0; padding-left: 0; list-style: none; color: var(--muted); font-size: 11px; }
   #timelineLegend li { margin: 2px 0; }
@@ -128,6 +130,15 @@
   <button id="btnConnectDevice">この機器に接続</button>
 </div>
 <div id="notice" hidden></div>
+
+<div class="row" id="liveRow">
+  <label><input type="checkbox" id="chkLive" checked>ライブ表示</label>
+  <button id="btnLiveRate" type="button">レート</button>
+  <span id="liveRatePanel" hidden>
+    右 <input type="number" id="liveRateR" min="5" max="100"> 回/秒
+    左 <input type="number" id="liveRateL" min="5" max="100"> 回/秒
+  </span>
+</div>
 
 <div id="padrow">
   <div class="padcol">
@@ -232,6 +243,11 @@
   const RECONNECT_SETTLE_MS = 1000;
   const AUTOCONNECT_KEY = 'tp-tuner.autoconnect';
   const LASTPORT_KEY = 'tp-tuner.lastPort';
+  const LIVE_ENABLED_KEY = 'tp-tuner.live.enabled';
+  const LIVE_RATE_KEY = { R: 'tp-tuner.live.rateR', L: 'tp-tuner.live.rateL' };
+  const DEFAULT_LIVE_RATE = { R: 60, L: 30 };
+  const LIVE_RATE_MIN = 5;
+  const LIVE_RATE_MAX = 100;
   const DISCONNECTED_MSG = '切断されました。再接続を待っています';
   const LANE_H = 40;
   const LANES = ['指の本数', 'ファームが送った操作', 'Mac が受けた操作'];
@@ -343,6 +359,8 @@
   let diag = [];
   let busyConnecting = false;
   let autoConnectEnabled = true;
+  let liveEnabled = true;
+  const liveRates = { R: DEFAULT_LIVE_RATE.R, L: DEFAULT_LIVE_RATE.L };
   const lastFrame = { R: null, L: null };
   const padTrail = { R: [], L: [] };
   const padFlash = { R: 0, L: 0 };
@@ -788,6 +806,7 @@
       finalizeConnected(device.id, true);
       setStatus('接続しました');
       const count = await loadAllParams();
+      await sendLiveCommands();
       setStatus(`パラメータ ${count} 件を読み込みました`);
     } catch (e) {
       setStatus(errText(e), true);
@@ -833,6 +852,7 @@
           finalizeConnected(device.id, true);
           setStatus(`自動接続しました(${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
           const count = await loadAllParams();
+          await sendLiveCommands();
           setStatus(`パラメータ ${count} 件を読み込みました`);
           return;
         } catch (e) {
@@ -882,6 +902,44 @@
     try {
       localStorage.setItem(AUTOCONNECT_KEY, enabled ? '1' : '0');
     } catch (e) { /* localStorage が使えない環境では無視 */ }
+  }
+
+  function readLiveEnabledPref() {
+    try {
+      const v = localStorage.getItem(LIVE_ENABLED_KEY);
+      return v === null ? true : v === '1';
+    } catch (e) {
+      return true;
+    }
+  }
+
+  function writeLiveEnabledPref(enabled) {
+    try {
+      localStorage.setItem(LIVE_ENABLED_KEY, enabled ? '1' : '0');
+    } catch (e) { /* localStorage が使えない環境では無視 */ }
+  }
+
+  function readLiveRate(sideKey) {
+    try {
+      const v = Number(localStorage.getItem(LIVE_RATE_KEY[sideKey]));
+      if (Number.isFinite(v) && v >= LIVE_RATE_MIN && v <= LIVE_RATE_MAX) return v;
+    } catch (e) { /* localStorage が使えない環境では無視 */ }
+    return DEFAULT_LIVE_RATE[sideKey];
+  }
+
+  function writeLiveRate(sideKey, hz) {
+    try {
+      localStorage.setItem(LIVE_RATE_KEY[sideKey], String(hz));
+    } catch (e) { /* localStorage が使えない環境では無視 */ }
+  }
+
+  async function sendLiveCommands() {
+    if (!isConnected() || transport.kind !== 'ble') return;
+    const sides = activeSides();
+    if (!sides.length) return;
+    for (const c of T.liveCommands(sides, liveRates, liveEnabled)) {
+      await runSimpleOnSide(c.side, c.cmd);
+    }
   }
 
   function readLastPort() {
@@ -1035,7 +1093,8 @@
   link.onTrace = (tr, sideKey) => {
     if (!sideKey || rec.paused) return;
     if (tr.type === 'S') { handleSummary(sideKey, tr); return; }
-    const t = tr.ms + (clock.offset[sideKey] || 0);
+    const isBleFrame = tr.type === 'F' && transport && transport.kind === 'ble';
+    const t = isBleFrame ? performance.now() : tr.ms + (clock.offset[sideKey] || 0);
     if (tr.type === 'F') {
       const frame = { ...tr, t };
       rec[sideKey].frames.push(frame);
@@ -1657,6 +1716,22 @@
   $('btnExport').onclick = () => { exportConfNow(); };
   $('btnPause').onclick = () => setPaused(!rec.paused);
   $('chkDetail').onchange = () => { detailMode = $('chkDetail').checked; renderParams(); };
+  $('chkLive').onchange = () => {
+    liveEnabled = $('chkLive').checked;
+    writeLiveEnabledPref(liveEnabled);
+    sendLiveCommands();
+  };
+  $('btnLiveRate').onclick = () => { $('liveRatePanel').hidden = !$('liveRatePanel').hidden; };
+  function onLiveRateChange(sideKey) {
+    const input = $(`liveRate${sideKey}`);
+    const v = Math.min(LIVE_RATE_MAX, Math.max(LIVE_RATE_MIN, Math.round(Number(input.value) || DEFAULT_LIVE_RATE[sideKey])));
+    input.value = v;
+    liveRates[sideKey] = v;
+    writeLiveRate(sideKey, v);
+    sendLiveCommands();
+  }
+  $('liveRateR').onchange = () => onLiveRateChange('R');
+  $('liveRateL').onchange = () => onLiveRateChange('L');
   $('intentSelectR').onchange = () => onIntentChange('R', $('intentSelectR').value);
   $('intentSelectL').onchange = () => onIntentChange('L', $('intentSelectL').value);
   $('btnConnectDevice').onclick = () => {
@@ -1670,6 +1745,12 @@
   renderIntentSelect('L');
   refreshDiagnostics();
   setConnectedUi(false);
+  liveEnabled = readLiveEnabledPref();
+  $('chkLive').checked = liveEnabled;
+  liveRates.R = readLiveRate('R');
+  liveRates.L = readLiveRate('L');
+  $('liveRateR').value = liveRates.R;
+  $('liveRateL').value = liveRates.L;
   autoConnectEnabled = readAutoConnectPref();
   $('chkAutoConnect').checked = autoConnectEnabled;
   $('chkAutoConnect').onchange = () => {

@@ -857,6 +857,25 @@ test('pendingCommands は保留がなければ空配列を返す', () => {
   assert.deepEqual(T.pendingCommands(null, ['R', 'L']), []);
 });
 
+test('liveCommands は on のとき側ごとのレートで live on コマンドを返す', () => {
+  assert.deepEqual(T.liveCommands(['R', 'L'], { R: 60, L: 30 }, true), [
+    { side: 'R', cmd: 'tp live on 60' },
+    { side: 'L', cmd: 'tp live on 30' },
+  ]);
+});
+
+test('liveCommands は off のとき側ごとに live off コマンドを返す', () => {
+  assert.deepEqual(T.liveCommands(['R', 'L'], { R: 60, L: 30 }, false), [
+    { side: 'R', cmd: 'tp live off' },
+    { side: 'L', cmd: 'tp live off' },
+  ]);
+});
+
+test('liveCommands は対象の側だけを返し、レート未指定なら既定値を使う', () => {
+  assert.deepEqual(T.liveCommands(['R'], {}, true), [{ side: 'R', cmd: 'tp live on 60' }]);
+  assert.deepEqual(T.liveCommands([], { R: 60 }, true), []);
+});
+
 test('padStateFromFrame はフレームがなければ待機、指本数と mode2f で状態と色を返す', () => {
   assert.deepEqual(T.padStateFromFrame(null), { fingers: 0, state: '待機', color: 'idle', dragging: false });
   assert.deepEqual(T.padStateFromFrame({ fingers: 0, hold: 0 }), { fingers: 0, state: '待機', color: 'idle', dragging: false });

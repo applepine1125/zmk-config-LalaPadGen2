@@ -1067,6 +1067,20 @@
     return out;
   }
 
+  function liveCommands(sides, rates, on) {
+    const list = sides || [];
+    const out = [];
+    for (const s of list) {
+      if (on) {
+        const hz = (rates && rates[s]) || 60;
+        out.push({ side: s, cmd: `tp live on ${hz}` });
+      } else {
+        out.push({ side: s, cmd: 'tp live off' });
+      }
+    }
+    return out;
+  }
+
   function padStateFromFrame(frame) {
     if (!frame || !frame.fingers) return { fingers: 0, state: frame && frame.hold ? 'ドラッグ中' : '待機', color: 'idle', dragging: !!(frame && frame.hold) };
     const dragging = !!frame.hold;
@@ -1096,7 +1110,7 @@
     detectMissingWheel, detectTwoFingerNoScroll,
     paramValue, stepParam, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, whyNot, describeState,
     observationText, hostText, sentText, recognitionText, suggestFor,
-    mergeParams, pendingCommands, padStateFromFrame, frameToPadPoints,
+    mergeParams, pendingCommands, liveCommands, padStateFromFrame, frameToPadPoints,
   };
   root.TpTuner = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

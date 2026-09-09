@@ -23,6 +23,7 @@
   let summaryTimer = null;
   let summarySide = 'R';
   let liveTimer = null;
+  let liveOn = false;
   const startReal = Date.now();
 
   function elapsedMs() {
@@ -47,6 +48,10 @@
       if (p) p.value = Number(value);
       return [`OK ${name}=${value}`];
     }
+    if (sub === 'live') {
+      if (argv[1] === 'on') return [`OK live=on hz=${argv[2] || ''}`];
+      return ['OK live=off'];
+    }
     return [`OK ${sub}`];
   }
 
@@ -59,8 +64,10 @@
       emit({ type: 'data', text: 'L .\n' });
       return;
     }
+    const argv = m[2].trim().split(/\s+/);
+    if (side === 'R' && argv[0] === 'live') liveOn = argv[1] === 'on';
     const sideLabel = side === 'R' ? 'central' : 'peripheral';
-    const lines = responseLines(m[2].trim().split(/\s+/), sideLabel, side).concat(['.']);
+    const lines = responseLines(argv, sideLabel, side).concat(['.']);
     for (const l of lines) emit({ type: 'data', text: `${side} ${l}\n` });
   }
 
@@ -111,7 +118,7 @@
     let prevX = CX + RADIUS, prevY = CY;
     liveTimer = setInterval(() => {
       const device = DEVICES.find((d) => d.id === connectedId);
-      if (!device || device.kind !== 'ble') return;
+      if (!device || device.kind !== 'ble' || !liveOn) return;
       const ms = elapsedMs();
       const phase = (ms - t0) % 6000;
       let fingers, f1x, f1y, f2x, f2y, mode2f, relX, relY;
@@ -149,11 +156,13 @@
       } else if (msg.type === 'connect') {
         const device = DEVICES.find((d) => d.id === msg.id) || DEVICES[0];
         connectedId = device.id;
+        liveOn = false;
         emit({ type: 'connected', id: device.id, kind: device.kind, name: device.name });
         startSummaryTimer();
         startLiveTimer();
       } else if (msg.type === 'disconnect') {
         connectedId = null;
+        liveOn = false;
         stopSummaryTimer();
         stopLiveTimer();
         emit({ type: 'disconnected', reason: '切断されました' });
