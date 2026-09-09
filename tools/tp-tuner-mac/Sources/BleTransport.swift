@@ -22,6 +22,7 @@ final class BleTransport: NSObject {
   private var commandCharacteristic: CBCharacteristic?
   private var streamCharacteristic: CBCharacteristic?
   private var pendingConnectId: String?
+  private var pendingDisconnectReason: String?
   private var lastReportedState: CBManagerState?
 
   override init() {
@@ -41,6 +42,12 @@ final class BleTransport: NSObject {
   }
 
   func connect(id: String) {
+    if let existing = connectedPeripheral {
+      if existing.identifier.uuidString == id { return }
+      pendingConnectId = id
+      centralManager.cancelPeripheralConnection(existing)
+      return
+    }
     pendingConnectId = id
     guard centralManager.state == .poweredOn else {
       delegate?.bleTransportDidUpdateStatus(statusMessage(for: centralManager.state))
@@ -113,17 +120,20 @@ extension BleTransport: CBCentralManagerDelegate {
 
   func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
     teardownConnection()
-    pendingConnectId = nil
-    let reason = error?.localizedDescription ?? "切断されました"
+    let reason = pendingDisconnectReason ?? error?.localizedDescription ?? "切断されました"
+    pendingDisconnectReason = nil
     delegate?.bleTransportDidDisconnect(reason: reason)
+    if let id = pendingConnectId {
+      connect(id: id)
+    }
   }
 }
 
 extension BleTransport: CBPeripheralDelegate {
   func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
     guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else {
+      pendingDisconnectReason = "tp-tuner サービスがありません(ファームが古い)"
       centralManager.cancelPeripheralConnection(peripheral)
-      delegate?.bleTransportDidDisconnect(reason: "tp-tuner サービスがありません(ファームが古い)")
       return
     }
     peripheral.discoverCharacteristics([commandUUID, streamUUID], for: service)
@@ -131,8 +141,8 @@ extension BleTransport: CBPeripheralDelegate {
 
   func peripheral(_ peripheral: CBPeripheral, didDiscoverCharacteristicsFor service: CBService, error: Error?) {
     guard let characteristics = service.characteristics else {
+      pendingDisconnectReason = "tp-tuner サービスがありません(ファームが古い)"
       centralManager.cancelPeripheralConnection(peripheral)
-      delegate?.bleTransportDidDisconnect(reason: "tp-tuner サービスがありません(ファームが古い)")
       return
     }
     for characteristic in characteristics {
@@ -144,16 +154,16 @@ extension BleTransport: CBPeripheralDelegate {
       }
     }
     if streamCharacteristic == nil {
+      pendingDisconnectReason = "tp-tuner サービスがありません(ファームが古い)"
       centralManager.cancelPeripheralConnection(peripheral)
-      delegate?.bleTransportDidDisconnect(reason: "tp-tuner サービスがありません(ファームが古い)")
     }
   }
 
   func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
     guard characteristic.uuid == streamUUID else { return }
     if let error = error {
+      pendingDisconnectReason = "通知の購読に失敗しました: \(error.localizedDescription)"
       centralManager.cancelPeripheralConnection(peripheral)
-      delegate?.bleTransportDidDisconnect(reason: "通知の購読に失敗しました: \(error.localizedDescription)")
       return
     }
     pendingConnectId = nil
