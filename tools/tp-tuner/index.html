@@ -6,110 +6,215 @@
 <title>tp-tuner: トラックパッド調整</title>
 <style>
   :root {
-    --fg: #111827;
-    --muted: #6b7280;
-    --border: #d1d5db;
-    --bg: #f9fafb;
-    --panel: #ffffff;
+    --bg: #eef1f6;
+    --surface: #ffffff;
+    --surface-alt: #f6f7fb;
+    --border: rgba(15, 23, 42, .09);
+    --border-strong: rgba(15, 23, 42, .16);
+    --text: #0f172a;
+    --muted: #667085;
     --accent: #2563eb;
+    --accent-weak: rgba(37, 99, 235, .12);
+    --accent-text: #ffffff;
     --danger: #dc2626;
-    --warn: #92400e;
-    --warnbg: #fffbeb;
+    --danger-weak: rgba(220, 38, 38, .1);
+    --warn: #b45309;
+    --warn-weak: rgba(217, 119, 6, .12);
+    --radius: 14px;
+    --radius-sm: 9px;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 30px -16px rgba(15, 23, 42, .22);
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --pad-idle: #7c8aa5;
+    --pad-blue: #38bdf8;
+    --pad-green: #34d399;
+    --pad-orange: #fb923c;
+    --pad-purple: #c084fc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1120;
+      --surface: #141c2e;
+      --surface-alt: #101828;
+      --border: rgba(255, 255, 255, .09);
+      --border-strong: rgba(255, 255, 255, .18);
+      --text: #e5e9f2;
+      --muted: #8b96ab;
+      --accent: #5b9bf7;
+      --accent-weak: rgba(91, 155, 247, .18);
+      --accent-text: #06101f;
+      --danger: #f87171;
+      --danger-weak: rgba(248, 113, 113, .14);
+      --warn: #fbbf24;
+      --warn-weak: rgba(251, 191, 36, .14);
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -16px rgba(0, 0, 0, .6);
+    }
   }
   * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
   body {
-    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Noto Sans JP", sans-serif;
-    padding: 10px 14px 20px;
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    font-variant-numeric: tabular-nums;
+    padding: 0 16px 24px;
     overflow-x: hidden;
   }
-  h1 { font-size: 16px; margin: 0 12px 0 0; white-space: nowrap; }
-  h2 { font-size: 13px; margin: 0 0 6px; color: var(--muted); font-weight: 600; }
+  h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 700; white-space: nowrap; }
+  h2 {
+    font-size: 11px; margin: 0 0 8px; color: var(--muted); font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
   button {
-    font: inherit; padding: 3px 10px; border: 1px solid var(--border); border-radius: 4px;
-    background: var(--panel); color: var(--fg); cursor: pointer;
+    font: inherit; padding: 5px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--text); cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
   }
-  button:hover { border-color: var(--accent); }
-  button:disabled { opacity: .5; cursor: default; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  button.active { background: #dbeafe; border-color: var(--accent); }
-  select, input[type=number] { font: inherit; padding: 2px 4px; border: 1px solid var(--border); border-radius: 4px; }
+  button:hover:not(:disabled) { border-color: var(--accent); box-shadow: var(--shadow); transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.active { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); }
+  select, input[type=number] {
+    font: inherit; padding: 3px 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--text);
+  }
+  input[type=number] { text-align: right; }
   #topbar {
-    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
-    padding: 8px 10px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    position: sticky; top: 0; z-index: 10;
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin: 0 -16px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
   }
-  #topbar .sep { width: 1px; height: 20px; background: var(--border); }
+  #topbar .sep { width: 1px; height: 18px; background: var(--border-strong); }
   #connStatus { color: var(--muted); }
   #devicePanel:not([hidden]) {
-    display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 10px;
-    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+    display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
   }
   #autoConnectLabel { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); cursor: pointer; white-space: nowrap; }
   #dirtyIndicator { color: var(--warn); font-weight: 600; white-space: nowrap; }
-  #status { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #status { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
   #status.error { color: var(--danger); }
   #notice {
-    margin: 8px 0 0; padding: 8px 10px; border-radius: 6px;
-    background: #fef3c7; border: 1px solid #f59e0b; color: #78350f;
+    margin: 10px 0 0; padding: 10px 12px; border-radius: var(--radius);
+    background: var(--warn-weak); border: 1px solid var(--warn); color: var(--warn);
   }
-  details#logbox { margin-top: 12px; }
-  details#logbox summary { cursor: pointer; color: var(--muted); }
+  details#logbox { margin-top: 14px; }
+  details#logbox summary { cursor: pointer; color: var(--muted); padding: 4px 0; }
   #log {
-    margin: 4px 0 0; max-height: 160px; overflow: auto; padding: 6px 8px;
-    background: #111827; color: #e5e7eb; font: 11px/1.4 ui-monospace, Menlo, monospace;
-    white-space: pre-wrap; word-break: break-all; border-radius: 4px;
+    margin: 6px 0 0; max-height: 160px; overflow: auto; padding: 8px 10px;
+    background: #0b1120; color: #d7dde8; font: 11px/1.4 var(--mono);
+    white-space: pre-wrap; word-break: break-all; border-radius: var(--radius-sm);
   }
-  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 10px; min-width: 0; }
-  #padrow { display: flex; gap: 16px; margin-top: 10px; flex-wrap: wrap; }
-  .padcol { flex: 1 1 320px; min-width: 280px; display: flex; gap: 10px; }
-  .padwrap { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 4px; }
-  .padcanvas { border-radius: 10px; border: 1px solid var(--border); }
-  .padside { font-weight: 600; }
-  .padstatus { color: var(--muted); font-size: 11px; text-align: center; max-width: 160px; }
-  .padinfo { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
-  .padinfo .now { color: var(--fg); }
-  .padinfo .now b { color: var(--muted); font-weight: 600; }
-  .padinfo .recog { overflow-wrap: anywhere; }
-  .padinfo .recog b { color: var(--muted); font-weight: 600; }
-  .padinfo .recog.empty { color: var(--muted); }
-  .intent { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-  .intent select { max-width: 160px; }
-  .suggestion { padding: 5px 8px; border: 1px solid #f59e0b; border-radius: 6px; background: var(--warnbg); font-size: 12px; overflow-wrap: anywhere; }
-  .suggestion .actions { margin-top: 4px; }
-  details.section { margin-top: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
-  details.section > summary { cursor: pointer; font-weight: 600; color: var(--muted); }
-  details.section > .body { padding-top: 8px; }
-  .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 12px 14px; min-width: 0;
+  }
+  #liveRow {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; color: var(--muted);
+  }
+  #liveRow label { display: inline-flex; align-items: center; gap: 6px; }
+  #workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; align-items: start; }
+  @media (max-width: 860px) { #workspace { grid-template-columns: 1fr; } }
+  .padscol, .opscol { min-width: 0; }
+  .padgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 520px) { .padgrid { grid-template-columns: 1fr; } }
+  .padcard {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px;
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+    box-shadow: var(--shadow); transition: border-color .15s ease;
+  }
+  .padcard[data-state="blue"] { border-color: var(--pad-blue); }
+  .padcard[data-state="green"] { border-color: var(--pad-green); }
+  .padcard[data-state="orange"] { border-color: var(--pad-orange); }
+  .padcard[data-state="purple"] { border-color: var(--pad-purple); }
+  .padcard[data-dragging="1"] { border-color: var(--danger); }
+  .padhead { display: flex; align-items: center; justify-content: center; width: 100%; }
+  .sidebadge {
+    font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px;
+    background: var(--surface-alt); color: var(--muted); border: 1px solid var(--border);
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .padcard[data-state="blue"] .sidebadge { background: var(--pad-blue); color: #06101f; border-color: transparent; }
+  .padcard[data-state="green"] .sidebadge { background: var(--pad-green); color: #06101f; border-color: transparent; }
+  .padcard[data-state="orange"] .sidebadge { background: var(--pad-orange); color: #06101f; border-color: transparent; }
+  .padcard[data-state="purple"] .sidebadge { background: var(--pad-purple); color: #06101f; border-color: transparent; }
+  .padcard[data-dragging="1"] .sidebadge { background: var(--danger); color: #fff; border-color: transparent; }
+  .padcanvas { border-radius: var(--radius-sm); display: block; max-width: 100%; }
+  .padstatus { color: var(--muted); font-size: 11px; text-align: center; }
+  .nowgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+  @media (max-width: 520px) { .nowgrid { grid-template-columns: 1fr; } }
+  .nowcard {
+    display: flex; flex-direction: column; gap: 6px; padding: 12px 14px;
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow);
+  }
+  .nowtext { font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+  .opslog ol { margin: 0; padding: 0; list-style: none; max-height: 420px; overflow-y: auto; }
+  .opslog li {
+    display: flex; gap: 8px; align-items: baseline; padding: 6px 2px; border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .opslog li:last-child { border-bottom: none; }
+  .opslog li.empty { color: var(--muted); }
+  .optime { color: var(--muted); font-family: var(--mono); font-size: 11px; flex: none; }
+  .opside {
+    flex: none; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+    background: var(--surface-alt); color: var(--muted); border: 1px solid var(--border);
+  }
+  .optext { overflow-wrap: anywhere; }
+  details.section {
+    margin-top: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 8px 14px; box-shadow: var(--shadow);
+  }
+  details.section > summary { cursor: pointer; font-weight: 700; color: var(--muted); font-size: 12px; padding: 4px 0; }
+  details.section > .body { padding-top: 10px; }
+  .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
   .toolbar label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
-  fieldset { border: 1px solid var(--border); border-radius: 6px; margin: 0 0 10px; padding: 6px 8px 4px; }
-  legend { font-weight: 600; padding: 0 4px; }
-  fieldset > button { margin-bottom: 4px; }
+  fieldset {
+    border: 1px solid var(--border); border-radius: var(--radius); margin: 0 0 10px; padding: 8px 10px 6px;
+    background: var(--surface-alt);
+  }
+  legend { font-weight: 700; padding: 0 4px; font-size: 12px; color: var(--muted); }
+  fieldset > button { margin-bottom: 6px; }
   .param {
     display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(0, 1fr);
-    gap: 6px; align-items: center; padding: 3px 4px; border-radius: 4px;
+    gap: 6px; align-items: center; padding: 4px 6px; border-radius: var(--radius-sm);
   }
   .param.detail { grid-template-columns: minmax(120px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); }
-  .param label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  .param label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; }
   .param .desc { grid-column: 1 / -1; color: var(--muted); font-size: 11px; margin-top: -2px; }
   .param .cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
   .param .cell .sidelabel { color: var(--muted); font-size: 11px; width: 14px; flex: none; }
-  .param input[type=range] { flex: 1 1 auto; min-width: 0; margin: 0; }
-  .param input[type=number] { width: 60px; flex: none; }
+  .param input[type=range] {
+    flex: 1 1 auto; min-width: 0; margin: 0; height: 4px; appearance: none; background: var(--border-strong);
+    border-radius: 999px; outline: none;
+  }
+  .param input[type=range]::-webkit-slider-thumb {
+    appearance: none; width: 13px; height: 13px; border-radius: 50%; background: var(--accent); cursor: pointer;
+  }
+  .param input[type=number] { width: 62px; flex: none; }
   .param.bool input[type=checkbox] { justify-self: start; }
-  .param.changed { background: #fff6cc; }
-  .param.error { background: #ffd6d6; }
+  .param.changed { background: var(--warn-weak); }
+  .param.error { background: var(--danger-weak); }
   .pendingmark { color: var(--warn); font-size: 11px; font-weight: 600; white-space: nowrap; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
   .row .spacer { flex: 1; }
   #liveRatePanel:not([hidden]) { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
   #liveRatePanel input[type=number] { width: 56px; }
-  #timeline { width: 100%; display: block; border: 1px solid var(--border); border-radius: 4px; }
-  #timelineLegend { margin: 6px 0 0; padding-left: 0; list-style: none; color: var(--muted); font-size: 11px; }
-  #timelineLegend li { margin: 2px 0; }
+  .timelinewrap { display: flex; gap: 0; align-items: stretch; }
+  #timelineLanes { display: flex; flex-direction: column; flex: none; width: 108px; border-radius: var(--radius-sm) 0 0 var(--radius-sm); overflow: hidden; }
+  #timelineLanes div {
+    display: flex; align-items: center; padding: 0 8px; font-size: 11px; color: var(--muted);
+    background: var(--surface-alt); border-bottom: 1px solid var(--border);
+  }
+  #timelineLanes div:nth-child(even) { background: var(--surface); }
+  #timeline { flex: 1 1 auto; width: 100%; display: block; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; min-width: 0; }
+  #timelineLegend { margin: 8px 0 0; padding-left: 0; list-style: none; color: var(--muted); font-size: 11px; }
+  #timelineLegend li { margin: 3px 0; }
   #diag { margin: 0; padding-left: 18px; max-height: 140px; overflow-y: auto; }
   #diag li { color: var(--danger); }
   #diag li.none { color: var(--muted); list-style: none; margin-left: -18px; }
-  #conf { width: 100%; height: 120px; font: 11px/1.4 ui-monospace, Menlo, monospace; resize: vertical; border: 1px solid var(--border); border-radius: 4px; }
+  #conf {
+    width: 100%; height: 120px; font: 11px/1.4 var(--mono); resize: vertical;
+    border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-alt); color: var(--text);
+  }
   .legend { color: var(--muted); font-size: 11px; }
 </style>
 </head>
@@ -140,39 +245,37 @@
   </span>
 </div>
 
-<div id="padrow">
-  <div class="padcol">
-    <div class="padwrap">
-      <div class="padside">右手</div>
-      <canvas class="padcanvas" id="padR"></canvas>
-      <div class="padstatus" id="padStatusR">未接続</div>
-    </div>
-    <div class="padinfo">
-      <div class="now" id="nowR"><b>今の操作:</b> -</div>
-      <div class="recog empty" id="recogR"><b>直近の試行:</b> 未試行</div>
-      <div class="intent" id="intentR" hidden>
-        <span class="legend">意図と違う ▾</span>
-        <select id="intentSelectR"><option value="">選択してください</option></select>
+<div id="workspace">
+  <section class="padscol">
+    <div class="padgrid">
+      <div class="padcard" id="padCardL" data-side="L">
+        <div class="padhead"><span class="sidebadge">左手</span></div>
+        <canvas class="padcanvas" id="padL"></canvas>
+        <div class="padstatus" id="padStatusL">未接続</div>
       </div>
-      <div class="suggestion" id="suggestionR" hidden></div>
-    </div>
-  </div>
-  <div class="padcol">
-    <div class="padwrap">
-      <div class="padside">左手</div>
-      <canvas class="padcanvas" id="padL"></canvas>
-      <div class="padstatus" id="padStatusL">未接続</div>
-    </div>
-    <div class="padinfo">
-      <div class="now" id="nowL"><b>今の操作:</b> -</div>
-      <div class="recog empty" id="recogL"><b>直近の試行:</b> 未試行</div>
-      <div class="intent" id="intentL" hidden>
-        <span class="legend">意図と違う ▾</span>
-        <select id="intentSelectL"><option value="">選択してください</option></select>
+      <div class="padcard" id="padCardR" data-side="R">
+        <div class="padhead"><span class="sidebadge">右手</span></div>
+        <canvas class="padcanvas" id="padR"></canvas>
+        <div class="padstatus" id="padStatusR">未接続</div>
       </div>
-      <div class="suggestion" id="suggestionL" hidden></div>
     </div>
-  </div>
+  </section>
+  <section class="opscol">
+    <div class="nowgrid">
+      <div class="nowcard">
+        <span class="sidebadge">左手</span>
+        <div class="nowtext" id="nowL">-</div>
+      </div>
+      <div class="nowcard">
+        <span class="sidebadge">右手</span>
+        <div class="nowtext" id="nowR">-</div>
+      </div>
+    </div>
+    <div class="card opslog">
+      <h2>検知した操作</h2>
+      <ol id="opsLog"></ol>
+    </div>
+  </section>
 </div>
 
 <details class="section" id="secParams" open>
@@ -199,7 +302,10 @@
       <span class="spacer"></span>
       <button id="btnPause">一時停止</button>
     </div>
-    <canvas id="timeline"></canvas>
+    <div class="timelinewrap">
+      <div id="timelineLanes"></div>
+      <canvas id="timeline"></canvas>
+    </div>
     <ul id="timelineLegend">
       <li><b>指の本数</b>: ドライバが検出した指の本数(0〜3 を高さで表す)。両手から来るときは R / L を添える</li>
       <li><b>ファームが送った操作</b>: ドライバが送ったクリック(青=左、緑=右、橙=中)の押下区間・移動(黒)・wheel(赤)の報告。赤い × は input_report がイベントを捨てたこと</li>
@@ -253,11 +359,16 @@
   const LANES = ['指の本数', 'ファームが送った操作', 'Mac が受けた操作'];
   const BTN_COLOR = { [T.BTN[0]]: '#3b82f6', [T.BTN[1]]: '#22c55e', [T.BTN[2]]: '#f97316', [T.BTN[7]]: '#a855f7' };
   const HOST_BITS = [[1, T.BTN[0]], [2, T.BTN[1]], [4, T.BTN[2]]];
-  const PAD_COLOR = { idle: '#9ca3af', blue: '#3b82f6', green: '#22c55e', orange: '#f97316', purple: '#a855f7' };
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+  const PAD_COLOR = { blue: '#38bdf8', green: '#34d399', orange: '#fb923c', purple: '#c084fc' };
   const PAD_H = 200;
   const PAD_W = Math.round(PAD_H * (2457 / 3072));
   const SIDE_LABEL = { R: '右手', L: '左手' };
-  const NOT_HAPPENED_FEEDBACK = { tap1: 'none', tap2: 'none', tap3: 'none', tapdrag: 'nodrag', scroll2: 'none', pinch: 'none' };
+  const OPS_LOG_MAX = 30;
+  const SUMMARY_NOW_DISPLAY_MS = 4000;
+  const WHEEL_BURST_GAP_MS = 300;
 
   const GROUPS = [
     { title: '1本指タップ / タップドラッグ', names: ['1f_tap_enable', '1f_tap_max_ms', '1f_tap_move', '1f_presshold_enable', '1f_tapdrag_gap_max_ms'] },
@@ -366,7 +477,9 @@
   const padFlash = { R: 0, L: 0 };
   const lastObs = { R: null, L: null };
   const lastKind = { R: null, L: null };
-  const intentSuggestion = { R: null, L: null };
+  const lastObsAt = { R: 0, L: 0 };
+  const lastWheelOpAt = { R: -Infinity, L: -Infinity };
+  const opsLog = [];
 
   function emptyPending() {
     return { common: {}, R: {}, L: {} };
@@ -1031,13 +1144,59 @@
     return params[sideKey] && params[sideKey].length ? params[sideKey] : T.DEFAULT_PARAMS;
   }
 
+  function formatOpTime(ms) {
+    const total = Math.max(0, ms) / 1000;
+    let m = Math.floor(total / 60);
+    let sec = (total - m * 60).toFixed(1);
+    if (Number(sec) >= 60) { m += 1; sec = '0.0'; }
+    const [secInt, secDec] = sec.split('.');
+    return `${String(m).padStart(2, '0')}:${secInt.padStart(2, '0')}.${secDec}`;
+  }
+
+  function pushOp(sideKey, text, t) {
+    const last = opsLog[0];
+    if (last && last.side === sideKey && last.text === text) {
+      last.count++;
+      last.t = t;
+    } else {
+      opsLog.unshift({ side: sideKey, text, t, count: 1 });
+      if (opsLog.length > OPS_LOG_MAX) opsLog.length = OPS_LOG_MAX;
+    }
+    renderOpsLog();
+  }
+
+  function renderOpsLog() {
+    const ul = $('opsLog');
+    ul.innerHTML = '';
+    if (!opsLog.length) {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = 'まだ操作が検知されていません';
+      ul.appendChild(li);
+      return;
+    }
+    for (const e of opsLog) {
+      const li = document.createElement('li');
+      const time = document.createElement('span');
+      time.className = 'optime';
+      time.textContent = formatOpTime(e.t);
+      const side = document.createElement('span');
+      side.className = 'opside';
+      side.textContent = SIDE_LABEL[e.side];
+      const text = document.createElement('span');
+      text.className = 'optext';
+      text.textContent = e.text + (e.count > 1 ? ` ×${e.count}` : '');
+      li.append(time, side, text);
+      ul.appendChild(li);
+    }
+  }
+
   function onRecognized(sideKey, obs) {
+    const t = performance.now();
     lastObs[sideKey] = obs;
     lastKind[sideKey] = T.inferKind(obs, paramsForSuggest(sideKey));
-    intentSuggestion[sideKey] = null;
-    renderRecog(sideKey);
-    renderIntentSelect(sideKey);
-    renderSuggestion(sideKey);
+    lastObsAt[sideKey] = t;
+    pushOp(sideKey, T.recognitionText(lastKind[sideKey], obs, paramsForSuggest(sideKey)), t);
   }
 
   function processAttemptsForSide(sideKey) {
@@ -1102,7 +1261,14 @@
       for (const pt of T.frameToPadPoints(frame, PAD_W, PAD_H)) padTrail[sideKey].push({ ...pt, t });
     } else {
       rec[sideKey].fw.push({ ...tr, t });
-      if (tr.kind === 'K' && tr.value !== 0) padFlash[sideKey] = performance.now();
+      if (tr.kind === 'K') {
+        if (tr.value !== 0) padFlash[sideKey] = performance.now();
+        const label = T.BTN_NAMES[tr.code] || String(tr.code);
+        pushOp(sideKey, `${label}ボタン ${tr.value ? '押す' : '離す'}`, t);
+      } else if (tr.kind === 'R' && (tr.code === T.REL.WHEEL || tr.code === T.REL.HWHEEL)) {
+        if (t - lastWheelOpAt[sideKey] > WHEEL_BURST_GAP_MS) pushOp(sideKey, 'スクロール開始', t);
+        lastWheelOpAt[sideKey] = t;
+      }
     }
   };
   link.onLog = (line) => { if (line.trim() !== '') log(line); };
@@ -1114,103 +1280,15 @@
 
   function currentActionText(sideKey) {
     if (!isSideActive(sideKey)) return isConnected() ? 'USB では接続側のみ' : '未接続';
-    if (!hasLiveFrame(sideKey)) return transport.kind === 'ble' ? '(要約のみ。フレーム表示なし)' : '待機';
-    return T.describeState(lastFrame[sideKey]);
+    if (hasLiveFrame(sideKey)) return T.describeState(lastFrame[sideKey]);
+    if (lastObs[sideKey] && performance.now() - lastObsAt[sideKey] < SUMMARY_NOW_DISPLAY_MS) {
+      return T.recognitionText(lastKind[sideKey], lastObs[sideKey], paramsForSuggest(sideKey));
+    }
+    return transport.kind === 'ble' ? '(要約のみ。フレーム表示なし)' : '待機';
   }
 
   function renderNow(sideKey) {
-    $(`now${sideKey}`).innerHTML = '';
-    const b = document.createElement('b');
-    b.textContent = '今の操作:';
-    $(`now${sideKey}`).append(b, document.createTextNode(' ' + currentActionText(sideKey)));
-  }
-
-  function renderRecog(sideKey) {
-    const el = $(`recog${sideKey}`);
-    el.innerHTML = '';
-    const b = document.createElement('b');
-    b.textContent = '直近の試行:';
-    const obs = lastObs[sideKey];
-    el.classList.toggle('empty', !obs);
-    if (!obs) {
-      el.append(b, document.createTextNode(' 未試行'));
-      return;
-    }
-    const text = `${SIDE_LABEL[sideKey]}: ${T.recognitionText(lastKind[sideKey], obs, paramsForSuggest(sideKey))}`;
-    el.append(b, document.createTextNode(' ' + text));
-  }
-
-  function renderIntentSelect(sideKey) {
-    const wrap = $(`intent${sideKey}`);
-    wrap.hidden = !lastObs[sideKey];
-    const sel = $(`intentSelect${sideKey}`);
-    if (sel.dataset.filled !== '1') {
-      for (const g of T.GESTURES) {
-        if (g.kind === 'cursor') continue;
-        const o = document.createElement('option');
-        o.value = g.kind;
-        o.textContent = g.title;
-        sel.appendChild(o);
-      }
-      sel.dataset.filled = '1';
-    }
-    sel.value = '';
-  }
-
-  function renderSuggestion(sideKey) {
-    const box = $(`suggestion${sideKey}`);
-    const s = intentSuggestion[sideKey];
-    box.hidden = !s;
-    box.innerHTML = '';
-    if (!s) return;
-    const line = document.createElement('div');
-    if (s.r.suggestions.length) {
-      line.textContent = s.r.suggestions.map((sg) => `${sg.name}: ${sg.from ?? '?'} → ${sg.to ?? '?'}`).join('、')
-        + `(${s.r.suggestions[0].reason})`;
-    } else {
-      line.textContent = s.r.notes[0] || '観測からは原因を絞れません';
-    }
-    box.appendChild(line);
-    if (s.r.suggestions.length) {
-      const actions = document.createElement('div');
-      actions.className = 'actions';
-      const apply = document.createElement('button');
-      apply.className = 'primary';
-      apply.textContent = '適用';
-      apply.onclick = () => applyIntentSuggestion(sideKey);
-      actions.appendChild(apply);
-      box.appendChild(actions);
-    }
-  }
-
-  function onIntentChange(sideKey, kind) {
-    const obs = lastObs[sideKey];
-    if (!obs || !kind) {
-      intentSuggestion[sideKey] = null;
-      renderSuggestion(sideKey);
-      return;
-    }
-    const feedback = NOT_HAPPENED_FEEDBACK[kind] || 'none';
-    const r = T.suggestFor(kind, feedback, obs, paramsForSuggest(sideKey));
-    intentSuggestion[sideKey] = { kind, r };
-    renderSuggestion(sideKey);
-  }
-
-  function applyIntentSuggestion(sideKey) {
-    const s = intentSuggestion[sideKey];
-    if (!s || !s.r.suggestions.length) return;
-    const detailSides = detailMode ? activeSides() : null;
-    for (const sg of s.r.suggestions) {
-      if (sg.to === null) continue;
-      if (detailSides) { for (const sd of detailSides) pending[sd][sg.name] = sg.to; }
-      else pending.common[sg.name] = sg.to;
-    }
-    intentSuggestion[sideKey] = null;
-    $(`intentSelect${sideKey}`).value = '';
-    renderSuggestion(sideKey);
-    renderHeader();
-    renderParams();
-    setStatus('提案を保留に積みました。「書き込む」で反映します');
+    $(`now${sideKey}`).textContent = currentActionText(sideKey);
   }
 
   function renderPadStatus(sideKey) {
@@ -1236,7 +1314,10 @@
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, PAD_W, PAD_H);
-    ctx.fillStyle = '#f3f4f6';
+    const grad = ctx.createLinearGradient(0, 0, 0, PAD_H);
+    grad.addColorStop(0, '#1e293b');
+    grad.addColorStop(1, '#0b1120');
+    ctx.fillStyle = grad;
     ctx.fillRect(0, 0, PAD_W, PAD_H);
     const now = performance.now();
     const trail = padTrail[sideKey];
@@ -1244,27 +1325,30 @@
     const last = lastFrame[sideKey];
     const fresh = last && now - last.t <= STATE_STALE_MS;
     const st = T.padStateFromFrame(fresh ? last : null);
-    ctx.fillStyle = PAD_COLOR[st.color];
+    const card = $(`padCard${sideKey}`);
+    card.dataset.state = st.color;
+    card.dataset.dragging = st.dragging ? '1' : '0';
+    const color = PAD_COLOR[st.color] || cssVar('--pad-idle');
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
     for (const pt of trail) {
       const age = now - pt.t;
-      ctx.globalAlpha = Math.max(0, 1 - age / 300);
+      const alpha = Math.max(0, 1 - age / 300);
+      ctx.globalAlpha = alpha;
+      ctx.shadowBlur = 10 * alpha;
       ctx.beginPath();
       ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
       ctx.fill();
     }
+    ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
     if (padFlash[sideKey] && now - padFlash[sideKey] < 150) {
-      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.fillStyle = 'rgba(255,255,255,0.25)';
       ctx.fillRect(0, 0, PAD_W, PAD_H);
     }
-    if (st.dragging) {
-      ctx.strokeStyle = '#dc2626';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(2, 2, PAD_W - 4, PAD_H - 4);
-    }
-    ctx.fillStyle = '#374151';
-    ctx.font = '12px sans-serif';
-    ctx.fillText(st.state, 6, 16);
+    ctx.fillStyle = 'rgba(226,232,240,.85)';
+    ctx.font = '12px -apple-system, sans-serif';
+    ctx.fillText(st.state, 8, 18);
   }
 
   function recordPointer(type, e) {
@@ -1344,6 +1428,17 @@
     }
   }
 
+  function buildTimelineLanes() {
+    const wrap = $('timelineLanes');
+    wrap.innerHTML = '';
+    for (const name of LANES) {
+      const div = document.createElement('div');
+      div.style.height = LANE_H + 'px';
+      div.textContent = name;
+      wrap.appendChild(div);
+    }
+  }
+
   function drawTimeline() {
     const cv = $('timeline');
     const ctx = cv.getContext('2d');
@@ -1360,22 +1455,25 @@
     const t0 = now - view.ms;
     const x = (t) => ((t - t0) / view.ms) * W;
     const laneY = (i) => i * LANE_H;
+    const laneBg = [cssVar('--surface-alt'), cssVar('--surface')];
+    const gridColor = cssVar('--border-strong');
+    const labelColor = cssVar('--muted');
+    const textColor = cssVar('--text');
+    const dangerColor = cssVar('--danger');
     ctx.clearRect(0, 0, W, H);
     ctx.font = '11px sans-serif';
     ctx.textBaseline = 'alphabetic';
-    LANES.forEach((name, i) => {
-      ctx.fillStyle = i % 2 ? '#f3f4f6' : '#ffffff';
+    for (let i = 0; i < LANES.length; i++) {
+      ctx.fillStyle = laneBg[i % 2];
       ctx.fillRect(0, laneY(i), W, LANE_H);
-      ctx.fillStyle = '#6b7280';
-      ctx.fillText(name, 4, laneY(i) + 12);
-    });
-    ctx.strokeStyle = '#e5e7eb';
+    }
+    ctx.strokeStyle = gridColor;
     for (let s = Math.ceil(t0 / 1000) * 1000; s <= now; s += 1000) {
       ctx.beginPath(); ctx.moveTo(x(s), 0); ctx.lineTo(x(s), H); ctx.stroke();
     }
 
     const bothSides = rec.R.frames.length > 0 && rec.L.frames.length > 0;
-    const FINGER_STROKE = { R: '#111827', L: '#2563eb' };
+    const FINGER_STROKE = { R: textColor, L: '#2563eb' };
     for (const s of ['R', 'L']) {
       if (!rec[s].frames.length) continue;
       ctx.strokeStyle = FINGER_STROKE[s];
@@ -1400,26 +1498,26 @@
           if (e.value) {
             open[e.code] = e.t;
           } else if (open[e.code] !== undefined) {
-            ctx.fillStyle = BTN_COLOR[e.code] || '#9ca3af';
+            ctx.fillStyle = BTN_COLOR[e.code] || labelColor;
             const x0 = Math.max(0, x(open[e.code]));
             ctx.fillRect(x0, laneY(1) + 14, Math.max(2, x(e.t) - x0), 20);
             delete open[e.code];
           }
           if (e.ret !== 0 && e.t >= t0) {
-            ctx.fillStyle = '#dc2626';
+            ctx.fillStyle = dangerColor;
             ctx.fillText('×', x(e.t) - 3, laneY(1) + 12);
           }
         } else if (e.t >= t0) {
           const isWheel = e.code === T.REL.WHEEL || e.code === T.REL.HWHEEL;
-          ctx.fillStyle = isWheel ? '#dc2626' : '#111827';
+          ctx.fillStyle = isWheel ? dangerColor : textColor;
           const h = Math.min(16, Math.abs(e.value));
           ctx.fillRect(x(e.t), laneY(1) + 30 - h, 2, 2 + h);
           if (e.ret !== 0) ctx.fillText('×', x(e.t) - 3, laneY(1) + 12);
         }
-        if (bothSides) { ctx.fillStyle = '#6b7280'; ctx.fillText(s, x(e.t) - 3, laneY(1) + 38); }
+        if (bothSides) { ctx.fillStyle = labelColor; ctx.fillText(s, x(e.t) - 3, laneY(1) + 38); }
       }
       for (const code of Object.keys(open)) {
-        ctx.fillStyle = BTN_COLOR[code] || '#9ca3af';
+        ctx.fillStyle = BTN_COLOR[code] || labelColor;
         const x0 = Math.max(0, x(open[code]));
         ctx.fillRect(x0, laneY(1) + 14, Math.max(2, W - x0), 20);
       }
@@ -1440,16 +1538,16 @@
       });
       if (s.buttons !== null) last = s;
     }
-    ctx.fillStyle = '#111827';
+    ctx.fillStyle = textColor;
     for (const m of rec.host.move) if (m.t >= t0) ctx.fillRect(x(m.t), laneY(2) + 30, 2, 4);
-    ctx.fillStyle = '#dc2626';
+    ctx.fillStyle = dangerColor;
     for (const w of rec.host.wheel) {
       if (w.t < t0) continue;
       const h = Math.min(16, Math.abs(w.deltaY) + Math.abs(w.deltaX));
       ctx.fillRect(x(w.t), laneY(2) + 34 - h, 2, 2 + h);
     }
 
-    ctx.strokeStyle = '#dc2626';
+    ctx.strokeStyle = dangerColor;
     for (const d of diag) {
       if (d.t < t0) continue;
       ctx.beginPath(); ctx.moveTo(x(d.t), 0); ctx.lineTo(x(d.t), H); ctx.stroke();
@@ -1732,8 +1830,6 @@
   }
   $('liveRateR').onchange = () => onLiveRateChange('R');
   $('liveRateL').onchange = () => onLiveRateChange('L');
-  $('intentSelectR').onchange = () => onIntentChange('R', $('intentSelectR').value);
-  $('intentSelectL').onchange = () => onIntentChange('L', $('intentSelectL').value);
   $('btnConnectDevice').onclick = () => {
     const id = $('selDevice').value;
     const device = lastDevices.find((d) => d.id === id);
@@ -1741,8 +1837,8 @@
   };
   window.addEventListener('beforeunload', () => { if (isConnected()) disconnect(null, true); });
 
-  renderIntentSelect('R');
-  renderIntentSelect('L');
+  renderOpsLog();
+  buildTimelineLanes();
   refreshDiagnostics();
   setConnectedUi(false);
   liveEnabled = readLiveEnabledPref();

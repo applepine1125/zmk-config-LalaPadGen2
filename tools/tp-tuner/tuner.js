@@ -259,27 +259,11 @@
     dynamic_filter_bottom_speed: 30, dynamic_filter_top_speed: 511, dynamic_filter_bottom_beta: 20,
     cursor_report_interval_ms: 0, scroll_report_interval_ms: 0,
   };
-  const GESTURES = [
-    { kind: 'cursor', title: 'カーソル移動' },
-    { kind: 'tap1', title: '1本指タップ' },
-    { kind: 'tapdrag', title: 'タップドラッグ' },
-    { kind: 'scroll2', title: '2本指スクロール' },
-    { kind: 'tap2', title: '2本指タップ' },
-    { kind: 'pinch', title: 'ピンチ' },
-    { kind: 'tap3', title: '3本指タップ' },
-  ];
   const TAP_KINDS = {
     tap1: { prefix: '1f', n: 1, code: BTN[0], bit: 1, label: '左' },
     tap2: { prefix: '2f', n: 2, code: BTN[1], bit: 2, label: '右' },
     tap3: { prefix: '3f', n: 3, code: BTN[2], bit: 4, label: '中' },
   };
-  const IC_PARAMS = new Set([
-    'touch_set_threshold', 'touch_clear_threshold', 'alp_set_debounce', 'alp_clear_debounce',
-    'stationary_touch_mov_threshold', 'jitter_filter_delta', 'finger_confidence_threshold',
-    'active_mode_sampling_period_ms', 'idle_touch_mode_sampling_period_ms', 'idle_mode_sampling_period_ms',
-    'lp1_mode_sampling_period_ms', 'lp2_mode_sampling_period_ms', 'active_mode_timeout_ms',
-    'ati_targetcount', 'dynamic_filter_bottom_speed', 'dynamic_filter_top_speed', 'dynamic_filter_bottom_beta',
-  ]);
   const INERTIA_MARGIN_MS = 15;
 
   function paramValue(params, name) {
@@ -292,10 +276,6 @@
       v = p && typeof p === 'object' ? p.value : p;
     }
     return typeof v === 'number' ? v : DEFAULT_PARAMS[name];
-  }
-
-  function stepParam(p, delta) {
-    return Math.min(p.max, Math.max(p.min, p.value + delta));
   }
 
   function segmentAttempts(frames, opts) {
@@ -798,235 +778,6 @@
     return `${factsText(kind, o)} → ${mid} → ${host}`;
   }
 
-  const SIDE = {
-    touch_down: '軽いタッチを拾うが誤反応も増える',
-    touch_up: '軽いタッチを拾わなくなる',
-    battery: '電池を使う',
-  };
-
-  function suggestFor(kind, feedback, o, params) {
-    const P = (name) => paramValue(params, name);
-    const out = { suggestions: [], notes: [] };
-    const note = (text) => { out.notes.push(text); };
-    const add = (name, delta, reason, side) => {
-      const from = P(name);
-      let to = typeof from === 'number' ? from + delta : null;
-      if (Array.isArray(params)) {
-        const p = params.find((x) => x.name === name);
-        if (p) to = stepParam(p, delta);
-      }
-      if (typeof from === 'number' && to === from) {
-        note(`${name} は既に${delta > 0 ? '上限' : '下限'} ${from} のため動かせません`);
-        return;
-      }
-      out.suggestions.push({ name, delta, from: typeof from === 'number' ? from : null, to, reason, side, ic: IC_PARAMS.has(name) });
-    };
-    const lowerIc = (reason) => {
-      add('touch_set_threshold', -2, reason, SIDE.touch_down);
-      add('finger_confidence_threshold', -2, reason, SIDE.touch_down);
-    };
-    const raiseIc = (reason) => {
-      add('touch_set_threshold', 2, reason, SIDE.touch_up);
-      add('finger_confidence_threshold', 2, reason, SIDE.touch_up);
-    };
-    const transport = (what) => {
-      note(`ドライバは${what}を送信したがホストが受信していない(伝送で落ちている)。`
-        + (o.drops ? `ret≠0 が ${o.drops} 件: input キューが詰まっている` : 'ret≠0 はなし。BLE なら接続間隔の問題の可能性。USB 出力とテストモード(カーソル固定)も確認'));
-    };
-    const fingersMismatch = (n) => {
-      if (o.fingersMax === n) return false;
-      if (o.fingersMax < n) {
-        note(`指 ${o.fingersMax} 本と認識されています(期待 ${n} 本)。指の間隔を広げて同時に置く`);
-        add('finger_confidence_threshold', -2, `指が ${n} 本認識されていない(認識 ${o.fingersMax} 本)`, SIDE.touch_down);
-      } else {
-        note(`指 ${o.fingersMax} 本と認識されています(期待 ${n} 本)`);
-        add('finger_confidence_threshold', 2, `指 ${o.fingersMax} 本と認識された(期待 ${n} 本)`, SIDE.touch_up);
-      }
-      return true;
-    };
-    const first = o.touches[0];
-    const second = o.touches[1];
-    const tap = TAP_KINDS[kind] || TAP_KINDS.tap1;
-    const pf = tap.prefix;
-    const maxMs = P(`${pf}_tap_max_ms`);
-    const maxMove = P(`${pf}_tap_move`);
-    const gap = P(`${pf}_tapdrag_gap_max_ms`);
-    const tapConditionFails = () => {
-      let bad = false;
-      if (first.downMs > maxMs) {
-        add(`${pf}_tap_max_ms`, 50, `押下 ${first.downMs}ms が上限 ${maxMs}ms を超えた`, '短い押し込みもクリックになる');
-        bad = true;
-      }
-      if (first.moveSum > maxMove) {
-        add(`${pf}_tap_move`, 10, `移動 ${first.moveSum} が上限 ${maxMove} を超えた`, '指がぶれてもタップ扱いになり、カーソル移動の始まりが遅れる');
-        bad = true;
-      }
-      return bad;
-    };
-    const keymapSpeed = (what, scaler, key) =>
-      note(`${what}はキーマップの ${scaler} で決まり(ビルドが必要)、ここでは変えられない。システムレイヤー(レイヤー 1+2 同時押し)の ${key} で実行時に段階調整できる`);
-    const reportLag = (name) => {
-      const cur = P(name);
-      add(name, cur === 0 ? 16 : 8, 'BLE 経路の送信が追いつかず溜まっている(右手を USB にすると消える症状)', '最大その ms だけ遅れる');
-    };
-
-    if (feedback === 'ok') {
-      note('体感どおり。このまま次の操作へ進むか、別のカードを試してください');
-      return out;
-    }
-
-    if (TAP_KINDS[kind]) {
-      const { n, code, bit, label } = tap;
-      if (feedback === 'none') {
-        if (!first) lowerIc('指が認識されていない(接触フレームなし)');
-        else if (!fingersMismatch(n) && !tapConditionFails()) {
-          if (!o.buttonsPressed.includes(code)) note(`押下 ${first.downMs}ms・移動 ${first.moveSum} は条件内なのにボタン報告なし。${pf}_tap_enable を確認`);
-          else if (!o.host.down.includes(bit)) transport(`${label}クリック`);
-          else note(`ドライバもホストも${label}クリックを処理しています。OS 側の設定(クリック速度・カーソル位置)を確認`);
-        }
-      } else if (feedback === 'wrong:drag') {
-        if (second && o.gapMs <= gap) {
-          add(`${pf}_tapdrag_gap_max_ms`, -40, `2 回目の接触が ${o.gapMs}ms 後で待ち時間 ${gap}ms 内に入りドラッグに移行した`, '素早いダブルタップからのドラッグに入りにくくなる');
-        } else if (first && o.host.stuckBits.includes(bit)) {
-          transport(`${label}ボタンの離し`);
-        }
-      } else if (feedback === 'wrong:other') {
-        if (first && !fingersMismatch(n)) note(`指本数は ${n} 本と認識され、送信は「${sentText(o) || 'なし'}」。パラメータでは絞れないので指の置き方(同時に置く・同時に離す)を確認`);
-      } else if (feedback === 'wrong:cursor') {
-        if (first && !tapConditionFails()) note(`押下 ${first.downMs}ms・移動 ${first.moveSum} はタップ条件内。移動として送られたなら内訳の移動報告を確認`);
-      } else if (feedback === 'wrong:double') {
-        note(`タップ後 ${pf}_tapdrag_gap_max_ms(${gap}ms)の間クリックを保留し、2 回目の接触がなければ 1 回のクリックとして確定する仕様。2 回叩けば 2 回クリックになるので、ダブルクリックが意図なら正常。1 回のつもりなら内訳の接触回数を確認`);
-      } else if (feedback === 'slow') {
-        add(`${pf}_tapdrag_gap_max_ms`, -40, `シングルクリックはタップ後 ${gap}ms 待ってから確定する`, 'ゆっくりのダブルタップがドラッグに入らなくなる');
-      } else if (feedback === 'sensitive') {
-        raiseIc('触れただけでクリックになる');
-      }
-    } else if (kind === 'tapdrag') {
-      if (feedback === 'nodrag') {
-        if (!first) lowerIc('指が認識されていない(接触フレームなし)');
-        else if (!fingersMismatch(1) && !tapConditionFails()) {
-          if (!o.buttonsPressed.includes(BTN[0])) note(`1 回目の押下 ${first.downMs}ms・移動 ${first.moveSum} は条件内なのにボタン報告なし。1f_tap_enable を確認`);
-          else if (!second) note(`2 回目の接触が観測されていない。1 回目を離してから ${gap}ms 以内に触れ直す(試行は 0.4 秒空くと閉じる)`);
-          else if (o.gapMs > gap) add('1f_tapdrag_gap_max_ms', 40, `2 回目の接触が ${o.gapMs}ms 後で待ち時間 ${gap}ms を超えた`, 'シングルクリックの確定が遅れる');
-          else if (!second.holds.includes(BTN[0])) note(`2 回目の接触(間隔 ${o.gapMs}ms)中に左ボタンが保持されていない(hold=272 なし)。1f_presshold_enable を確認`);
-          else if (second.moveSum === 0) note('保持中に移動がない。触れ直した指をそのまま動かす');
-          else if (!o.host.down.includes(1) || o.host.moveCount === 0) transport('左ボタン押しと移動');
-          else note('ツール上ではドラッグが成立しホストまで届いています。OS 側のドラッグ設定を確認');
-        }
-      } else if (feedback === 'stuck') {
-        const stuck = o.host.stuckBits.includes(1) || (o.host.down.includes(1) && !o.host.up.includes(1));
-        if (!o.buttonsReleased.includes(BTN[0])) note('ドライバが左ボタンを離していない。ドライバ側の不具合の可能性。シリアルログを保存して報告');
-        else if (stuck) note(`ドライバは左ボタンを離したがホストは押したまま。伝送で離しが落ちている(${o.drops ? `ret≠0 が ${o.drops} 件: input キュー詰まり` : 'ret≠0 はなし。BLE の接続間隔かホスト側の取りこぼし'})`);
-        else note('ツール上ではホストで離しを受信しています。OS 側の状態を確認');
-      } else if (feedback === 'slowclick') {
-        add('1f_tapdrag_gap_max_ms', -40, `シングルクリックはタップ後 ${gap}ms 待ってから確定する`, 'ゆっくりのダブルタップがドラッグに入らなくなる');
-      }
-    } else if (kind === 'scroll2') {
-      const startMove = P('2f_scroll_start_move');
-      if (feedback === 'none') {
-        if (!first) lowerIc('指が認識されていない(接触フレームなし)');
-        else if (o.fingersMax < 2) {
-          note(`指 ${o.fingersMax} 本しか認識されていない。指の間隔を広げて同時に置く`);
-          add('finger_confidence_threshold', -2, `2 本目の指が認識されていない(認識 ${o.fingersMax} 本)`, SIDE.touch_down);
-        } else if (!o.mode2fSeen.includes(1)) {
-          if (o.moveSum2 < startMove) add('2f_scroll_start_move', -5, `2 本指移動 ${o.moveSum2} が開始値 ${startMove} に届いていない`, '2 本指タップがスクロール扱いになりやすい');
-          else note(`2 本指移動 ${o.moveSum2} はあるがスクロール判定なし。scroll_x_enable / scroll_y_enable を確認`);
-        } else if (o.wheel.count === 0) note('スクロール判定はあるが wheel 送信なし。scroll_x_enable / scroll_y_enable と移動方向を確認');
-        else if (o.host.wheelCount === 0) transport(`wheel ${o.wheel.count} 回`);
-        else note('ツール上では wheel がホストまで届いています。カーソル位置(スクロール対象)を確認');
-      } else if (feedback === 'heavy') {
-        add('2f_scroll_start_move', -5, `スクロール開始まで 2 本指移動 ${startMove} が必要(今回 ${o.moveSum2})`, '2 本指タップがスクロール扱いになりやすい');
-      } else if (feedback === 'fast' || feedback === 'slow') {
-        keymapSpeed('スクロール速度', 'zip_vertical_scroll_scaler と zip_scroll_accel', 'ZDS_SC INC/DEC');
-      } else if (feedback === 'inertia_more') {
-        if (P('scroll_inertia_enable') === 0) note('スクロール慣性は OFF(scroll_inertia_enable=0)。滑るのは OS 側の慣性');
-        else {
-          add('scroll_inertia_decay', -10, '離した後の wheel 継続を短くする', '止めたいときの止まりは良くなるが滑りは短い');
-          add('scroll_inertia_min_avg_speed', 2, '速く離したときだけ慣性を出す', 'ゆっくり離したときは滑らない');
-        }
-      } else if (feedback === 'inertia_less') {
-        if (P('scroll_inertia_enable') === 0) add('scroll_inertia_enable', 1, 'スクロール慣性が OFF', '離した後も wheel が続く');
-        else {
-          add('scroll_inertia_decay', 10, '離した後の wheel 継続を長くする', '止めたいところで行き過ぎる');
-          add('scroll_inertia_min_avg_speed', -2, 'ゆっくり離しても慣性を出す', '意図しない滑りが増える');
-        }
-      } else if (feedback === 'diagonal') {
-        note('斜め移動の縦横固定はキーマップの zip_scroll_snap(ビルドが必要)で決まり、ここでは変えられない');
-      } else if (feedback === 'pinch') {
-        add('2f_pinch_ratio_x10', 5, `スクロール中の指の間隔変化(距離変化 ${o.distDelta}、重心移動 ${o.moveSum2})が比率を超えてピンチと判定された`, 'ピンチになりにくくなる(小さなピンチが効かなくなる)');
-      } else if (feedback === 'lag') {
-        reportLag('scroll_report_interval_ms');
-      }
-    } else if (kind === 'pinch') {
-      const startDist = P('2f_pinch_start_distance');
-      const startMove = P('2f_scroll_start_move');
-      const scrollWon = () => {
-        const ratioNow = P('2f_pinch_ratio_x10');
-        const ratioReason = o.moveSum2 > 0
-          ? `距離変化 ${o.distDelta} が重心移動 ${o.moveSum2} の ${(o.distDelta * 10 / o.moveSum2).toFixed(1)} 倍までしかなく、比率 ${ratioNow}(×0.1)に届かなかった`
-          : `距離変化 ${o.distDelta} に対して重心移動がほぼなく、比率 ${ratioNow}(×0.1)を満たせなかった`;
-        add('2f_pinch_ratio_x10', -3, ratioReason, 'スクロールがピンチに化けやすい');
-        add('2f_scroll_start_move', 5, `2 本指移動 ${o.moveSum2} が先にスクロール開始 ${startMove} に達した(距離変化 ${o.distDelta}、ピンチ開始 ${startDist})`, '軽い 2 本指移動でスクロールが始まりにくくなる');
-        add('2f_pinch_start_distance', -10, `距離変化 ${o.distDelta} がピンチ開始 ${startDist} より先に達するようにする`, 'スクロールがピンチに化けやすい');
-      };
-      if (feedback === 'none') {
-        if (!first) lowerIc('指が認識されていない(接触フレームなし)');
-        else if (o.fingersMax < 2) {
-          note(`指 ${o.fingersMax} 本しか認識されていない。指の間隔を広げて同時に置く`);
-          add('finger_confidence_threshold', -2, `2 本目の指が認識されていない(認識 ${o.fingersMax} 本)`, SIDE.touch_down);
-        } else if (o.mode2fSeen.includes(1)) scrollWon();
-        else if (o.distDelta < startDist) add('2f_pinch_start_distance', -10, `距離変化 ${o.distDelta} が開始値 ${startDist} に届いていない`, 'スクロールがピンチに化けやすい');
-        else note(`距離変化 ${o.distDelta} はあるがピンチ判定なし。2f_pinch_enable を確認`);
-      } else if (feedback === 'scroll') {
-        scrollWon();
-      } else if (feedback === 'sensitive') {
-        add('2f_pinch_start_distance', 10, `距離変化 ${o.distDelta} でピンチに入った`, '小さなピンチが効かなくなる');
-      }
-    } else if (kind === 'cursor') {
-      const m = o.cursor;
-      if (feedback === 'start_slow') {
-        const delay = m.startDelayMs === null ? '動き出しなし' : `動き出し遅延 ${m.startDelayMs}ms`;
-        add('alp_set_debounce', -1, `${delay}。低消費電力モードからの復帰を速くする`, '誤起動が増える');
-        add('stationary_touch_mov_threshold', -1, `${delay}。小さな動きも静止扱いにしない`, '静止時のふらつきを拾いやすくなる');
-        add('idle_mode_sampling_period_ms', -10, `${delay}。待機中の周期を短くする`, SIDE.battery);
-        add('lp1_mode_sampling_period_ms', -10, `${delay}。省電力中の周期を短くする`, SIDE.battery);
-      } else if (feedback === 'light_miss') {
-        lowerIc(`軽いタッチが拾われない(移動量 ファーム ${m.fwMove})`);
-        note('Re-ATI は不要(ati_targetcount を変えた場合のみ必要)');
-      } else if (feedback === 'jitter') {
-        const ratio = `微小動き(|rel|≤2)の割合 ${m.tinyRatio}%`;
-        add('jitter_filter_delta', 1, `${ratio}。細かな震えを消す`, '細かい動きも消える');
-        add('stationary_touch_mov_threshold', 1, `${ratio}。小さなふらつきを静止扱いにする`, '動き出しが少し鈍る');
-        add('dynamic_filter_bottom_beta', 5, `${ratio}。低速時の平滑化を強める`, '低速時の遅れが増える');
-      } else if (feedback === 'jump') {
-        add('finger_confidence_threshold', 2, '指の誤検出で座標が飛ぶ', SIDE.touch_up);
-        add('touch_set_threshold', 2, '弱いタッチが混ざって座標が飛ぶ', SIDE.touch_up);
-      } else if (feedback === 'fast' || feedback === 'slow') {
-        keymapSpeed('ポインタ速度', 'zip_xy_scaler', 'ZDS_XY INC/DEC');
-        if (feedback === 'fast') add('dynamic_filter_bottom_speed', -5, '低速時の追従を抑えて細かい操作をしやすくする', '低速の滑らかさが変わる');
-        else add('dynamic_filter_bottom_speed', 5, '低速時の追従を上げる', '低速の滑らかさが変わる');
-      } else if (feedback === 'inertia_more') {
-        if (P('cursor_inertia_enable') === 0) note('カーソル慣性は OFF(cursor_inertia_enable=0)。滑るのは OS 側の設定');
-        else {
-          add('cursor_inertia_decay', -10, `離した後の移動継続 ${m.inertiaCount} 回 ${m.inertiaMs}ms を短くする`, '滑りが短くなる');
-          add('cursor_inertia_min_avg_speed', 2, '速く離したときだけ慣性を出す', 'ゆっくり離したときは滑らない');
-        }
-      } else if (feedback === 'inertia_less') {
-        if (P('cursor_inertia_enable') === 0) add('cursor_inertia_enable', 1, 'カーソル慣性が OFF', '離した後もカーソルが滑る');
-        else {
-          add('cursor_inertia_decay', 10, `離した後の移動継続 ${m.inertiaCount} 回 ${m.inertiaMs}ms を長くする`, '止めたいところで行き過ぎる');
-          add('cursor_inertia_min_avg_speed', -2, 'ゆっくり離しても慣性を出す', '意図しない滑りが増える');
-        }
-      } else if (feedback === 'lag') {
-        reportLag('cursor_report_interval_ms');
-      }
-    }
-
-    if (!out.suggestions.length && !out.notes.length) note('観測からは原因を絞れません。内訳を見て手動で調整してください');
-    if (out.suggestions.some((s) => s.ic)) note('IC 系は次にパッドへ触れたときに反映されます');
-    return out;
-  }
-
   function mergeParams(paramsR, paramsL) {
     const R = paramsR || [];
     const L = paramsL || [];
@@ -1103,13 +854,13 @@
   }
 
   const api = {
-    BTN, REL, BTN_NAMES, GESTURES, DEFAULT_PARAMS,
+    BTN, REL, BTN_NAMES, DEFAULT_PARAMS,
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
     splitSidePrefix, bleCommand, isEndMarker, orderDevices,
     clockOffset, pickPortOrder, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
-    paramValue, stepParam, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, whyNot, describeState,
-    observationText, hostText, sentText, recognitionText, suggestFor,
+    paramValue, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, whyNot, describeState,
+    observationText, hostText, sentText, recognitionText,
     mergeParams, pendingCommands, liveCommands, padStateFromFrame, frameToPadPoints,
   };
   root.TpTuner = api;
