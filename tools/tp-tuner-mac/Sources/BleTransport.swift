@@ -18,10 +18,12 @@ final class BleTransport: NSObject {
 
   private var centralManager: CBCentralManager!
   private var candidates: [String: CBPeripheral] = [:]
+  private var connectingPeripheral: CBPeripheral?
   private var connectedPeripheral: CBPeripheral?
   private var commandCharacteristic: CBCharacteristic?
   private var streamCharacteristic: CBCharacteristic?
   private var pendingConnectId: String?
+  private var switchTargetId: String?
   private var pendingDisconnectReason: String?
   private var lastReportedState: CBManagerState?
 
@@ -44,27 +46,36 @@ final class BleTransport: NSObject {
   func connect(id: String) {
     if let existing = connectedPeripheral {
       if existing.identifier.uuidString == id { return }
-      pendingConnectId = id
+      switchTargetId = id
       centralManager.cancelPeripheralConnection(existing)
       return
     }
-    pendingConnectId = id
+    if let connecting = connectingPeripheral {
+      if connecting.identifier.uuidString == id { return }
+      switchTargetId = id
+      centralManager.cancelPeripheralConnection(connecting)
+      return
+    }
     guard centralManager.state == .poweredOn else {
+      pendingConnectId = id
       delegate?.bleTransportDidUpdateStatus(statusMessage(for: centralManager.state))
       return
     }
     guard let peripheral = candidates[id] else {
-      pendingConnectId = nil
       delegate?.bleTransportDidDisconnect(reason: "デバイスが見つかりません")
       return
     }
     peripheral.delegate = self
+    connectingPeripheral = peripheral
     centralManager.connect(peripheral, options: nil)
   }
 
   func disconnect() {
     pendingConnectId = nil
+    switchTargetId = nil
     if let peripheral = connectedPeripheral {
+      centralManager.cancelPeripheralConnection(peripheral)
+    } else if let peripheral = connectingPeripheral {
       centralManager.cancelPeripheralConnection(peripheral)
     }
   }
@@ -104,17 +115,24 @@ extension BleTransport: CBCentralManagerDelegate {
       }
     }
     if central.state == .poweredOn, let id = pendingConnectId {
+      pendingConnectId = nil
       connect(id: id)
     }
   }
 
   func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+    connectingPeripheral = nil
     connectedPeripheral = peripheral
     peripheral.discoverServices([serviceUUID])
   }
 
   func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
-    pendingConnectId = nil
+    connectingPeripheral = nil
+    if let id = switchTargetId {
+      switchTargetId = nil
+      connect(id: id)
+      return
+    }
     delegate?.bleTransportDidDisconnect(reason: "接続に失敗しました: \(error?.localizedDescription ?? "不明なエラー")")
   }
 
@@ -123,7 +141,8 @@ extension BleTransport: CBCentralManagerDelegate {
     let reason = pendingDisconnectReason ?? error?.localizedDescription ?? "切断されました"
     pendingDisconnectReason = nil
     delegate?.bleTransportDidDisconnect(reason: reason)
-    if let id = pendingConnectId {
+    if let id = switchTargetId {
+      switchTargetId = nil
       connect(id: id)
     }
   }
@@ -166,7 +185,6 @@ extension BleTransport: CBPeripheralDelegate {
       centralManager.cancelPeripheralConnection(peripheral)
       return
     }
-    pendingConnectId = nil
     delegate?.bleTransportDidConnect(id: peripheral.identifier.uuidString, name: peripheral.name ?? "LalapadGen2")
   }
 
