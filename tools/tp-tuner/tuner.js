@@ -36,9 +36,12 @@
   }
 
   function parseInfoLine(line) {
-    const m = /^side=(central|peripheral) uptime_ms=(\d+) params=(\d+)$/.exec(line.trim());
+    const m = /^side=(central|peripheral) uptime_ms=(\d+) params=(\d+)(?: saved=(yes|no))?$/.exec(line.trim());
     if (!m) return null;
-    return { side: m[1], uptimeMs: Number(m[2]), params: Number(m[3]) };
+    return {
+      side: m[1], uptimeMs: Number(m[2]), params: Number(m[3]),
+      saved: m[4] === undefined ? null : m[4] === 'yes',
+    };
   }
 
   function parseTraceLine(line) {
@@ -61,6 +64,16 @@
       const ret = Number(parts[6]);
       if ([ms, code, value, ret].some(Number.isNaN)) return null;
       return { type: 'E', ms, kind: parts[3], code, value, ret };
+    }
+    if (parts[1] === 'S' && parts.length === 19) {
+      const n = parts.slice(2).map(Number);
+      if (n.some(Number.isNaN)) return null;
+      const [startMs, endMs, contacts, fingersMax, downMs, gapMs, moveSum, centroidMove, distDelta,
+        mode2f, btnPressBits, btnReleaseBits, wheelCount, wheelSum, relCount, drops, hold] = n;
+      return {
+        type: 'S', startMs, endMs, contacts, fingersMax, downMs, gapMs, moveSum, centroidMove, distDelta,
+        mode2f, btnPressBits, btnReleaseBits, wheelCount, wheelSum, relCount, drops, hold,
+      };
     }
     return null;
   }
@@ -115,6 +128,35 @@
     if (code === BTN[1]) return 2;
     if (code === BTN[2]) return 4;
     return 0;
+  }
+
+  function bitsToCodes(bits) {
+    const out = [];
+    for (let n = 0; n < 32; n++) {
+      if (bits & (1 << n)) out.push(272 + n);
+    }
+    return out;
+  }
+
+  function hostObservationWindow(start, windowEnd, host, buttonsReleased) {
+    const hostBtn = (host && host.btn) || [];
+    const down = [];
+    const up = [];
+    let prev = hostButtonsAt(hostBtn, start);
+    for (const s of hostBtn) {
+      if (s.t <= start || s.t > windowEnd) continue;
+      for (const bit of [1, 2, 4]) {
+        if ((s.buttons & bit) && !(prev & bit) && !down.includes(bit)) down.push(bit);
+        if (!(s.buttons & bit) && (prev & bit) && !up.includes(bit)) up.push(bit);
+      }
+      prev = s.buttons;
+    }
+    const inWindow = (x) => x.t >= start && x.t <= windowEnd;
+    const moveCount = ((host && host.move) || []).filter(inWindow).length;
+    const wheelCount = ((host && host.wheel) || []).filter(inWindow).length;
+    const hostAtEnd = hostButtonsAt(hostBtn, windowEnd);
+    const stuckBits = buttonsReleased.map(hostBitForCode).filter((bit) => bit && (hostAtEnd & bit));
+    return { down, up, moveCount, wheelCount, stuckBits };
   }
 
   function detectStuckButton(fwEvents, hostButtonSamples, opts) {
@@ -332,31 +374,76 @@
     const relCount = relTimes(ev.filter((e) => e.t <= end + INERTIA_MARGIN_MS));
     const drops = ev.filter((e) => e.ret !== 0).length;
 
-    const hostBtn = (host && host.btn) || [];
-    const down = [];
-    const up = [];
-    let prev = hostButtonsAt(hostBtn, start);
-    for (const s of hostBtn) {
-      if (s.t <= start || s.t > windowEnd) continue;
-      for (const bit of [1, 2, 4]) {
-        if ((s.buttons & bit) && !(prev & bit) && !down.includes(bit)) down.push(bit);
-        if (!(s.buttons & bit) && (prev & bit) && !up.includes(bit)) up.push(bit);
-      }
-      prev = s.buttons;
-    }
-    const inWindow = (x) => x.t >= start && x.t <= windowEnd;
-    const moveCount = ((host && host.move) || []).filter(inWindow).length;
-    const wheelCount = ((host && host.wheel) || []).filter(inWindow).length;
-    const hostAtEnd = hostButtonsAt(hostBtn, windowEnd);
-    const stuckBits = buttonsReleased.map(hostBitForCode).filter((bit) => bit && (hostAtEnd & bit));
+    const hostObs = hostObservationWindow(start, windowEnd, host, buttonsReleased);
 
     return {
       start, end, windowEnd, touches, fingersMax, touchMs: end - start,
       downMs: first ? first.downMs : 0, moveSum,
       gapMs: second ? second.start - first.end : null,
       moveSum2, distDelta, mode2fSeen, keys, buttonsPressed, buttonsReleased, wheel, relCount, drops,
-      host: { down, up, moveCount, wheelCount, stuckBits },
+      host: hostObs,
       cursor: cursorMetrics(attempt, fwEvents, host, { tailMs }),
+    };
+  }
+
+  function touchesFromSummary(s, buttonsPressed) {
+    if (s.contacts <= 0) return [];
+    const t0 = {
+      start: s.startMs, end: s.startMs + s.downMs, downMs: s.downMs,
+      moveSum: s.contacts >= 2 ? 0 : s.moveSum, fingersMax: s.fingersMax, holds: [],
+    };
+    if (s.contacts < 2) return [t0];
+    const gap = s.gapMs >= 0 ? s.gapMs : 0;
+    const t1Start = t0.end + gap;
+    const t1 = {
+      start: t1Start, end: s.endMs, downMs: Math.max(0, s.endMs - t1Start),
+      moveSum: s.moveSum, fingersMax: s.fingersMax, holds: s.hold ? buttonsPressed.slice() : [],
+    };
+    return [t0, t1];
+  }
+
+  function keysFromSummary(s, buttonsPressed, buttonsReleased) {
+    const keys = [];
+    for (const code of buttonsPressed) keys.push({ t: s.startMs, code, value: 1 });
+    const releaseT = s.hold ? s.endMs : s.startMs + s.downMs;
+    for (const code of buttonsReleased) keys.push({ t: releaseT, code, value: 0 });
+    return keys;
+  }
+
+  function observationFromSummary(s, host, clockOffsetMs, opts) {
+    const tailMs = (opts && opts.tailMs) || 500;
+    const start = s.startMs + clockOffsetMs;
+    const end = s.endMs + clockOffsetMs;
+    const windowEnd = end + tailMs;
+    const buttonsPressed = bitsToCodes(s.btnPressBits);
+    const buttonsReleased = bitsToCodes(s.btnReleaseBits);
+    const touches = touchesFromSummary(s, buttonsPressed);
+    const keys = keysFromSummary(s, buttonsPressed, buttonsReleased);
+    const mode2fSeen = s.mode2f > 0 ? [s.mode2f] : [];
+    const wheel = { count: s.wheelCount, sum: s.wheelSum };
+    const hostObs = hostObservationWindow(start, windowEnd, host, buttonsReleased);
+    const hostMoves = ((host && host.move) || []).filter((m) => m.t >= start && m.t <= windowEnd);
+
+    return {
+      start, end, windowEnd, touches, fingersMax: s.fingersMax, touchMs: end - start,
+      downMs: s.downMs, moveSum: s.moveSum,
+      gapMs: touches.length > 1 ? touches[1].start - touches[0].end : null,
+      moveSum2: s.centroidMove, distDelta: s.distDelta, mode2fSeen, keys, buttonsPressed, buttonsReleased,
+      wheel, relCount: s.relCount, drops: s.drops,
+      host: hostObs,
+      // 要約には毎フレームの rel が含まれないため、動き出し遅延・フレーム間隔・微小動き割合・
+      // 慣性は算出できない(0 / null で代替)。カーソルカードの精密な指標にはトレースが必要。
+      cursor: {
+        touchMs: end - start,
+        startDelayMs: null,
+        fwMove: s.moveSum,
+        hostMove: hostMoves.reduce((sum, m) => sum + Math.abs(m.dx || 0) + Math.abs(m.dy || 0), 0),
+        frameGapMs: 0,
+        tinyRatio: 0,
+        relCount: s.relCount,
+        inertiaCount: 0,
+        inertiaMs: 0,
+      },
     };
   }
 
@@ -974,7 +1061,7 @@
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
     clockOffset, pickPortOrder, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
-    paramValue, stepParam, segmentAttempts, observeAttempt, cursorMetrics, inferKind, judgeAttempt, whyNot, describeState,
+    paramValue, stepParam, segmentAttempts, observeAttempt, observationFromSummary, cursorMetrics, inferKind, judgeAttempt, whyNot, describeState,
     observationText, hostText, sentText, recognitionText, feedbackOptions, suggestFor,
   };
   root.TpTuner = api;

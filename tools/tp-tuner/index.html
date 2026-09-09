@@ -39,6 +39,7 @@
   #topbar .sep { width: 1px; height: 20px; background: var(--border); }
   #info { color: var(--muted); }
   #autoConnectLabel { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  #dirtyIndicator { color: #92400e; font-weight: 600; white-space: nowrap; }
   #status { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #status.error { color: var(--danger); }
   #notice {
@@ -162,6 +163,9 @@
   <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
   <span id="info">未接続</span>
   <span class="sep"></span>
+  <button id="btnSave" disabled>ファームに保存</button>
+  <span id="dirtyIndicator" hidden>未保存の変更あり</span>
+  <span class="sep"></span>
   <button id="btnTrace" disabled>trace OFF</button>
   <span id="status"></span>
 </div>
@@ -259,6 +263,7 @@
   const KEEP_MS = 60000;
   const SET_DEBOUNCE_MS = 150;
   const ATTEMPT_IDLE_MS = 400;
+  const SUMMARY_WAIT_MS = 600;
   const PROCESS_INTERVAL_MS = 250;
   const STATE_STALE_MS = 600;
   const RECONNECT_SETTLE_MS = 1000;
@@ -357,7 +362,25 @@
   let traceOn = false;
   let busyConnecting = false;
   let autoConnectEnabled = true;
+  let dirty = false;
+  let lastConnInfo = null;
   const setTimers = {};
+
+  function setDirty(v) {
+    dirty = v;
+    $('dirtyIndicator').hidden = !dirty;
+  }
+
+  function savedLabel(saved) {
+    if (saved === null || saved === undefined) return '';
+    return saved ? ' ・保存済み' : ' ・未保存';
+  }
+
+  function renderConnInfo() {
+    if (!lastConnInfo) { $('info').textContent = '未接続'; return; }
+    const info = lastConnInfo;
+    $('info').textContent = `${info.side === 'central' ? '右(central)' : '左(peripheral)'} uptime=${(info.uptimeMs / 1000).toFixed(1)}s params=${info.params}${savedLabel(info.saved)}`;
+  }
 
   function setStatus(msg, isError) {
     const el = $('status');
@@ -477,11 +500,14 @@
   function setConnectedUi(connected) {
     $('btnConnect').disabled = connected || !navigator.serial;
     $('btnDisconnect').disabled = !connected;
+    $('btnSave').disabled = !connected;
     $('btnTrace').disabled = !connected;
     $('btnReload').disabled = !connected;
     $('btnResetAll').disabled = !connected;
     if (!connected) {
-      $('info').textContent = '未接続';
+      lastConnInfo = null;
+      renderConnInfo();
+      setDirty(false);
       traceOn = false;
       $('btnTrace').textContent = 'trace OFF';
       $('btnTrace').classList.remove('active');
@@ -518,7 +544,9 @@
 
   function finalizeConnected(port, info) {
     rememberPort(port, info);
-    $('info').textContent = `${info.side === 'central' ? '右(central)' : '左(peripheral)'} uptime=${(info.uptimeMs / 1000).toFixed(1)}s params=${info.params}`;
+    lastConnInfo = info;
+    renderConnInfo();
+    setDirty(false);
     setConnectedUi(true);
   }
 
@@ -780,6 +808,7 @@
         syncRow(row, p);
         updateConfPreview();
         renderAllCards();
+        setDirty(true);
       } else {
         syncRow(row, p, { force: true });
         setStatus(`${p.name}: ${lines.join(' ') || '応答なし'}`, true);
@@ -809,9 +838,29 @@
 
   async function resetAll() {
     if (!isConnected()) { setStatus('未接続です', true); return; }
-    if (!window.confirm('すべてのパラメータをファームの既定値に戻します。よろしいですか?')) return;
+    if (!window.confirm('すべてのパラメータをファームの既定値に戻します。保存済みの値も削除されます。よろしいですか?')) return;
     if (await runSimple('tp reset', 'すべて既定に戻しました')) {
+      setDirty(false);
+      if (lastConnInfo) { lastConnInfo = { ...lastConnInfo, saved: false }; renderConnInfo(); }
       try { await loadParams(); } catch (e) { setStatus(errText(e), true); }
+    }
+  }
+
+  async function saveToFirmware() {
+    if (!isConnected()) { setStatus('未接続です', true); return; }
+    try {
+      const lines = await send('tp save');
+      const ok = lines.some((l) => l.startsWith('OK saved'));
+      log(lines.join('\n'));
+      if (ok) {
+        setDirty(false);
+        if (lastConnInfo) { lastConnInfo = { ...lastConnInfo, saved: true }; renderConnInfo(); }
+        setStatus('ファームに保存しました(OK saved)');
+      } else {
+        setStatus(lines.join(' ') || 'tp save に応答がありません', true);
+      }
+    } catch (e) {
+      setStatus(errText(e), true);
     }
   }
 
@@ -1262,7 +1311,9 @@
       if (!a.closed || processedStarts.has(a.start)) continue;
       const next = attempts[i + 1];
       const tail = next ? Math.min(tailMsFor(), next.start - a.end) : tailMsFor();
-      if (now < a.end + tail) continue;
+      // T S (試行要約)が届けば handleSummary が先に processedStarts へ積むので、旧ファーム
+      // (要約なし)のときだけここまで待ってフレームから判定する
+      if (now < a.end + Math.max(tail, SUMMARY_WAIT_MS)) continue;
       processedStarts.add(a.start);
       const host = { btn: rec.hostBtn, move: rec.hostMove, wheel: rec.hostWheel };
       const obs = T.observeAttempt(a, rec.fw, host, { tailMs: tail });
@@ -1273,6 +1324,19 @@
       } else {
         showObserved(obs, null);
       }
+    }
+  }
+
+  function handleSummary(tr) {
+    const host = { btn: rec.hostBtn, move: rec.hostMove, wheel: rec.hostWheel };
+    const obs = T.observationFromSummary(tr, host, clock.offset, { tailMs: tailMsFor() });
+    processedStarts.add(obs.start);
+    if (armed && obs.start >= armedAt) {
+      const kind = armed;
+      armed = null;
+      onRecognized(kind, obs);
+    } else {
+      showObserved(obs, null);
     }
   }
 
@@ -1342,6 +1406,7 @@
 
   serial.onTrace = (tr) => {
     if (rec.paused) return;
+    if (tr.type === 'S') { handleSummary(tr); return; }
     const t = tr.ms + clock.offset;
     if (tr.type === 'F') rec.frames.push({ ...tr, t }); else rec.fw.push({ ...tr, t });
   };
@@ -1687,6 +1752,7 @@
 
   $('btnConnect').onclick = () => { connect(); };
   $('btnDisconnect').onclick = () => { disconnect(); };
+  $('btnSave').onclick = () => { saveToFirmware(); };
   $('btnTrace').onclick = () => { toggleTrace(); };
   $('btnReload').onclick = () => { reload(); };
   $('btnResetAll').onclick = () => { resetAll(); };

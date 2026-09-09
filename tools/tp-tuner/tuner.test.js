@@ -12,8 +12,15 @@ test('tp list の1行をパースすると名前と値と範囲と種別が取�
 
 test('tp info の行をパースすると側と uptime が取れる', () => {
   assert.deepEqual(T.parseInfoLine('side=central uptime_ms=12345 params=50'),
-    { side: 'central', uptimeMs: 12345, params: 50 });
+    { side: 'central', uptimeMs: 12345, params: 50, saved: null });
   assert.equal(T.parseInfoLine('OK reset'), null);
+});
+
+test('tp info の行に saved= が付くと真偽値としてパースされる', () => {
+  assert.deepEqual(T.parseInfoLine('side=central uptime_ms=12345 params=50 saved=yes'),
+    { side: 'central', uptimeMs: 12345, params: 50, saved: true });
+  assert.deepEqual(T.parseInfoLine('side=peripheral uptime_ms=1 params=10 saved=no'),
+    { side: 'peripheral', uptimeMs: 1, params: 10, saved: false });
 });
 
 test('ログ接頭辞つきの T F 行をパースするとフレームになる', () => {
@@ -30,6 +37,28 @@ test('T E 行をパースするとキー報告と戻り値になる', () => {
   assert.deepEqual(T.parseTraceLine('T E 501 R 8 -3 0'),
     { type: 'E', ms: 501, kind: 'R', code: 8, value: -3, ret: 0 });
   assert.equal(T.parseTraceLine('OK trace=on'), null);
+});
+
+test('T S 行をパースすると試行要約になる', () => {
+  const line = 'T S 1000 1200 1 1 120 -1 5 0 0 0 1 1 0 0 3 0 0';
+  assert.deepEqual(T.parseTraceLine(line), {
+    type: 'S', startMs: 1000, endMs: 1200, contacts: 1, fingersMax: 1, downMs: 120, gapMs: -1,
+    moveSum: 5, centroidMove: 0, distDelta: 0, mode2f: 0, btnPressBits: 1, btnReleaseBits: 1,
+    wheelCount: 0, wheelSum: 0, relCount: 3, drops: 0, hold: 0,
+  });
+});
+
+test('ログ接頭辞つきの T S 行もパースできる', () => {
+  const line = '[00:00:12.345,678] <inf> iqs9151: T S 1000 1200 1 1 120 -1 5 0 0 0 1 1 0 0 3 0 0';
+  assert.deepEqual(T.parseTraceLine(line), {
+    type: 'S', startMs: 1000, endMs: 1200, contacts: 1, fingersMax: 1, downMs: 120, gapMs: -1,
+    moveSum: 5, centroidMove: 0, distDelta: 0, mode2f: 0, btnPressBits: 1, btnReleaseBits: 1,
+    wheelCount: 0, wheelSum: 0, relCount: 3, drops: 0, hold: 0,
+  });
+});
+
+test('フィールド数が合わない T S 行は null になる', () => {
+  assert.equal(T.parseTraceLine('T S 1000 1200 1'), null);
 });
 
 test('ANSI エスケープを除去してプロンプトを判定できる', () => {
@@ -277,6 +306,57 @@ test('2 本指の試行を観測すると 2 本指時の移動量・距離変化
 test('ドライバが離した後もホストのボタンが立ったままなら stuckBits に載る', () => {
   const o = observe(TAP1_OK.fr, TAP1_OK.fw, { btn: [{ t: 132, buttons: 1 }], move: [], wheel: [] });
   assert.deepEqual(o.host.stuckBits, [1]);
+});
+
+test('1本指タップの要約から observeAttempt と同じ形の観測が作れ、tap1 の全段階が成立する', () => {
+  const s = T.parseTraceLine('T S 1000 1120 1 1 120 -1 0 0 0 0 1 1 0 0 0 0 0');
+  const host = { btn: [{ t: 1007, buttons: 1 }, { t: 1127, buttons: 0 }], move: [], wheel: [] };
+  const o = T.observationFromSummary(s, host, 0);
+  assert.equal(o.fingersMax, 1);
+  assert.equal(o.downMs, 120);
+  assert.equal(o.gapMs, null);
+  assert.equal(o.touches.length, 1);
+  assert.deepEqual(o.buttonsPressed, [272]);
+  assert.deepEqual(o.buttonsReleased, [272]);
+  assert.deepEqual(o.host, { down: [1], up: [1], moveCount: 0, wheelCount: 0, stuckBits: [] });
+  assert.equal(T.judgeAttempt('tap1', o, PARAMS).failIndex, -1);
+});
+
+test('タップドラッグの要約から観測が作れ、hold ビットが 2 回目の接触の holds に載りタップドラッグの全段階が成立する', () => {
+  const s = T.parseTraceLine('T S 1000 1500 2 1 120 80 150 0 0 0 1 1 0 0 10 0 1');
+  const host = { btn: [{ t: 1005, buttons: 1 }, { t: 1505, buttons: 0 }], move: [{ t: 1300, dx: 3, dy: 0 }], wheel: [] };
+  const o = T.observationFromSummary(s, host, 0);
+  assert.equal(o.touches.length, 2);
+  assert.equal(o.gapMs, 80);
+  assert.deepEqual(o.touches[1].holds, [272]);
+  assert.equal(T.judgeAttempt('tapdrag', o, PARAMS).failIndex, -1);
+});
+
+test('2本指スクロールの要約から mode2f・wheel 件数・ホストの wheel 受信件数が観測になる', () => {
+  const s = T.parseTraceLine('T S 2000 2500 1 2 500 -1 0 40 0 1 0 0 6 -24 6 0 0');
+  const host = { btn: [], move: [], wheel: [{ t: 2100, deltaX: 0, deltaY: 4 }, { t: 3600, deltaX: 0, deltaY: 4 }] };
+  const o = T.observationFromSummary(s, host, 0, { tailMs: 500 });
+  assert.deepEqual(o.mode2fSeen, [1]);
+  assert.deepEqual(o.wheel, { count: 6, sum: -24 });
+  assert.equal(o.moveSum2, 40);
+  assert.equal(o.host.wheelCount, 1);
+});
+
+test('ビットマスクから複数のボタンコードへ変換できる(ピンチの BTN_7 含む)', () => {
+  const s = T.parseTraceLine('T S 0 300 1 2 300 -1 0 0 40 2 128 128 0 0 0 0 0');
+  const o = T.observationFromSummary(s, HOST0, 0);
+  assert.deepEqual(o.buttonsPressed, [279]);
+  assert.deepEqual(o.buttonsReleased, [279]);
+  assert.deepEqual(o.mode2fSeen, [2]);
+  assert.equal(o.distDelta, 40);
+});
+
+test('clockOffset を渡すと観測の時刻がオフセット分ずれ、tail の分だけホスト取得窓が広がる', () => {
+  const s = T.parseTraceLine('T S 1000 1120 1 1 120 -1 0 0 0 0 0 0 0 0 0 0 0');
+  const o = T.observationFromSummary(s, HOST0, 50, { tailMs: 200 });
+  assert.equal(o.start, 1050);
+  assert.equal(o.end, 1170);
+  assert.equal(o.windowEnd, 1370);
 });
 
 test('観測からジェスチャ種別を参考推定できる', () => {
