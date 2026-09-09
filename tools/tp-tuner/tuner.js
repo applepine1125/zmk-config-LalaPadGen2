@@ -180,6 +180,7 @@
     cursor_inertia_enable: 0, cursor_inertia_decay: 950, cursor_inertia_min_avg_speed: 10,
     scroll_inertia_enable: 1, scroll_inertia_decay: 980, scroll_inertia_min_avg_speed: 10,
     dynamic_filter_bottom_speed: 30, dynamic_filter_top_speed: 511, dynamic_filter_bottom_beta: 20,
+    cursor_report_interval_ms: 0, scroll_report_interval_ms: 0,
   };
   const GESTURES = [
     { kind: 'cursor', title: 'カーソル移動', instruction: '指 1 本でパッド上をゆっくり 1 往復、続けて速く 1 往復する', expect: 'カーソルが指に追従',
@@ -701,6 +702,7 @@
       { id: 'inertia_more', label: '離した後に滑りすぎる' },
       { id: 'inertia_less', label: '離した後に滑らない' },
       { id: 'diagonal', label: '斜めに暴れる' },
+      { id: 'lag', label: 'だんだん遅くなる・引っかかる' },
     ],
     pinch: [
       { id: 'ok', label: '体感どおり' },
@@ -718,6 +720,7 @@
       { id: 'slow', label: '遅すぎる' },
       { id: 'inertia_more', label: '離した後に滑る(滑りすぎ)' },
       { id: 'inertia_less', label: '離した後に滑らない' },
+      { id: 'lag', label: '遅れて動く・だんだん遅くなる' },
     ],
   };
 
@@ -792,6 +795,10 @@
     };
     const keymapSpeed = (what, scaler, key) =>
       note(`${what}はキーマップの ${scaler} で決まり(ビルドが必要)、ここでは変えられない。システムレイヤー(レイヤー 1+2 同時押し)の ${key} で実行時に段階調整できる`);
+    const reportLag = (name) => {
+      const cur = P(name);
+      add(name, cur === 0 ? 16 : 8, 'BLE 経路の送信が追いつかず溜まっている(右手を USB にすると消える症状)', '最大その ms だけ遅れる');
+    };
 
     if (feedback === 'ok') {
       note('体感どおり。このまま次の操作へ進むか、別のカードを試してください');
@@ -875,6 +882,8 @@
         }
       } else if (feedback === 'diagonal') {
         note('斜め移動の縦横固定はキーマップの zip_scroll_snap(ビルドが必要)で決まり、ここでは変えられない');
+      } else if (feedback === 'lag') {
+        reportLag('scroll_report_interval_ms');
       }
     } else if (kind === 'pinch') {
       const startDist = P('2f_pinch_start_distance');
@@ -931,6 +940,8 @@
           add('cursor_inertia_decay', 10, `離した後の移動継続 ${m.inertiaCount} 回 ${m.inertiaMs}ms を長くする`, '止めたいところで行き過ぎる');
           add('cursor_inertia_min_avg_speed', -2, 'ゆっくり離しても慣性を出す', '意図しない滑りが増える');
         }
+      } else if (feedback === 'lag') {
+        reportLag('cursor_report_interval_ms');
       }
     }
 

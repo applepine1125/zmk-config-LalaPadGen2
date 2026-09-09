@@ -562,9 +562,9 @@ test('各カードの体感ボタンが取れ、意図と違う動作にはサ�
   assert.deepEqual(tap[2].sub.map((f) => f.id), ['wrong:drag', 'wrong:other', 'wrong:cursor', 'wrong:double']);
   assert.equal(T.feedbackOptions('tap2')[2].sub[1].label, '別のボタンになった');
   assert.deepEqual(T.feedbackOptions('tapdrag').map((f) => f.id), ['ok', 'nodrag', 'stuck', 'slowclick']);
-  assert.deepEqual(T.feedbackOptions('scroll2').map((f) => f.id), ['ok', 'none', 'heavy', 'fast', 'slow', 'inertia_more', 'inertia_less', 'diagonal']);
+  assert.deepEqual(T.feedbackOptions('scroll2').map((f) => f.id), ['ok', 'none', 'heavy', 'fast', 'slow', 'inertia_more', 'inertia_less', 'diagonal', 'lag']);
   assert.deepEqual(T.feedbackOptions('pinch').map((f) => f.id), ['ok', 'none', 'scroll', 'sensitive']);
-  assert.deepEqual(T.feedbackOptions('cursor').map((f) => f.id), ['ok', 'start_slow', 'light_miss', 'jitter', 'jump', 'fast', 'slow', 'inertia_more', 'inertia_less']);
+  assert.deepEqual(T.feedbackOptions('cursor').map((f) => f.id), ['ok', 'start_slow', 'light_miss', 'jitter', 'jump', 'fast', 'slow', 'inertia_more', 'inertia_less', 'lag']);
   assert.ok(T.feedbackOptions('cursor').every((f) => f.label));
 });
 
@@ -589,6 +589,8 @@ const LIST = [
   { name: 'dynamic_filter_bottom_speed', value: 30, min: 0, max: 511, kind: 'ic_u16', def: 30 },
   { name: 'idle_mode_sampling_period_ms', value: 50, min: 1, max: 65535, kind: 'ic_u16', def: 50 },
   { name: 'lp1_mode_sampling_period_ms', value: 80, min: 1, max: 65535, kind: 'ic_u16', def: 80 },
+  { name: 'cursor_report_interval_ms', value: 0, min: 0, max: 1000, kind: 'driver', def: 0 },
+  { name: 'scroll_report_interval_ms', value: 0, min: 0, max: 1000, kind: 'driver', def: 0 },
 ];
 const names = (r) => r.suggestions.map((s) => `${s.name}${s.delta > 0 ? '+' : ''}${s.delta}`);
 
@@ -739,6 +741,18 @@ test('2本指スクロールが滑りすぎるときは慣性の減衰を下げ�
   assert.deepEqual(names(r2), ['scroll_inertia_decay+10', 'scroll_inertia_min_avg_speed-2']);
 });
 
+test('2本指スクロールがだんだん遅くなるときは scroll_report_interval_ms を上げる提案になる(0 なら 16、それ以外は +8)', () => {
+  const o = observe(frames(0, 300, 2, { relY: 4, mode2f: 1 }));
+  const r = T.suggestFor('scroll2', 'lag', o, LIST);
+  assert.deepEqual(names(r), ['scroll_report_interval_ms+16']);
+  assert.equal(r.suggestions[0].to, 16);
+  assert.ok(r.suggestions[0].reason.includes('BLE'));
+  const list16 = LIST.map((p) => (p.name === 'scroll_report_interval_ms' ? { ...p, value: 16 } : p));
+  const r2 = T.suggestFor('scroll2', 'lag', o, list16);
+  assert.deepEqual(names(r2), ['scroll_report_interval_ms+8']);
+  assert.equal(r2.suggestions[0].to, 24);
+});
+
 test('ピンチがスクロールになるときはスクロール開始を上げるかピンチ開始を下げる 2 案を出す', () => {
   const fr = frames(0, 300, 2, { relY: 4, mode2f: 1, f1x: 100, f1y: 100, f2x: 200, f2y: 100 }).concat(frames(310, 800, 0));
   const r = T.suggestFor('pinch', 'scroll', observe(fr), LIST);
@@ -780,4 +794,17 @@ test('カーソルが離した後に滑らないとき慣性が OFF ならまず
   const on = LIST.map((p) => (p.name === 'cursor_inertia_enable' ? { ...p, value: 1 } : p));
   const r2 = T.suggestFor('cursor', 'inertia_less', observe(fr, fw, host), on);
   assert.deepEqual(names(r2), ['cursor_inertia_decay+10', 'cursor_inertia_min_avg_speed-2']);
+});
+
+test('カーソルが遅れてだんだん遅くなるときは cursor_report_interval_ms を上げる提案になる(0 なら 16、それ以外は +8)', () => {
+  const { fr, fw, host } = cursorScenario();
+  const r = T.suggestFor('cursor', 'lag', observe(fr, fw, host), LIST);
+  assert.deepEqual(names(r), ['cursor_report_interval_ms+16']);
+  assert.equal(r.suggestions[0].to, 16);
+  assert.ok(r.suggestions[0].reason.includes('BLE'));
+  assert.ok(r.suggestions[0].side.includes('遅れる'));
+  const list16 = LIST.map((p) => (p.name === 'cursor_report_interval_ms' ? { ...p, value: 16 } : p));
+  const r2 = T.suggestFor('cursor', 'lag', observe(fr, fw, host), list16);
+  assert.deepEqual(names(r2), ['cursor_report_interval_ms+8']);
+  assert.equal(r2.suggestions[0].to, 24);
 });
