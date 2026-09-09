@@ -1220,7 +1220,9 @@
       const p = queue[i];
       if (processedStarts[sideKey].has(p.start)) { queue.splice(i, 1); continue; }
       const nextStart = nextKnownStartAfter(sideKey, p.end);
-      const { ready, tailMs } = T.summaryHostWindow(p.end, nextStart, now, tailMsFor(sideKey));
+      // 要約はファームが指を離して 400ms 待ってから出すので、ホスト側のイベントは届き済み。追加で待たない
+      const tail = Math.min(tailMsFor(sideKey), Math.max(0, now - p.end));
+      const { ready, tailMs } = T.summaryHostWindow(p.end, nextStart, now, tail);
       if (!ready) continue;
       processedStarts[sideKey].add(p.start);
       queue.splice(i, 1);
