@@ -725,6 +725,8 @@ static void handle_status(uint32_t value) {
         return;
     }
     (void)k_work_cancel_delayable(&left_timeout_work);
+    /* 左手が右手から切れて戻ると forward_summary は false に戻るので、STATUS から実状態を取り直す */
+    sub_summary_confirmed = TP_TUNER_STATUS_SUMMARY_ON(value) != 0;
 
     if (p.cmd == LEFT_CMD_INFO) {
         snprintf(buf, sizeof(buf), "side=peripheral uptime_ms=%u params=%u saved=%s",
