@@ -39,6 +39,8 @@ final class BleTransport: NSObject {
       peripherals = centralManager.retrieveConnectedPeripherals(withServices: [hidServiceUUID])
     }
     let filtered = peripherals.filter { ($0.name ?? "").lowercased().hasPrefix("lalapadgen2") }
+    let summary = peripherals.map { "\($0.name ?? "?")/\($0.state.rawValue)" }.joined(separator: ",")
+    log("candidates=\(summary.isEmpty ? "なし" : summary) filtered=\(filtered.count)")
     candidates = Dictionary(uniqueKeysWithValues: filtered.map { ($0.identifier.uuidString, $0) })
     return filtered.map { DeviceCandidate(id: $0.identifier.uuidString, kind: "ble", name: $0.name ?? "LalapadGen2") }
   }
@@ -67,7 +69,12 @@ final class BleTransport: NSObject {
     }
     peripheral.delegate = self
     connectingPeripheral = peripheral
+    log("connect \(peripheral.name ?? "?") state=\(peripheral.state.rawValue)")
     centralManager.connect(peripheral, options: nil)
+  }
+
+  private func log(_ text: String) {
+    FileHandle.standardError.write("[ble] \(text)\n".data(using: .utf8)!)
   }
 
   func disconnect() {
@@ -123,11 +130,13 @@ extension BleTransport: CBCentralManagerDelegate {
   func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
     connectingPeripheral = nil
     connectedPeripheral = peripheral
+    log("didConnect \(peripheral.name ?? "?")")
     peripheral.discoverServices([serviceUUID])
   }
 
   func centralManager(_ central: CBCentralManager, didFailToConnect peripheral: CBPeripheral, error: Error?) {
     connectingPeripheral = nil
+    log("didFailToConnect \(error?.localizedDescription ?? "-")")
     if let id = switchTargetId {
       switchTargetId = nil
       connect(id: id)
@@ -140,6 +149,7 @@ extension BleTransport: CBCentralManagerDelegate {
     teardownConnection()
     let reason = pendingDisconnectReason ?? error?.localizedDescription ?? "切断されました"
     pendingDisconnectReason = nil
+    log("didDisconnect \(reason)")
     delegate?.bleTransportDidDisconnect(reason: reason)
     if let id = switchTargetId {
       switchTargetId = nil
@@ -150,6 +160,7 @@ extension BleTransport: CBCentralManagerDelegate {
 
 extension BleTransport: CBPeripheralDelegate {
   func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+    log("services=\((peripheral.services ?? []).map { $0.uuid.uuidString }.joined(separator: ",")) error=\(error?.localizedDescription ?? "-")")
     guard let service = peripheral.services?.first(where: { $0.uuid == serviceUUID }) else {
       pendingDisconnectReason = "tp-tuner サービスがありません(ファームが古い)"
       centralManager.cancelPeripheralConnection(peripheral)
@@ -180,6 +191,7 @@ extension BleTransport: CBPeripheralDelegate {
 
   func peripheral(_ peripheral: CBPeripheral, didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
     guard characteristic.uuid == streamUUID else { return }
+    log("notify state=\(characteristic.isNotifying) error=\(error?.localizedDescription ?? "-")")
     if let error = error {
       pendingDisconnectReason = "通知の購読に失敗しました: \(error.localizedDescription)"
       centralManager.cancelPeripheralConnection(peripheral)
@@ -191,6 +203,7 @@ extension BleTransport: CBPeripheralDelegate {
   func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
     guard characteristic.uuid == streamUUID, let data = characteristic.value else { return }
     let text = String(decoding: data, as: UTF8.self)
+    log("rx \(data.count)B \(text.prefix(60).replacingOccurrences(of: "\n", with: "⏎"))")
     delegate?.bleTransportDidReceiveText(text)
   }
 }
