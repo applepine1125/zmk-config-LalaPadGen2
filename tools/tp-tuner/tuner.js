@@ -433,6 +433,7 @@
       host: hostObs,
       // 要約には毎フレームの rel が含まれないため、動き出し遅延・フレーム間隔・微小動き割合・
       // 慣性は算出できない(0 / null で代替)。カーソルカードの精密な指標にはトレースが必要。
+      // approx: true でこの限界を表示側(factsText 等)に伝える。
       cursor: {
         touchMs: end - start,
         startDelayMs: null,
@@ -443,8 +444,16 @@
         relCount: s.relCount,
         inertiaCount: 0,
         inertiaMs: 0,
+        approx: true,
       },
     };
+  }
+
+  function summaryHostWindow(end, nextStart, now, tail) {
+    const cap = nextStart === null || nextStart === undefined ? Infinity : nextStart - end;
+    const tailMs = Math.max(0, Math.min(tail, cap));
+    const ready = (Number.isFinite(cap) && cap <= tail) || now >= end + tail;
+    return { ready, tailMs };
   }
 
   function cursorMetrics(attempt, fwEvents, host, opts) {
@@ -730,6 +739,10 @@
     const fingers = `指 ${o.fingersMax} 本`;
     if (kind === 'cursor') {
       const m = o.cursor;
+      if (m.approx) {
+        return `${fingers} / 接触 ${m.touchMs}ms / 移動量 ファーム ${m.fwMove}・ホスト ${m.hostMove}`
+          + ' (要約のみ: 慣性・ふらつきの詳細はトレース ON で取得)';
+      }
       const inertia = m.inertiaCount ? `慣性あり(${m.inertiaCount} 回 ${m.inertiaMs}ms)` : '慣性なし';
       return `${fingers} / 接触 ${m.touchMs}ms / 動き出し ${m.startDelayMs === null ? 'なし' : m.startDelayMs + 'ms'}`
         + ` / 移動量 ファーム ${m.fwMove}・ホスト ${m.hostMove} / フレーム間隔 ${m.frameGapMs}ms / 微小動き ${m.tinyRatio}% / ${inertia}`;
@@ -1061,7 +1074,7 @@
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
     clockOffset, pickPortOrder, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
-    paramValue, stepParam, segmentAttempts, observeAttempt, observationFromSummary, cursorMetrics, inferKind, judgeAttempt, whyNot, describeState,
+    paramValue, stepParam, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, judgeAttempt, whyNot, describeState,
     observationText, hostText, sentText, recognitionText, feedbackOptions, suggestFor,
   };
   root.TpTuner = api;

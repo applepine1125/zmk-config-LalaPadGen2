@@ -359,6 +359,32 @@ test('clockOffset を渡すと観測の時刻がオフセット分ずれ、tail 
   assert.equal(o.windowEnd, 1370);
 });
 
+test('要約から作ったカーソル観測は approx フラグが立ち、認識文が要約のみである旨になる', () => {
+  const s = T.parseTraceLine('T S 1000 1600 1 1 600 -1 234 0 0 0 0 0 0 0 57 0 0');
+  const o = T.observationFromSummary(s, HOST0, 0);
+  assert.equal(o.cursor.approx, true);
+  assert.equal(T.recognitionText('cursor', o, PARAMS),
+    '指 1 本 / 接触 600ms / 移動量 ファーム 234・ホスト 0 (要約のみ: 慣性・ふらつきの詳細はトレース ON で取得) → 移動 57 回送信 → ホスト受信なし');
+});
+
+test('summaryHostWindow: 次の試行開始が tail 内で分かっていれば tail をそこまでに縮め即座に ready になる', () => {
+  assert.deepEqual(T.summaryHostWindow(1000, 1300, 1050, 500), { ready: true, tailMs: 300 });
+});
+
+test('summaryHostWindow: 次の試行開始が tail より先なら制約にならず tail いっぱいまで待つ', () => {
+  assert.deepEqual(T.summaryHostWindow(1000, 2000, 1050, 500), { ready: false, tailMs: 500 });
+  assert.deepEqual(T.summaryHostWindow(1000, 2000, 1500, 500), { ready: true, tailMs: 500 });
+});
+
+test('summaryHostWindow: 次の試行が分からなければ now が tail 経過するまで待つ', () => {
+  assert.deepEqual(T.summaryHostWindow(1000, null, 1400, 500), { ready: false, tailMs: 500 });
+  assert.deepEqual(T.summaryHostWindow(1000, null, 1500, 500), { ready: true, tailMs: 500 });
+});
+
+test('summaryHostWindow: 次の試行開始が既に過ぎていれば tail を 0 に切り詰めて即座に ready になる', () => {
+  assert.deepEqual(T.summaryHostWindow(1000, 900, 1000, 500), { ready: true, tailMs: 0 });
+});
+
 test('観測からジェスチャ種別を参考推定できる', () => {
   assert.equal(T.inferKind(observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host), PARAMS), 'tap1');
   const drag = frames(0, 120, 1).concat(frames(130, 210, 0), frames(220, 800, 1, { relX: 3 }), frames(810, 1400, 0));

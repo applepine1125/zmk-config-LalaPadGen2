@@ -850,7 +850,7 @@
     if (!isConnected()) { setStatus('未接続です', true); return; }
     try {
       const lines = await send('tp save');
-      const ok = lines.some((l) => l.startsWith('OK saved'));
+      const ok = lines.some((l) => l.startsWith('OK'));
       log(lines.join('\n'));
       if (ok) {
         setDirty(false);
@@ -963,6 +963,7 @@
 
   const cards = {};
   const processedStarts = new Set();
+  const pendingSummaries = [];
   const HISTORY_MAX = 5;
   let armed = null;
   let armedAt = 0;
@@ -1011,11 +1012,15 @@
     li('ret≠0(input_report が捨てた)', o.drops ? `${o.drops} 件` : 'なし');
     if (kind === 'cursor') {
       const m = o.cursor;
-      li('動き出し遅延', m.startDelayMs === null ? '動きなし' : `${m.startDelayMs}ms(接触フレームから最初の非ゼロ rel まで)`);
       li('移動量合計', `ファーム ${m.fwMove}(|rel_x|+|rel_y|)、ホスト ${m.hostMove}(movementX/Y)`);
-      li('フレーム間隔の平均', `${m.frameGapMs}ms`);
-      li('微小動き(|rel|≤2)の割合', `${m.tinyRatio}%(静止時のふらつきの目安)`);
-      li('慣性', m.inertiaCount ? `離した後に移動 ${m.inertiaCount} 回、${m.inertiaMs}ms 継続` : 'なし');
+      if (m.approx) {
+        li('動き出し遅延・フレーム間隔・微小動き・慣性', '要約のみでは算出不可(トレース ON で取得)');
+      } else {
+        li('動き出し遅延', m.startDelayMs === null ? '動きなし' : `${m.startDelayMs}ms(接触フレームから最初の非ゼロ rel まで)`);
+        li('フレーム間隔の平均', `${m.frameGapMs}ms`);
+        li('微小動き(|rel|≤2)の割合', `${m.tinyRatio}%(静止時のふらつきの目安)`);
+        li('慣性', m.inertiaCount ? `離した後に移動 ${m.inertiaCount} 回、${m.inertiaMs}ms 継続` : 'なし');
+      }
     } else {
       const r = T.judgeAttempt(kind, o, params);
       if (r) for (const st of r.stages) if (st.ok !== null) li(st.label, st.detail);
@@ -1327,16 +1332,46 @@
     }
   }
 
+  function nextKnownStartAfter(afterT) {
+    let best = null;
+    const attempts = T.segmentAttempts(rec.frames, { idleMs: ATTEMPT_IDLE_MS, now: nowMs() });
+    for (const a of attempts) {
+      if (a.start > afterT && (best === null || a.start < best)) best = a.start;
+    }
+    for (const p of pendingSummaries) {
+      if (p.start > afterT && (best === null || p.start < best)) best = p.start;
+    }
+    return best;
+  }
+
   function handleSummary(tr) {
-    const host = { btn: rec.hostBtn, move: rec.hostMove, wheel: rec.hostWheel };
-    const obs = T.observationFromSummary(tr, host, clock.offset, { tailMs: tailMsFor() });
-    processedStarts.add(obs.start);
-    if (armed && obs.start >= armedAt) {
-      const kind = armed;
-      armed = null;
-      onRecognized(kind, obs);
-    } else {
-      showObserved(obs, null);
+    const start = tr.startMs + clock.offset;
+    if (processedStarts.has(start)) return;
+    pendingSummaries.push({ tr, start, end: tr.endMs + clock.offset });
+    processPendingSummaries();
+  }
+
+  function processPendingSummaries() {
+    const now = nowMs();
+    for (let i = pendingSummaries.length - 1; i >= 0; i--) {
+      const p = pendingSummaries[i];
+      if (processedStarts.has(p.start)) { pendingSummaries.splice(i, 1); continue; }
+      // 次の試行の開始が分かれば、その手前までにホスト取得窓を切り詰めて隣の試行の
+      // ホストイベントを取り込まないようにする(フレーム経路の next.start と同じ考え方)
+      const nextStart = nextKnownStartAfter(p.end);
+      const { ready, tailMs } = T.summaryHostWindow(p.end, nextStart, now, tailMsFor());
+      if (!ready) continue;
+      processedStarts.add(p.start);
+      pendingSummaries.splice(i, 1);
+      const host = { btn: rec.hostBtn, move: rec.hostMove, wheel: rec.hostWheel };
+      const obs = T.observationFromSummary(p.tr, host, clock.offset, { tailMs });
+      if (armed && obs.start >= armedAt) {
+        const kind = armed;
+        armed = null;
+        onRecognized(kind, obs);
+      } else {
+        showObserved(obs, null);
+      }
     }
   }
 
@@ -1537,6 +1572,7 @@
     while (i < rec.hostBtn.length - 1 && rec.hostBtn[i + 1].t < cut) i++;
     if (i) rec.hostBtn.splice(0, i);
     for (const s of processedStarts) if (s < cut) processedStarts.delete(s);
+    for (let i = pendingSummaries.length - 1; i >= 0; i--) if (pendingSummaries[i].end < cut) pendingSummaries.splice(i, 1);
   }
 
   function refreshDiagnostics() {
@@ -1559,6 +1595,9 @@
   setInterval(() => {
     if (rec.paused) return;
     prune();
+    // T S (要約)を先に処理する。フレーム経路の SUMMARY_WAIT_MS 猶予とタイムアウトが
+    // 同時に切れた場合でも要約側が processedStarts を先に埋め、要約を優先させるため
+    processPendingSummaries();
     processAttempts();
     refreshDiagnostics();
   }, PROCESS_INTERVAL_MS);
@@ -1579,6 +1618,7 @@
     for (const key of ['frames', 'fw', 'hostBtn', 'hostWheel', 'hostMove']) rec[key].length = 0;
     hostState.buttons = 0; hostState.move = null; hostState.wheel = null;
     processedStarts.clear();
+    pendingSummaries.length = 0;
     for (const c of Object.values(cards)) { c.obs = null; c.feedback = null; c.proposal = null; c.history = []; }
     armed = null;
     lastJudgedKind = null;
