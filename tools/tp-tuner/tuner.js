@@ -69,6 +69,17 @@
     return (hostSentMs + hostRecvMs) / 2 - uptimeMs;
   }
 
+  function pickPortOrder(ports, lastInfo) {
+    if (!lastInfo || typeof lastInfo !== 'object') return ports.slice();
+    const matches = (port) => {
+      const info = port && typeof port.getInfo === 'function' ? port.getInfo() : port;
+      return !!info && info.usbVendorId === lastInfo.usbVendorId && info.usbProductId === lastInfo.usbProductId;
+    };
+    const preferred = ports.filter(matches);
+    const rest = ports.filter((p) => !matches(p));
+    return preferred.concat(rest);
+  }
+
   function toConfName(name) {
     return CONF_PREFIX + name.toUpperCase();
   }
@@ -953,7 +964,7 @@
   const api = {
     BTN, REL, BTN_NAMES, GESTURES, DEFAULT_PARAMS,
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
-    clockOffset, toConfName, exportConf, detectDrops, detectStuckButton,
+    clockOffset, pickPortOrder, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
     paramValue, stepParam, segmentAttempts, observeAttempt, cursorMetrics, inferKind, judgeAttempt, whyNot, describeState,
     observationText, hostText, sentText, recognitionText, feedbackOptions, suggestFor,

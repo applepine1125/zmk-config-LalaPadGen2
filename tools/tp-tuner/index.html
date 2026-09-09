@@ -38,6 +38,7 @@
   }
   #topbar .sep { width: 1px; height: 20px; background: var(--border); }
   #info { color: var(--muted); }
+  #autoConnectLabel { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); cursor: pointer; white-space: nowrap; }
   #status { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   #status.error { color: var(--danger); }
   #notice {
@@ -158,6 +159,7 @@
   <h1>tp-tuner</h1>
   <button id="btnConnect" class="primary">接続</button>
   <button id="btnDisconnect" disabled>切断</button>
+  <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
   <span id="info">未接続</span>
   <span class="sep"></span>
   <button id="btnTrace" disabled>trace OFF</button>
@@ -259,6 +261,10 @@
   const ATTEMPT_IDLE_MS = 400;
   const PROCESS_INTERVAL_MS = 250;
   const STATE_STALE_MS = 600;
+  const RECONNECT_SETTLE_MS = 1000;
+  const AUTOCONNECT_KEY = 'tp-tuner.autoconnect';
+  const LASTPORT_KEY = 'tp-tuner.lastPort';
+  const DISCONNECTED_MSG = '切断されました。再接続を待っています';
   const LANE_H = 40;
   const LANES = ['FW 指', 'FW ボタン', 'FW REL/WHEEL', 'HOST ボタン', 'HOST move', 'HOST wheel'];
   const BTN_COLOR = { [T.BTN[0]]: '#3b82f6', [T.BTN[1]]: '#22c55e', [T.BTN[2]]: '#f97316', [T.BTN[7]]: '#a855f7' };
@@ -348,6 +354,8 @@
   let params = [];
   let diag = [];
   let traceOn = false;
+  let busyConnecting = false;
+  let autoConnectEnabled = true;
   const setTimers = {};
 
   function setStatus(msg, isError) {
@@ -480,12 +488,45 @@
     renderAllCards();
   }
 
+  async function establishConnection(port) {
+    await port.open({ baudRate: 115200 });
+    serial.port = port;
+    serial.buffer = '';
+    serial.writer = port.writable.getWriter();
+    port.addEventListener('disconnect', () => { if (serial.port === port) disconnect(DISCONNECTED_MSG, true); });
+    serial.loopDone = readLoop(port);
+    serial.loopDone.then(() => { if (serial.port === port) disconnect(DISCONNECTED_MSG, true); });
+    await new Promise((r) => setTimeout(r, SETTLE_MS));
+    serial.buffer = '';
+    let info = null;
+    try {
+      await send('tp trace off', PROBE_TIMEOUT_MS);
+      for (let attempt = 0; attempt < 2 && !info; attempt++) {
+        const before = performance.now();
+        const infoLines = await send('tp info', PROBE_TIMEOUT_MS);
+        const after = performance.now();
+        info = infoLines.map(T.parseInfoLine).find(Boolean);
+        if (info) clock.offset = T.clockOffset(before, after, info.uptimeMs);
+      }
+    } catch (e) {
+      log('接続確認に失敗: ' + errText(e));
+    }
+    if (!info) throw new Error('このポートは tp コマンドに応答しません。もう一方のポートを選んでください');
+    return info;
+  }
+
+  function finalizeConnected(port, info) {
+    rememberPort(port, info);
+    $('info').textContent = `${info.side === 'central' ? '右(central)' : '左(peripheral)'} uptime=${(info.uptimeMs / 1000).toFixed(1)}s params=${info.params}`;
+    setConnectedUi(true);
+  }
+
   async function connect() {
     if (!navigator.serial) {
       setStatus('このブラウザは Web Serial に対応していません。Chrome / Edge で開いてください', true);
       return;
     }
-    if (isConnected()) return;
+    if (isConnected() || busyConnecting) return;
     let port;
     try {
       port = await navigator.serial.requestPort();
@@ -493,33 +534,11 @@
       setStatus('ポートが選択されませんでした', false);
       return;
     }
+    busyConnecting = true;
     try {
       setStatus('接続中...');
-      await port.open({ baudRate: 115200 });
-      serial.port = port;
-      serial.buffer = '';
-      serial.writer = port.writable.getWriter();
-      port.addEventListener('disconnect', () => { if (serial.port === port) disconnect('デバイスが外れました', true); });
-      serial.loopDone = readLoop(port);
-      serial.loopDone.then(() => { if (serial.port === port) disconnect('デバイスとの接続が切れました', true); });
-      await new Promise((r) => setTimeout(r, SETTLE_MS));
-      serial.buffer = '';
-      let info = null;
-      try {
-        await send('tp trace off', PROBE_TIMEOUT_MS);
-        for (let attempt = 0; attempt < 2 && !info; attempt++) {
-          const before = performance.now();
-          const infoLines = await send('tp info', PROBE_TIMEOUT_MS);
-          const after = performance.now();
-          info = infoLines.map(T.parseInfoLine).find(Boolean);
-          if (info) clock.offset = T.clockOffset(before, after, info.uptimeMs);
-        }
-      } catch (e) {
-        log('接続確認に失敗: ' + errText(e));
-      }
-      if (!info) throw new Error('このポートは tp コマンドに応答しません。もう一方のポートを選んでください');
-      $('info').textContent = `${info.side === 'central' ? '右(central)' : '左(peripheral)'} uptime=${(info.uptimeMs / 1000).toFixed(1)}s params=${info.params}`;
-      setConnectedUi(true);
+      const info = await establishConnection(port);
+      finalizeConnected(port, info);
       setStatus('接続しました');
       await loadParams();
       setStatus(`パラメータ ${params.length} 件を読み込みました`);
@@ -527,7 +546,83 @@
       setStatus(errText(e), true);
       log('接続失敗: ' + errText(e));
       await disconnect(null, true);
+    } finally {
+      busyConnecting = false;
     }
+  }
+
+  function readAutoConnectPref() {
+    try {
+      const v = localStorage.getItem(AUTOCONNECT_KEY);
+      return v === null ? true : v === '1';
+    } catch (e) {
+      return true;
+    }
+  }
+
+  function writeAutoConnectPref(enabled) {
+    try {
+      localStorage.setItem(AUTOCONNECT_KEY, enabled ? '1' : '0');
+    } catch (e) { /* localStorage が使えない環境では無視 */ }
+  }
+
+  function readLastPort() {
+    try {
+      const raw = localStorage.getItem(LASTPORT_KEY);
+      if (!raw) return null;
+      const obj = JSON.parse(raw);
+      if (obj && typeof obj.usbVendorId === 'number' && typeof obj.usbProductId === 'number') return obj;
+    } catch (e) { /* localStorage が使えない・壊れた JSON */ }
+    return null;
+  }
+
+  function rememberPort(port, info) {
+    if (!info) return;
+    try {
+      const pi = port.getInfo ? port.getInfo() : null;
+      if (pi && typeof pi.usbVendorId === 'number' && typeof pi.usbProductId === 'number') {
+        localStorage.setItem(LASTPORT_KEY, JSON.stringify({ usbVendorId: pi.usbVendorId, usbProductId: pi.usbProductId }));
+      }
+    } catch (e) { /* localStorage が使えない環境では無視 */ }
+  }
+
+  async function tryAutoConnect() {
+    if (!navigator.serial || !autoConnectEnabled) return;
+    if (isConnected() || busyConnecting) return;
+    busyConnecting = true;
+    try {
+      const ports = await navigator.serial.getPorts();
+      if (!ports.length) return;
+      const ordered = T.pickPortOrder(ports, readLastPort());
+      for (const port of ordered) {
+        try {
+          setStatus('自動接続を試しています...');
+          const info = await establishConnection(port);
+          finalizeConnected(port, info);
+          const pi = port.getInfo ? port.getInfo() : {};
+          setStatus(`自動接続しました(vendorId=${pi.usbVendorId ?? '?'} productId=${pi.usbProductId ?? '?'})`);
+          await loadParams();
+          setStatus(`パラメータ ${params.length} 件を読み込みました`);
+          return;
+        } catch (e) {
+          log('自動接続の候補ポートが応答しませんでした: ' + errText(e));
+          await disconnect(null, true);
+        }
+      }
+      setStatus('自動接続できませんでした。「接続」でポートを選んでください', true);
+    } finally {
+      busyConnecting = false;
+    }
+  }
+
+  if (navigator.serial) {
+    navigator.serial.addEventListener('connect', () => {
+      if (!autoConnectEnabled || isConnected()) return;
+      setTimeout(() => { tryAutoConnect(); }, RECONNECT_SETTLE_MS);
+    });
+    navigator.serial.addEventListener('disconnect', (e) => {
+      if (serial.port && e.target === serial.port) disconnect(DISCONNECTED_MSG, true);
+    });
   }
 
   async function disconnect(msg, isError) {
@@ -1615,10 +1710,18 @@
   renderHostState();
   refreshDiagnostics();
   setConnectedUi(false);
+  autoConnectEnabled = readAutoConnectPref();
+  $('chkAutoConnect').checked = autoConnectEnabled;
+  $('chkAutoConnect').onchange = () => {
+    autoConnectEnabled = $('chkAutoConnect').checked;
+    writeAutoConnectPref(autoConnectEnabled);
+    if (autoConnectEnabled) tryAutoConnect();
+  };
   if (!navigator.serial) {
     showNotice('このブラウザは Web Serial API に対応していません。Google Chrome または Microsoft Edge で開いてください。接続なしでも「ダミーデータ」で表示は確認できます');
   } else {
     setStatus('「接続」を押してトラックパッド側の USB シリアルポートを選んでください');
+    if (autoConnectEnabled) tryAutoConnect();
   }
 })();
 </script>

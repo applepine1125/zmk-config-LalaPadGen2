@@ -69,6 +69,31 @@ test('往復時間の半分を補正した時刻オフセットを計算でき�
   assert.equal(T.clockOffset(1000, 1020, 500), 510);
 });
 
+test('lastInfo が null のとき pickPortOrder は元の順序のまま返す', () => {
+  const a = { getInfo: () => ({ usbVendorId: 1, usbProductId: 2 }) };
+  const b = { getInfo: () => ({ usbVendorId: 3, usbProductId: 4 }) };
+  assert.deepEqual(T.pickPortOrder([a, b], null), [a, b]);
+});
+
+test('lastInfo に一致するポートが先頭に来るよう並べ替える', () => {
+  const a = { getInfo: () => ({ usbVendorId: 1, usbProductId: 2 }) };
+  const b = { getInfo: () => ({ usbVendorId: 3, usbProductId: 4 }) };
+  const c = { getInfo: () => ({ usbVendorId: 3, usbProductId: 4 }) };
+  assert.deepEqual(T.pickPortOrder([a, b, c], { usbVendorId: 3, usbProductId: 4 }), [b, c, a]);
+});
+
+test('lastInfo に一致するポートがなければ pickPortOrder は元の順序のまま返す', () => {
+  const a = { getInfo: () => ({ usbVendorId: 1, usbProductId: 2 }) };
+  const b = { getInfo: () => ({ usbVendorId: 3, usbProductId: 4 }) };
+  assert.deepEqual(T.pickPortOrder([a, b], { usbVendorId: 9, usbProductId: 9 }), [a, b]);
+});
+
+test('getInfo を持たないポートが混ざっていても pickPortOrder は例外を投げず元の順序を保つ', () => {
+  const a = { getInfo: () => ({ usbVendorId: 1, usbProductId: 2 }) };
+  const b = {};
+  assert.deepEqual(T.pickPortOrder([a, b], { usbVendorId: 1, usbProductId: 2 }), [a, b]);
+});
+
 test('パラメータ名を CONFIG 名に変換できる', () => {
   assert.equal(T.toConfName('1f_tap_max_ms'), 'CONFIG_INPUT_IQS9151_1F_TAP_MAX_MS');
 });
