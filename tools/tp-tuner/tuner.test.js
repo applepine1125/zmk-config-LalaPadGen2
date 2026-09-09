@@ -135,24 +135,6 @@ test('orderDevices は候補が空なら空配列を返す', () => {
   assert.deepEqual(T.orderDevices(undefined), []);
 });
 
-test('pickDevice は BLE を USB より優先して選ぶ', () => {
-  const usb = { id: 'u1', kind: 'usb', name: 'usbmodem1' };
-  const ble = { id: 'b1', kind: 'ble', name: 'LalapadGen2' };
-  assert.deepEqual(T.pickDevice([usb, ble]), ble);
-  assert.deepEqual(T.pickDevice([ble, usb]), ble);
-});
-
-test('pickDevice は BLE がなければ最初の USB を選ぶ', () => {
-  const usb1 = { id: 'u1', kind: 'usb', name: 'usbmodem1' };
-  const usb2 = { id: 'u2', kind: 'usb', name: 'usbmodem2' };
-  assert.deepEqual(T.pickDevice([usb1, usb2]), usb1);
-});
-
-test('pickDevice は候補が空なら null を返す', () => {
-  assert.equal(T.pickDevice([]), null);
-  assert.equal(T.pickDevice(undefined), null);
-});
-
 test('lastInfo が null のとき pickPortOrder は元の順序のまま返す', () => {
   const a = { getInfo: () => ({ usbVendorId: 1, usbProductId: 2 }) };
   const b = { getInfo: () => ({ usbVendorId: 3, usbProductId: 4 }) };
@@ -465,10 +447,10 @@ test('観測をドライバの見え方とホスト側の一文にできる', ()
   assert.equal(T.observationText(T.observeAttempt({ start: 0, end: 0, frames: [] }, [], HOST0)), '接触なし');
 });
 
-test('カードは 7 枚でカーソル移動が先頭にある', () => {
+test('ジェスチャは 7 種類でカーソル移動が先頭にあり、種別と名前を持つ', () => {
   assert.equal(T.GESTURES.length, 7);
   assert.equal(T.GESTURES[0].kind, 'cursor');
-  assert.ok(T.GESTURES.every((g) => g.params.every((p) => typeof p.name === 'string')));
+  assert.ok(T.GESTURES.every((g) => typeof g.kind === 'string' && typeof g.title === 'string'));
 });
 
 const TAP1_LONG = frames(0, 320, 1).concat(frames(330, 800, 0));
@@ -570,18 +552,6 @@ test('カーソル移動の認識文には各指標とホストの移動受信�
   const { fr, fw, host } = cursorScenario();
   assert.equal(T.recognitionText('cursor', observe(fr, fw, host), PARAMS),
     '指 1 本 / 接触 600ms / 動き出し 40ms / 移動量 ファーム 234・ホスト 234 / フレーム間隔 10ms / 微小動き 61% / 慣性あり(2 回 40ms) → 移動 57 回送信 → ホストで移動 57 回受信');
-});
-
-test('各カードの体感ボタンが取れ、意図と違う動作にはサブ選択がある', () => {
-  const tap = T.feedbackOptions('tap1');
-  assert.deepEqual(tap.map((f) => f.id), ['ok', 'none', 'wrong', 'slow', 'sensitive']);
-  assert.deepEqual(tap[2].sub.map((f) => f.id), ['wrong:drag', 'wrong:other', 'wrong:cursor', 'wrong:double']);
-  assert.equal(T.feedbackOptions('tap2')[2].sub[1].label, '別のボタンになった');
-  assert.deepEqual(T.feedbackOptions('tapdrag').map((f) => f.id), ['ok', 'nodrag', 'stuck', 'slowclick']);
-  assert.deepEqual(T.feedbackOptions('scroll2').map((f) => f.id), ['ok', 'none', 'heavy', 'fast', 'slow', 'inertia_more', 'inertia_less', 'diagonal', 'pinch', 'lag']);
-  assert.deepEqual(T.feedbackOptions('pinch').map((f) => f.id), ['ok', 'none', 'scroll', 'sensitive']);
-  assert.deepEqual(T.feedbackOptions('cursor').map((f) => f.id), ['ok', 'start_slow', 'light_miss', 'jitter', 'jump', 'fast', 'slow', 'inertia_more', 'inertia_less', 'lag']);
-  assert.ok(T.feedbackOptions('cursor').every((f) => f.label));
 });
 
 const LIST = [

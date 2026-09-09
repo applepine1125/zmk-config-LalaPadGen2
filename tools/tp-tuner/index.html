@@ -1140,8 +1140,11 @@
   function applyIntentSuggestion(sideKey) {
     const s = intentSuggestion[sideKey];
     if (!s || !s.r.suggestions.length) return;
+    const detailSides = detailMode ? activeSides() : null;
     for (const sg of s.r.suggestions) {
-      if (sg.to !== null) pending.common[sg.name] = sg.to;
+      if (sg.to === null) continue;
+      if (detailSides) { for (const sd of detailSides) pending[sd][sg.name] = sg.to; }
+      else pending.common[sg.name] = sg.to;
     }
     intentSuggestion[sideKey] = null;
     $(`intentSelect${sideKey}`).value = '';

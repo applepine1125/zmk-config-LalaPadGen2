@@ -106,11 +106,6 @@
     return ble.concat(usb);
   }
 
-  function pickDevice(devices) {
-    const ordered = orderDevices(devices);
-    return ordered.length ? ordered[0] : null;
-  }
-
   function pickPortOrder(ports, lastInfo) {
     if (!lastInfo || typeof lastInfo !== 'object') return ports.slice();
     const matches = (port) => {
@@ -265,23 +260,13 @@
     cursor_report_interval_ms: 0, scroll_report_interval_ms: 0,
   };
   const GESTURES = [
-    { kind: 'cursor', title: 'カーソル移動', instruction: '指 1 本でパッド上をゆっくり 1 往復、続けて速く 1 往復する', expect: 'カーソルが指に追従',
-      params: [{ name: 'touch_set_threshold', step: 2 }, { name: 'finger_confidence_threshold', step: 2 }, { name: 'alp_set_debounce', step: 1 },
-        { name: 'stationary_touch_mov_threshold', step: 1 }, { name: 'jitter_filter_delta', step: 1 }, { name: 'dynamic_filter_bottom_beta', step: 5 },
-        { name: 'cursor_inertia_enable' }, { name: 'cursor_inertia_decay', step: 10 }, { name: 'cursor_inertia_min_avg_speed', step: 2 }] },
-    { kind: 'tap1', title: '1本指タップ', instruction: '指 1 本で軽く 1 回叩く', expect: '左クリック',
-      params: [{ name: '1f_tap_enable' }, { name: '1f_tap_max_ms', step: 50 }, { name: '1f_tap_move', step: 10 }, { name: '1f_tapdrag_gap_max_ms', step: 40 }] },
-    { kind: 'tapdrag', title: 'タップドラッグ', instruction: '1 回叩いてすぐに触れ直し、そのまま動かしてから離す', expect: 'ドラッグ',
-      params: [{ name: '1f_presshold_enable' }, { name: '1f_tapdrag_gap_max_ms', step: 40 }, { name: '1f_tap_max_ms', step: 50 }, { name: '1f_tap_move', step: 10 }] },
-    { kind: 'scroll2', title: '2本指スクロール', instruction: '指 2 本を揃えて上下に動かす', expect: 'スクロール',
-      params: [{ name: 'scroll_y_enable' }, { name: 'scroll_x_enable' }, { name: '2f_scroll_start_move', step: 5 },
-        { name: 'scroll_inertia_enable' }, { name: 'scroll_inertia_decay', step: 10 }, { name: 'scroll_inertia_min_avg_speed', step: 2 }] },
-    { kind: 'tap2', title: '2本指タップ', instruction: '指 2 本で同時に軽く叩く', expect: '右クリック',
-      params: [{ name: '2f_tap_enable' }, { name: '2f_tap_max_ms', step: 50 }, { name: '2f_tap_move', step: 10 }, { name: '2f_tapdrag_gap_max_ms', step: 40 }] },
-    { kind: 'pinch', title: 'ピンチ', instruction: '指 2 本の間隔を広げる / 狭める', expect: 'ピンチ(拡大縮小)',
-      params: [{ name: '2f_pinch_enable' }, { name: '2f_pinch_start_distance', step: 10 }, { name: '2f_scroll_start_move', step: 5 }, { name: '2f_pinch_wheel_gain_x10', step: 5 }] },
-    { kind: 'tap3', title: '3本指タップ', instruction: '指 3 本で同時に軽く叩く', expect: '中クリック',
-      params: [{ name: '3f_tap_enable' }, { name: '3f_tap_max_ms', step: 50 }, { name: '3f_tap_move', step: 10 }, { name: '3f_tapdrag_gap_max_ms', step: 40 }] },
+    { kind: 'cursor', title: 'カーソル移動' },
+    { kind: 'tap1', title: '1本指タップ' },
+    { kind: 'tapdrag', title: 'タップドラッグ' },
+    { kind: 'scroll2', title: '2本指スクロール' },
+    { kind: 'tap2', title: '2本指タップ' },
+    { kind: 'pinch', title: 'ピンチ' },
+    { kind: 'tap3', title: '3本指タップ' },
   ];
   const TAP_KINDS = {
     tap1: { prefix: '1f', n: 1, code: BTN[0], bit: 1, label: '左' },
@@ -813,62 +798,6 @@
     return `${factsText(kind, o)} → ${mid} → ${host}`;
   }
 
-  const TAP_FEEDBACK = [
-    { id: 'ok', label: '体感どおり' },
-    { id: 'none', label: '反応しなかった' },
-    { id: 'wrong', label: '意図と違う動作になった', sub: [
-      { id: 'wrong:drag', label: 'ドラッグになった' },
-      { id: 'wrong:other', label: '別のボタンになった' },
-      { id: 'wrong:cursor', label: 'カーソルが動いた' },
-      { id: 'wrong:double', label: '2 回クリックになった' },
-    ] },
-    { id: 'slow', label: '反応が鈍い・遅い' },
-    { id: 'sensitive', label: '敏感すぎる(触れただけでクリック)' },
-  ];
-  const FEEDBACK = {
-    tap1: TAP_FEEDBACK, tap2: TAP_FEEDBACK, tap3: TAP_FEEDBACK,
-    tapdrag: [
-      { id: 'ok', label: '体感どおり' },
-      { id: 'nodrag', label: 'ドラッグに入らなかった' },
-      { id: 'stuck', label: 'ドラッグが終わらない(掴んだまま)' },
-      { id: 'slowclick', label: 'シングルクリックの確定が遅い' },
-    ],
-    scroll2: [
-      { id: 'ok', label: '体感どおり' },
-      { id: 'none', label: 'スクロールしなかった' },
-      { id: 'heavy', label: '動き出しが遅い / 重い' },
-      { id: 'fast', label: '速すぎる' },
-      { id: 'slow', label: '遅すぎる' },
-      { id: 'inertia_more', label: '離した後に滑りすぎる' },
-      { id: 'inertia_less', label: '離した後に滑らない' },
-      { id: 'diagonal', label: '斜めに暴れる' },
-      { id: 'pinch', label: 'ピンチになってしまう' },
-      { id: 'lag', label: 'だんだん遅くなる・引っかかる' },
-    ],
-    pinch: [
-      { id: 'ok', label: '体感どおり' },
-      { id: 'none', label: 'ピンチにならない' },
-      { id: 'scroll', label: 'スクロールになってしまう' },
-      { id: 'sensitive', label: '敏感すぎる' },
-    ],
-    cursor: [
-      { id: 'ok', label: '体感どおり' },
-      { id: 'start_slow', label: '動き出しが遅い' },
-      { id: 'light_miss', label: '軽いタッチを拾わない' },
-      { id: 'jitter', label: '震える・ふらつく' },
-      { id: 'jump', label: '飛ぶ' },
-      { id: 'fast', label: '速すぎる' },
-      { id: 'slow', label: '遅すぎる' },
-      { id: 'inertia_more', label: '離した後に滑る(滑りすぎ)' },
-      { id: 'inertia_less', label: '離した後に滑らない' },
-      { id: 'lag', label: '遅れて動く・だんだん遅くなる' },
-    ],
-  };
-
-  function feedbackOptions(kind) {
-    return FEEDBACK[kind] || [];
-  }
-
   const SIDE = {
     touch_down: '軽いタッチを拾うが誤反応も増える',
     touch_up: '軽いタッチを拾わなくなる',
@@ -1162,11 +1091,11 @@
   const api = {
     BTN, REL, BTN_NAMES, GESTURES, DEFAULT_PARAMS,
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
-    splitSidePrefix, bleCommand, isEndMarker, orderDevices, pickDevice,
+    splitSidePrefix, bleCommand, isEndMarker, orderDevices,
     clockOffset, pickPortOrder, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
     paramValue, stepParam, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, whyNot, describeState,
-    observationText, hostText, sentText, recognitionText, feedbackOptions, suggestFor,
+    observationText, hostText, sentText, recognitionText, suggestFor,
     mergeParams, pendingCommands, padStateFromFrame, frameToPadPoints,
   };
   root.TpTuner = api;

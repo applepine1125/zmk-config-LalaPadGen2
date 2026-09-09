@@ -2,6 +2,7 @@
   'use strict';
   const badUsbMode = /(?:^|[?&])fakeBadUsb=1(?:&|$)/.test(location.search);
   const fakeLive = /(?:^|[?&])fakeLive=1(?:&|$)/.test(location.search);
+  const fakeLeftDown = /(?:^|[?&])fakeLeftDown=1(?:&|$)/.test(location.search);
   const DEVICES = badUsbMode
     ? [
       { id: 'usb-bad', kind: 'usb', name: 'usbmodem-bad' },
@@ -53,6 +54,11 @@
     const m = /^([RL])\s+(.*)$/.exec(String(text).trim());
     if (!m) return;
     const side = m[1];
+    if (side === 'L' && fakeLeftDown) {
+      emit({ type: 'data', text: 'L ERR timeout\n' });
+      emit({ type: 'data', text: 'L .\n' });
+      return;
+    }
     const sideLabel = side === 'R' ? 'central' : 'peripheral';
     const lines = responseLines(m[2].trim().split(/\s+/), sideLabel, side).concat(['.']);
     for (const l of lines) emit({ type: 'data', text: `${side} ${l}\n` });
@@ -83,6 +89,7 @@
     summaryTimer = setInterval(() => {
       const device = DEVICES.find((d) => d.id === connectedId);
       if (!device || device.kind !== 'ble') return;
+      if (summarySide === 'L' && fakeLeftDown) { summarySide = 'R'; return; }
       const end = elapsedMs();
       const start = Math.max(0, end - 100);
       const summary = `T S ${start} ${end} 1 1 100 -1 5 0 0 0 1 1 0 0 3 0 0`;
