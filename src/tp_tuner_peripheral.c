@@ -92,10 +92,10 @@ static int exec_request(const struct tp_tuner_request *req) {
 
 static uint32_t status_word(void) {
     int64_t uptime_s = k_uptime_get() / 1000;
+    uint32_t uptime_capped = (uint32_t)MIN(uptime_s, (int64_t)TP_TUNER_STATUS_UPTIME_MASK);
 
     return TP_TUNER_STATUS_ENCODE(iqs9151_settings_loaded(), iqs9151_dev_summary_enabled(),
-                                  iqs9151_param_count(),
-                                  MIN(uptime_s, TP_TUNER_STATUS_UPTIME_MASK));
+                                  iqs9151_param_count(), uptime_capped);
 }
 
 static bool start_next_job(void) {

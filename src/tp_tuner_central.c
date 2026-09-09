@@ -499,7 +499,7 @@ static void local_out(void *ctx, const char *line) {
 }
 
 static void run_local(const char *args) {
-    (void)iqs9151_cmd_exec(NULL, args, local_out, "R");
+    (void)iqs9151_cmd_exec(NULL, args, local_out, NULL);
     stream_put_line('R', ".");
 }
 
