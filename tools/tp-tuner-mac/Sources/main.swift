@@ -35,6 +35,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
   private func handlePageLoaded() {
     guard isCheckMode else { return }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+      let probe = "JSON.stringify({native: typeof window.tpTunerNative, status: (document.getElementById('status') || {}).textContent || ''})"
+      self?.bridge.webView.evaluateJavaScript(probe) { result, error in
+        let text = (result as? String) ?? "評価失敗: \(String(describing: error))"
+        FileHandle.standardError.write("[check] \(text)\n".data(using: .utf8)!)
+      }
+    }
     DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
       exit(0)
     }
