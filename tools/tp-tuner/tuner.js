@@ -186,7 +186,7 @@
   const DEFAULT_PARAMS = {
     '1f_tap_max_ms': 250, '1f_tap_move': 50, '1f_tapdrag_gap_max_ms': 160,
     '2f_tap_max_ms': 250, '2f_tap_move': 50, '2f_tapdrag_gap_max_ms': 200,
-    '2f_scroll_start_move': 15, '2f_pinch_start_distance': 30, '2f_pinch_wheel_gain_x10': 60,
+    '2f_scroll_start_move': 15, '2f_pinch_start_distance': 30, '2f_pinch_ratio_x10': 15, '2f_pinch_wheel_gain_x10': 60,
     '3f_tap_max_ms': 200, '3f_tap_move': 35, '3f_tapdrag_gap_max_ms': 200, '3f_swipe_threshold': 200,
     cursor_inertia_enable: 0, cursor_inertia_decay: 950, cursor_inertia_min_avg_speed: 10,
     scroll_inertia_enable: 1, scroll_inertia_decay: 980, scroll_inertia_min_avg_speed: 10,
@@ -713,6 +713,7 @@
       { id: 'inertia_more', label: '離した後に滑りすぎる' },
       { id: 'inertia_less', label: '離した後に滑らない' },
       { id: 'diagonal', label: '斜めに暴れる' },
+      { id: 'pinch', label: 'ピンチになってしまう' },
       { id: 'lag', label: 'だんだん遅くなる・引っかかる' },
     ],
     pinch: [
@@ -893,6 +894,8 @@
         }
       } else if (feedback === 'diagonal') {
         note('斜め移動の縦横固定はキーマップの zip_scroll_snap(ビルドが必要)で決まり、ここでは変えられない');
+      } else if (feedback === 'pinch') {
+        add('2f_pinch_ratio_x10', 5, `スクロール中の指の間隔変化(距離変化 ${o.distDelta}、重心移動 ${o.moveSum2})が比率を超えてピンチと判定された`, 'ピンチになりにくくなる(小さなピンチが効かなくなる)');
       } else if (feedback === 'lag') {
         reportLag('scroll_report_interval_ms');
       }
@@ -900,6 +903,11 @@
       const startDist = P('2f_pinch_start_distance');
       const startMove = P('2f_scroll_start_move');
       const scrollWon = () => {
+        const ratioNow = P('2f_pinch_ratio_x10');
+        const ratioReason = o.moveSum2 > 0
+          ? `距離変化 ${o.distDelta} が重心移動 ${o.moveSum2} の ${(o.distDelta * 10 / o.moveSum2).toFixed(1)} 倍までしかなく、比率 ${ratioNow}(×0.1)に届かなかった`
+          : `距離変化 ${o.distDelta} に対して重心移動がほぼなく、比率 ${ratioNow}(×0.1)を満たせなかった`;
+        add('2f_pinch_ratio_x10', -3, ratioReason, 'スクロールがピンチに化けやすい');
         add('2f_scroll_start_move', 5, `2 本指移動 ${o.moveSum2} が先にスクロール開始 ${startMove} に達した(距離変化 ${o.distDelta}、ピンチ開始 ${startDist})`, '軽い 2 本指移動でスクロールが始まりにくくなる');
         add('2f_pinch_start_distance', -10, `距離変化 ${o.distDelta} がピンチ開始 ${startDist} より先に達するようにする`, 'スクロールがピンチに化けやすい');
       };

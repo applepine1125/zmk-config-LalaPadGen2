@@ -587,7 +587,7 @@ test('各カードの体感ボタンが取れ、意図と違う動作にはサ�
   assert.deepEqual(tap[2].sub.map((f) => f.id), ['wrong:drag', 'wrong:other', 'wrong:cursor', 'wrong:double']);
   assert.equal(T.feedbackOptions('tap2')[2].sub[1].label, '別のボタンになった');
   assert.deepEqual(T.feedbackOptions('tapdrag').map((f) => f.id), ['ok', 'nodrag', 'stuck', 'slowclick']);
-  assert.deepEqual(T.feedbackOptions('scroll2').map((f) => f.id), ['ok', 'none', 'heavy', 'fast', 'slow', 'inertia_more', 'inertia_less', 'diagonal', 'lag']);
+  assert.deepEqual(T.feedbackOptions('scroll2').map((f) => f.id), ['ok', 'none', 'heavy', 'fast', 'slow', 'inertia_more', 'inertia_less', 'diagonal', 'pinch', 'lag']);
   assert.deepEqual(T.feedbackOptions('pinch').map((f) => f.id), ['ok', 'none', 'scroll', 'sensitive']);
   assert.deepEqual(T.feedbackOptions('cursor').map((f) => f.id), ['ok', 'start_slow', 'light_miss', 'jitter', 'jump', 'fast', 'slow', 'inertia_more', 'inertia_less', 'lag']);
   assert.ok(T.feedbackOptions('cursor').every((f) => f.label));
@@ -599,6 +599,7 @@ const LIST = [
   { name: '1f_tapdrag_gap_max_ms', value: 160, min: 0, max: 1000, kind: 'driver', def: 160 },
   { name: '2f_scroll_start_move', value: 15, min: 0, max: 200, kind: 'driver', def: 15 },
   { name: '2f_pinch_start_distance', value: 30, min: 0, max: 500, kind: 'driver', def: 30 },
+  { name: '2f_pinch_ratio_x10', value: 15, min: 5, max: 50, kind: 'driver', def: 15 },
   { name: 'scroll_inertia_enable', value: 1, min: 0, max: 1, kind: 'driver_bool', def: 1 },
   { name: 'scroll_inertia_decay', value: 980, min: 0, max: 1000, kind: 'driver', def: 980 },
   { name: 'scroll_inertia_min_avg_speed', value: 10, min: 0, max: 100, kind: 'driver', def: 10 },
@@ -778,10 +779,20 @@ test('2本指スクロールがだんだん遅くなるときは scroll_report_i
   assert.equal(r2.suggestions[0].to, 24);
 });
 
-test('ピンチがスクロールになるときはスクロール開始を上げるかピンチ開始を下げる 2 案を出す', () => {
+test('2本指スクロールがピンチになってしまうときは 2f_pinch_ratio_x10 +5 を提案する', () => {
+  const r = T.suggestFor('scroll2', 'pinch', observe(frames(0, 300, 2, { relY: 4, mode2f: 1 })), LIST);
+  assert.deepEqual(names(r), ['2f_pinch_ratio_x10+5']);
+  assert.equal(r.suggestions[0].to, 20);
+  assert.ok(r.suggestions[0].reason.includes('重心移動 124'));
+});
+
+test('ピンチがスクロールになるときは比率を下げつつスクロール開始を上げるかピンチ開始を下げる 3 案を出す', () => {
   const fr = frames(0, 300, 2, { relY: 4, mode2f: 1, f1x: 100, f1y: 100, f2x: 200, f2y: 100 }).concat(frames(310, 800, 0));
   const r = T.suggestFor('pinch', 'scroll', observe(fr), LIST);
-  assert.deepEqual(names(r), ['2f_scroll_start_move+5', '2f_pinch_start_distance-10']);
+  assert.deepEqual(names(r), ['2f_pinch_ratio_x10-3', '2f_scroll_start_move+5', '2f_pinch_start_distance-10']);
+  assert.equal(r.suggestions[0].to, 12);
+  assert.ok(r.suggestions[0].reason.includes('距離変化 0'));
+  assert.ok(r.suggestions[0].reason.includes('比率 15'));
 });
 
 test('ピンチにならないとき距離変化が開始値に届いていなければ 2f_pinch_start_distance -10 を提案する', () => {
