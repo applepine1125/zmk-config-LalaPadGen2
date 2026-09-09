@@ -43,6 +43,7 @@ LOG_MODULE_REGISTER(tp_tuner, CONFIG_ZMK_LOG_LEVEL);
 
 #define TP_TUNER_CMD_MAX 64
 #define TP_TUNER_CMD_QUEUE_DEPTH 4
+#define TP_TUNER_SUB_QUEUE_DEPTH 8
 #define TP_TUNER_CMD_MAX_TOKENS 3
 #define TP_TUNER_LINE_MAX 160
 #define TP_TUNER_STREAM_SIZE 4096
@@ -88,7 +89,7 @@ static void stream_reset(void) {
     k_spin_unlock(&stream_lock, key);
 }
 
-static void stream_put_line(char side, const char *text) {
+static void stream_put(char side, const char *text, bool warn_on_full) {
     char line[TP_TUNER_LINE_MAX];
     int len;
     bool stored;
@@ -113,10 +114,21 @@ static void stream_put_line(char side, const char *text) {
     k_spin_unlock(&stream_lock, key);
 
     if (!stored) {
-        LOG_WRN("stream full, line dropped");
+        if (warn_on_full) {
+            LOG_WRN("stream full, line dropped");
+        }
         return;
     }
     (void)k_work_schedule(&stream_work, K_NO_WAIT);
+}
+
+static void stream_put_line(char side, const char *text) {
+    stream_put(side, text, true);
+}
+
+/* ライブフレーム用。次のフレームで追いつくので、満杯なら黙って捨てる */
+static void stream_put_line_lossy(char side, const char *text) {
+    stream_put(side, text, false);
 }
 
 static void find_subscribed_conn(struct bt_conn *conn, void *data) {
@@ -189,22 +201,45 @@ static void stream_work_cb(struct k_work *work) {
     stream_flush();
 }
 
-static void stream_ccc_changed(const struct bt_gatt_attr *attr, uint16_t value) {
-    ARG_UNUSED(attr);
-    stream_subscribed = value == BT_GATT_CCC_NOTIFY;
-    LOG_INF("stream %s", stream_subscribed ? "subscribed" : "unsubscribed");
-    if (!stream_subscribed) {
-        stream_reset();
-    }
-}
-
 /* ---- command 書き込み → コマンドキュー ---- */
 
 K_MSGQ_DEFINE(tp_tuner_cmd_msgq, TP_TUNER_CMD_MAX + 1, TP_TUNER_CMD_QUEUE_DEPTH, 1);
 
+/*
+ * 購読の開始/終了で左手へ送る内部コマンド。ホストのコマンドより先に処理し、
+ * 応答は stream に出さない(ホストが自分のコマンドの応答と取り違えないように)
+ */
+K_MSGQ_DEFINE(tp_tuner_sub_msgq, TP_TUNER_CMD_MAX + 1, TP_TUNER_SUB_QUEUE_DEPTH, 1);
+
 static void cmd_work_cb(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(cmd_work, cmd_work_cb);
 static int64_t left_cooldown_until;
+
+static void sub_request(const char *args) {
+    char line[TP_TUNER_CMD_MAX + 1];
+
+    strncpy(line, args, sizeof(line) - 1);
+    line[sizeof(line) - 1] = '\0';
+    if (k_msgq_put(&tp_tuner_sub_msgq, line, K_NO_WAIT) != 0) {
+        LOG_WRN("subscription command queue full, '%s' dropped", args);
+        return;
+    }
+    (void)k_work_schedule(&cmd_work, K_NO_WAIT);
+}
+
+static void stream_ccc_changed(const struct bt_gatt_attr *attr, uint16_t value) {
+    ARG_UNUSED(attr);
+    stream_subscribed = value == BT_GATT_CCC_NOTIFY;
+    LOG_INF("stream %s", stream_subscribed ? "subscribed" : "unsubscribed");
+    if (stream_subscribed) {
+        sub_request("summary on");
+        return;
+    }
+    stream_reset();
+    (void)iqs9151_dev_live_enable(false, 0);
+    sub_request("summary off");
+    sub_request("live off");
+}
 
 static ssize_t command_write(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf,
                              uint16_t len, uint16_t offset, uint8_t flags) {
@@ -245,6 +280,7 @@ enum left_cmd {
     LEFT_CMD_REATI,
     LEFT_CMD_SAVE,
     LEFT_CMD_SUMMARY,
+    LEFT_CMD_LIVE,
 };
 
 struct left_pending {
@@ -253,6 +289,7 @@ struct left_pending {
     int32_t value;
     const struct iqs9151_param_def *def;
     size_t received;
+    bool silent;
 };
 
 static struct left_pending left;
@@ -284,8 +321,14 @@ static bool left_peek(struct left_pending *out) {
     return active;
 }
 
-static void left_finish(void) {
-    stream_put_line('L', ".");
+static void left_reply(const struct left_pending *p, const char *text) {
+    if (!p->silent) {
+        stream_put_line('L', text);
+    }
+}
+
+static void left_finish(const struct left_pending *p) {
+    left_reply(p, ".");
     (void)k_work_schedule(&cmd_work, K_NO_WAIT);
 }
 
@@ -297,23 +340,26 @@ static void left_timeout_cb(struct k_work *work) {
         return;
     }
     left_cooldown_until = k_uptime_get() + TP_TUNER_LEFT_COOLDOWN_MS;
-    stream_put_line('L', "ERR timeout");
-    left_finish();
+    if (p.silent) {
+        LOG_WRN("subscription command op 0x%x timed out", p.op);
+    }
+    left_reply(&p, "ERR timeout");
+    left_finish(&p);
 }
 
-static void left_fail(const char *text) {
-    stream_put_line('L', text);
-    stream_put_line('L', ".");
+static void left_fail(const struct left_pending *p, const char *text) {
+    left_reply(p, text);
+    left_reply(p, ".");
 }
 
-static void left_failf(const char *fmt, ...) {
+static void left_failf(const struct left_pending *p, const char *fmt, ...) {
     char buf[TP_TUNER_LINE_MAX];
     va_list ap;
 
     va_start(ap, fmt);
     vsnprintf(buf, sizeof(buf), fmt, ap);
     va_end(ap);
-    left_fail(buf);
+    left_fail(p, buf);
 }
 
 static int parse_i32(const char *text, int32_t *out) {
@@ -386,25 +432,25 @@ static void left_send(struct left_pending pending) {
 
         (void)k_work_cancel_delayable(&left_timeout_work);
         (void)left_take(&discard);
-        left_failf("ERR split %d", ret);
+        left_failf(&pending, "ERR split %d", ret);
     }
 }
 
-static void run_left(const char *args) {
+static void run_left(const char *args, bool silent) {
     char buf[TP_TUNER_CMD_MAX];
     char *argv[TP_TUNER_CMD_MAX_TOKENS];
     int argc;
-    struct left_pending pending = {.cmd = LEFT_CMD_NONE};
+    struct left_pending pending = {.cmd = LEFT_CMD_NONE, .silent = silent};
 
     strncpy(buf, args, sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
     argc = tokenize(buf, argv, TP_TUNER_CMD_MAX_TOKENS);
     if (argc == -E2BIG) {
-        left_fail("ERR too many args");
+        left_fail(&pending, "ERR too many args");
         return;
     }
     if (argc == 0) {
-        left_fail("ERR empty");
+        left_fail(&pending, "ERR empty");
         return;
     }
 
@@ -413,25 +459,25 @@ static void run_left(const char *args) {
         int index;
 
         if (argc != 3) {
-            left_fail("ERR usage: set <name> <value>");
+            left_fail(&pending, "ERR usage: set <name> <value>");
             return;
         }
         pending.def = iqs9151_param_find(argv[1]);
         if (pending.def == NULL) {
-            left_failf("ERR unknown param %s", argv[1]);
+            left_failf(&pending, "ERR unknown param %s", argv[1]);
             return;
         }
         if (parse_i32(argv[2], &value) != 0) {
-            left_failf("ERR invalid value %s", argv[2]);
+            left_failf(&pending, "ERR invalid value %s", argv[2]);
             return;
         }
         if (value < pending.def->min || value > pending.def->max) {
-            left_failf("ERR out of range %d..%d", pending.def->min, pending.def->max);
+            left_failf(&pending, "ERR out of range %d..%d", pending.def->min, pending.def->max);
             return;
         }
         index = param_index(pending.def);
         if (index < 0) {
-            left_failf("ERR unknown param %s", argv[1]);
+            left_failf(&pending, "ERR unknown param %s", argv[1]);
             return;
         }
         pending.cmd = LEFT_CMD_SET;
@@ -439,42 +485,42 @@ static void run_left(const char *args) {
         pending.value = value;
     } else if (strcmp(argv[0], "list") == 0) {
         if (argc != 1) {
-            left_fail("ERR usage: list");
+            left_fail(&pending, "ERR usage: list");
             return;
         }
         pending.cmd = LEFT_CMD_LIST;
         pending.op = TP_TUNER_OP_DUMP;
     } else if (strcmp(argv[0], "info") == 0) {
         if (argc != 1) {
-            left_fail("ERR usage: info");
+            left_fail(&pending, "ERR usage: info");
             return;
         }
         pending.cmd = LEFT_CMD_INFO;
         pending.op = TP_TUNER_OP_INFO;
     } else if (strcmp(argv[0], "reset") == 0) {
         if (argc != 1) {
-            left_fail("ERR usage: reset");
+            left_fail(&pending, "ERR usage: reset");
             return;
         }
         pending.cmd = LEFT_CMD_RESET;
         pending.op = TP_TUNER_OP_RESET;
     } else if (strcmp(argv[0], "reati") == 0) {
         if (argc != 1) {
-            left_fail("ERR usage: reati");
+            left_fail(&pending, "ERR usage: reati");
             return;
         }
         pending.cmd = LEFT_CMD_REATI;
         pending.op = TP_TUNER_OP_REATI;
     } else if (strcmp(argv[0], "save") == 0) {
         if (argc != 1) {
-            left_fail("ERR usage: save");
+            left_fail(&pending, "ERR usage: save");
             return;
         }
         pending.cmd = LEFT_CMD_SAVE;
         pending.op = TP_TUNER_OP_SAVE;
     } else if (strcmp(argv[0], "summary") == 0) {
         if (argc != 2) {
-            left_fail("ERR usage: summary on|off");
+            left_fail(&pending, "ERR usage: summary on|off");
             return;
         }
         if (strcmp(argv[1], "on") == 0) {
@@ -482,16 +528,41 @@ static void run_left(const char *args) {
         } else if (strcmp(argv[1], "off") == 0) {
             pending.value = 0;
         } else {
-            left_fail("ERR expected on|off");
+            left_fail(&pending, "ERR expected on|off");
             return;
         }
         pending.cmd = LEFT_CMD_SUMMARY;
         pending.op = TP_TUNER_OP_SUMMARY;
+    } else if (strcmp(argv[0], "live") == 0) {
+        if (argc < 2 || argc > 3) {
+            left_fail(&pending, "ERR usage: live on|off [hz]");
+            return;
+        }
+        if (strcmp(argv[1], "on") == 0) {
+            int32_t hz = TP_TUNER_LIVE_HZ_DEFAULT_LEFT;
+
+            if (argc == 3 && (parse_i32(argv[2], &hz) != 0 || hz < 1 || hz > 100)) {
+                left_fail(&pending, "ERR hz 1..100");
+                return;
+            }
+            pending.value = hz;
+        } else if (strcmp(argv[1], "off") == 0) {
+            if (argc != 2) {
+                left_fail(&pending, "ERR usage: live on|off [hz]");
+                return;
+            }
+            pending.value = 0;
+        } else {
+            left_fail(&pending, "ERR expected on|off");
+            return;
+        }
+        pending.cmd = LEFT_CMD_LIVE;
+        pending.op = TP_TUNER_OP_LIVE;
     } else if (strcmp(argv[0], "get") == 0 || strcmp(argv[0], "trace") == 0) {
-        left_fail("ERR unsupported");
+        left_fail(&pending, "ERR unsupported");
         return;
     } else {
-        left_failf("ERR unknown command %s", argv[0]);
+        left_failf(&pending, "ERR unknown command %s", argv[0]);
         return;
     }
 
@@ -525,11 +596,15 @@ static void cmd_work_cb(struct k_work *work) {
         return;
     }
 
-    while (!left_peek(&pending) && k_msgq_get(&tp_tuner_cmd_msgq, line, K_NO_WAIT) == 0) {
-        if (strncmp(line, "R ", 2) == 0) {
+    while (!left_peek(&pending)) {
+        if (k_msgq_get(&tp_tuner_sub_msgq, line, K_NO_WAIT) == 0) {
+            run_left(line, true);
+        } else if (k_msgq_get(&tp_tuner_cmd_msgq, line, K_NO_WAIT) != 0) {
+            break;
+        } else if (strncmp(line, "R ", 2) == 0) {
             run_local(line + 2);
         } else if (strncmp(line, "L ", 2) == 0) {
-            run_left(line + 2);
+            run_left(line + 2, false);
         } else {
             stream_put_line('R', "ERR bad side");
             stream_put_line('R', ".");
@@ -618,7 +693,7 @@ static void handle_status(uint32_t value) {
                 (unsigned)iqs9151_param_count());
         stream_put_line('L', "ERR param missing");
     }
-    left_finish();
+    left_finish(&p);
 }
 
 static void handle_ack(uint16_t code, int32_t ret) {
@@ -662,16 +737,52 @@ static void handle_ack(uint16_t code, int32_t ret) {
     case LEFT_CMD_SUMMARY:
         snprintf(buf, sizeof(buf), "OK summary=%s", p.value ? "on" : "off");
         break;
+    case LEFT_CMD_LIVE:
+        if (ret == 0 && p.value != 0) {
+            snprintf(buf, sizeof(buf), "OK live=on hz=%d", p.value);
+        } else if (ret == 0) {
+            snprintf(buf, sizeof(buf), "OK live=off");
+        } else if (ret == -ERANGE) {
+            snprintf(buf, sizeof(buf), "ERR hz 1..100");
+        } else {
+            snprintf(buf, sizeof(buf), "ERR %d", ret);
+        }
+        break;
     default:
         snprintf(buf, sizeof(buf), "ERR %d", ret);
         break;
     }
-    stream_put_line('L', buf);
-    left_finish();
+    left_reply(&p, buf);
+    left_finish(&p);
+}
+
+/* 左手のライブフレームを USB の trace と同じ T F 行にする(rel・flags・pending は持たないので 0) */
+static void handle_live(uint8_t type, uint16_t code, uint32_t value) {
+    struct tp_tuner_live_frame live;
+    struct iqs9151_frame_info f = {0};
+    char buf[TP_TUNER_LINE_MAX];
+
+    if (!stream_subscribed || !tp_tuner_live_unpack(type, code, value, &live)) {
+        return;
+    }
+    f.ms = (uint32_t)k_uptime_get();
+    f.fingers = live.fingers;
+    f.f1x = live.f1x;
+    f.f1y = live.f1y;
+    f.f2x = live.f2x;
+    f.f2y = live.f2y;
+    f.hold = live.hold;
+    f.mode2f = live.mode2f;
+    (void)iqs9151_frame_format(&f, buf, sizeof(buf));
+    stream_put_line_lossy('L', buf);
 }
 
 static void left_event_handler(struct input_event *evt) {
     if (evt->type < TP_TUNER_EV_FIRST) {
+        return;
+    }
+    if (evt->type >= TP_TUNER_EV_LIVE_FIRST && evt->type <= TP_TUNER_EV_LIVE_LAST) {
+        handle_live(evt->type, evt->code, (uint32_t)evt->value);
         return;
     }
     switch (evt->type) {
@@ -695,7 +806,7 @@ static void left_event_handler(struct input_event *evt) {
 
 INPUT_CALLBACK_DEFINE(DEVICE_DT_GET(DT_NODELABEL(trackpad_split_l)), left_event_handler);
 
-/* ---- 右手自身の要約 ---- */
+/* ---- 右手自身の要約・ライブフレーム ---- */
 
 static void local_summary_cb(const struct iqs9151_attempt_summary *summary, void *user_data) {
     char buf[TP_TUNER_LINE_MAX];
@@ -708,8 +819,20 @@ static void local_summary_cb(const struct iqs9151_attempt_summary *summary, void
     stream_put_line('R', buf);
 }
 
+static void local_frame_cb(const struct iqs9151_frame_info *finfo, void *user_data) {
+    char buf[TP_TUNER_LINE_MAX];
+
+    ARG_UNUSED(user_data);
+    if (!stream_subscribed) {
+        return;
+    }
+    (void)iqs9151_frame_format(finfo, buf, sizeof(buf));
+    stream_put_line_lossy('R', buf);
+}
+
 static int tp_tuner_central_init(void) {
     iqs9151_dev_set_summary_callback(local_summary_cb, NULL);
+    iqs9151_dev_set_frame_callback(local_frame_cb, NULL);
     return 0;
 }
 

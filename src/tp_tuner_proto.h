@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <stdbool.h>
 #include <stdint.h>
 
 #define TP_TUNER_SPLIT_REG 1
@@ -19,6 +20,19 @@
 #define TP_TUNER_EV_ACK 0xF2
 #define TP_TUNER_EV_STATUS 0xF3
 
+/* ライブフレーム(第 5b 段)。指本数・hold・2F モードを type に畳み、座標を code/value に詰める */
+#define TP_TUNER_EV_LIVE_FIRST 0xF4
+#define TP_TUNER_EV_LIVE_0F 0xF4
+#define TP_TUNER_EV_LIVE_1F 0xF5
+#define TP_TUNER_EV_LIVE_1F_HOLD 0xF6
+#define TP_TUNER_EV_LIVE_2F 0xF7
+#define TP_TUNER_EV_LIVE_2F_SCROLL 0xF8
+#define TP_TUNER_EV_LIVE_2F_PINCH 0xF9
+#define TP_TUNER_EV_LIVE_2F_HOLD 0xFA
+#define TP_TUNER_EV_LIVE_3F 0xFB
+#define TP_TUNER_EV_LIVE_3F_HOLD 0xFC
+#define TP_TUNER_EV_LIVE_LAST 0xFC
+
 #define TP_TUNER_OP_BASE 0x8000
 #define TP_TUNER_OP_RESET 0x8000
 #define TP_TUNER_OP_REATI 0x8001
@@ -26,6 +40,102 @@
 #define TP_TUNER_OP_SUMMARY 0x8003
 #define TP_TUNER_OP_DUMP 0x8004
 #define TP_TUNER_OP_INFO 0x8005
+/* param2 = hz、0 で off */
+#define TP_TUNER_OP_LIVE 0x8006
+
+#define TP_TUNER_LIVE_HZ_DEFAULT_LEFT 30
+
+/* hold は central 側の T F 行に出す INPUT_BTN_0..2 のコード */
+#define TP_TUNER_LIVE_HOLD_1F 272
+#define TP_TUNER_LIVE_HOLD_2F 273
+#define TP_TUNER_LIVE_HOLD_3F 274
+
+struct tp_tuner_live_frame {
+    uint8_t fingers;
+    uint16_t hold;
+    uint8_t mode2f;
+    uint16_t f1x, f1y, f2x, f2y;
+};
+
+static inline uint8_t tp_tuner_live_type(uint8_t fingers, bool hold, uint8_t mode2f) {
+    if (fingers == 0) {
+        return TP_TUNER_EV_LIVE_0F;
+    }
+    if (fingers == 1) {
+        return hold ? TP_TUNER_EV_LIVE_1F_HOLD : TP_TUNER_EV_LIVE_1F;
+    }
+    if (fingers == 2) {
+        if (hold) {
+            return TP_TUNER_EV_LIVE_2F_HOLD;
+        }
+        if (mode2f == 1) {
+            return TP_TUNER_EV_LIVE_2F_SCROLL;
+        }
+        if (mode2f == 2) {
+            return TP_TUNER_EV_LIVE_2F_PINCH;
+        }
+        return TP_TUNER_EV_LIVE_2F;
+    }
+    return hold ? TP_TUNER_EV_LIVE_3F_HOLD : TP_TUNER_EV_LIVE_3F;
+}
+
+/*
+ * code = (f1x & 0xFFF) | ((f1y >> 8) & 0xF) << 12
+ * value = (f1y & 0xFF) | (f2x & 0xFFF) << 8 | (f2y & 0xFFF) << 20
+ * 指が 1 本以下のときは f2 を、0 本のときは f1 も 0 にする
+ */
+static inline void tp_tuner_live_pack(const struct tp_tuner_live_frame *f, uint8_t *type,
+                                      uint16_t *code, uint32_t *value) {
+    uint16_t f1x = f->fingers >= 1 ? f->f1x : 0;
+    uint16_t f1y = f->fingers >= 1 ? f->f1y : 0;
+    uint16_t f2x = f->fingers >= 2 ? f->f2x : 0;
+    uint16_t f2y = f->fingers >= 2 ? f->f2y : 0;
+
+    *type = tp_tuner_live_type(f->fingers, f->hold != 0, f->mode2f);
+    *code = (uint16_t)((f1x & 0xFFFU) | (((f1y >> 8) & 0xFU) << 12));
+    *value = (uint32_t)(f1y & 0xFFU) | ((uint32_t)(f2x & 0xFFFU) << 8) |
+             ((uint32_t)(f2y & 0xFFFU) << 20);
+}
+
+static inline bool tp_tuner_live_unpack(uint8_t type, uint16_t code, uint32_t value,
+                                        struct tp_tuner_live_frame *f) {
+    switch (type) {
+    case TP_TUNER_EV_LIVE_0F:
+        f->fingers = 0;
+        f->hold = 0;
+        f->mode2f = 0;
+        break;
+    case TP_TUNER_EV_LIVE_1F:
+    case TP_TUNER_EV_LIVE_1F_HOLD:
+        f->fingers = 1;
+        f->hold = type == TP_TUNER_EV_LIVE_1F_HOLD ? TP_TUNER_LIVE_HOLD_1F : 0;
+        f->mode2f = 0;
+        break;
+    case TP_TUNER_EV_LIVE_2F:
+    case TP_TUNER_EV_LIVE_2F_SCROLL:
+    case TP_TUNER_EV_LIVE_2F_PINCH:
+    case TP_TUNER_EV_LIVE_2F_HOLD:
+        f->fingers = 2;
+        f->hold = type == TP_TUNER_EV_LIVE_2F_HOLD ? TP_TUNER_LIVE_HOLD_2F : 0;
+        f->mode2f = type == TP_TUNER_EV_LIVE_2F_SCROLL ? 1
+                    : type == TP_TUNER_EV_LIVE_2F_PINCH ? 2
+                                                        : 0;
+        break;
+    case TP_TUNER_EV_LIVE_3F:
+    case TP_TUNER_EV_LIVE_3F_HOLD:
+        f->fingers = 3;
+        f->hold = type == TP_TUNER_EV_LIVE_3F_HOLD ? TP_TUNER_LIVE_HOLD_3F : 0;
+        f->mode2f = 0;
+        break;
+    default:
+        return false;
+    }
+    f->f1x = code & 0xFFFU;
+    f->f1y = (uint16_t)((((code >> 12) & 0xFU) << 8) | (value & 0xFFU));
+    f->f2x = (uint16_t)((value >> 8) & 0xFFFU);
+    f->f2y = (uint16_t)((value >> 20) & 0xFFFU);
+    return true;
+}
 
 /* STATUS の value: saved(bit0) | summary_on(bit1) | count<<8 | min(uptime_s,65535)<<16 */
 #define TP_TUNER_STATUS_SAVED_BIT 0

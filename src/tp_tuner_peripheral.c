@@ -1,6 +1,6 @@
 /*
  * tp-tuner 左手(peripheral)側。
- * central から behavior "tp_param" で届いた要求を実行し、応答と試行要約を
+ * central から behavior "tp_param" で届いた要求を実行し、応答・試行要約・ライブフレームを
  * 左トラックパッド用 zmk,input-split(reg 1)の入力イベントとして central へ送る。
  */
 
@@ -8,7 +8,10 @@
 #include <zephyr/init.h>
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
+#include <zephyr/spinlock.h>
 
+#include <zmk/event_manager.h>
+#include <zmk/events/split_peripheral_status_changed.h>
 #include <zmk/split/peripheral.h>
 #include <zmk/split/transport/types.h>
 
@@ -50,6 +53,18 @@ static struct {
     int retries;
 } job;
 
+/* 最新のライブフレーム 1 件。上書きし、送れなければ捨てる */
+static struct {
+    bool valid;
+    uint8_t type;
+    uint16_t code;
+    uint32_t value;
+} live_slot;
+static struct k_spinlock live_lock;
+
+/* central が stream を購読している間だけ要約を転送する(SUMMARY オペコードで切り替え) */
+static bool forward_summary;
+
 K_MSGQ_DEFINE(tp_tuner_summary_msgq, sizeof(uint32_t) * IQS9151_SUMMARY_WORDS,
               TP_TUNER_QUEUE_DEPTH, 4);
 K_MSGQ_DEFINE(tp_tuner_request_msgq, sizeof(struct tp_tuner_request), TP_TUNER_QUEUE_DEPTH, 4);
@@ -58,6 +73,41 @@ static void send_work_cb(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(send_work, send_work_cb);
 
 static const struct device *const trackpad = DEVICE_DT_GET_ANY(azoteq_iqs9151);
+
+static void live_clear(void) {
+    k_spinlock_key_t key = k_spin_lock(&live_lock);
+
+    live_slot.valid = false;
+    k_spin_unlock(&live_lock, key);
+}
+
+static bool live_pending(void) {
+    k_spinlock_key_t key = k_spin_lock(&live_lock);
+    bool valid = live_slot.valid;
+
+    k_spin_unlock(&live_lock, key);
+    return valid;
+}
+
+static bool live_take(struct zmk_split_transport_peripheral_event *ev) {
+    k_spinlock_key_t key = k_spin_lock(&live_lock);
+    bool valid = live_slot.valid;
+
+    if (valid) {
+        *ev = (struct zmk_split_transport_peripheral_event){
+            .type = ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_INPUT_EVENT,
+            .data = {.input_event = {
+                         .reg = TP_TUNER_SPLIT_REG,
+                         .sync = 0,
+                         .type = live_slot.type,
+                         .code = live_slot.code,
+                         .value = (int32_t)live_slot.value,
+                     }}};
+        live_slot.valid = false;
+    }
+    k_spin_unlock(&live_lock, key);
+    return valid;
+}
 
 static int exec_request(const struct tp_tuner_request *req) {
     if (req->op < TP_TUNER_OP_BASE) {
@@ -84,8 +134,19 @@ static int exec_request(const struct tp_tuner_request *req) {
     case TP_TUNER_OP_SAVE:
         return iqs9151_settings_save(trackpad);
     case TP_TUNER_OP_SUMMARY:
-        iqs9151_dev_summary_enable(req->value != 0);
+        forward_summary = req->value != 0;
+        if (!forward_summary) {
+            k_msgq_purge(&tp_tuner_summary_msgq);
+        }
         return 0;
+    case TP_TUNER_OP_LIVE: {
+        int ret = iqs9151_dev_live_enable(req->value != 0, (uint16_t)req->value);
+
+        if (req->value == 0) {
+            live_clear();
+        }
+        return ret;
+    }
     case TP_TUNER_OP_DUMP:
     case TP_TUNER_OP_INFO:
         return 0;
@@ -98,7 +159,7 @@ static uint32_t status_word(void) {
     int64_t uptime_s = k_uptime_get() / 1000;
     uint32_t uptime_capped = (uint32_t)MIN(uptime_s, (int64_t)TP_TUNER_STATUS_UPTIME_MASK);
 
-    return TP_TUNER_STATUS_ENCODE(iqs9151_settings_loaded(), iqs9151_dev_summary_enabled(),
+    return TP_TUNER_STATUS_ENCODE(iqs9151_settings_loaded(), forward_summary,
                                   iqs9151_param_count(), uptime_capped);
 }
 
@@ -163,12 +224,23 @@ static void send_work_cb(struct k_work *work) {
         struct zmk_split_transport_peripheral_event ev;
         int ret;
 
-        if (job.kind == TP_TUNER_JOB_NONE && !start_next_job()) {
+        if (!live_pending() && job.kind == TP_TUNER_JOB_NONE && !start_next_job()) {
             return;
         }
         if (sent >= TP_TUNER_BURST_MAX) {
             (void)k_work_reschedule(&send_work, K_MSEC(TP_TUNER_PACE_MS));
             return;
+        }
+
+        /* ライブフレームは要約・応答より先に送り、送れなければ再試行せず捨てる */
+        if (live_take(&ev)) {
+            ret = zmk_split_peripheral_report_event(&ev);
+            if (ret == 0) {
+                sent++;
+            } else {
+                LOG_DBG("live frame dropped (%d)", ret);
+            }
+            continue;
         }
 
         build_event(&ev);
@@ -217,7 +289,7 @@ static void summary_cb(const struct iqs9151_attempt_summary *summary, void *user
     uint32_t words[IQS9151_SUMMARY_WORDS];
 
     ARG_UNUSED(user_data);
-    if (!iqs9151_dev_summary_enabled()) {
+    if (!forward_summary) {
         return;
     }
     iqs9151_summary_pack(summary, words);
@@ -228,8 +300,54 @@ static void summary_cb(const struct iqs9151_attempt_summary *summary, void *user
     (void)k_work_schedule(&send_work, K_NO_WAIT);
 }
 
+static void frame_cb(const struct iqs9151_frame_info *finfo, void *user_data) {
+    struct tp_tuner_live_frame frame = {
+        .fingers = finfo->fingers,
+        .hold = finfo->hold,
+        .mode2f = finfo->mode2f,
+        .f1x = finfo->f1x,
+        .f1y = finfo->f1y,
+        .f2x = finfo->f2x,
+        .f2y = finfo->f2y,
+    };
+    uint8_t type;
+    uint16_t code;
+    uint32_t value;
+    k_spinlock_key_t key;
+
+    ARG_UNUSED(user_data);
+    tp_tuner_live_pack(&frame, &type, &code, &value);
+
+    key = k_spin_lock(&live_lock);
+    live_slot.type = type;
+    live_slot.code = code;
+    live_slot.value = value;
+    live_slot.valid = true;
+    k_spin_unlock(&live_lock, key);
+
+    (void)k_work_schedule(&send_work, K_NO_WAIT);
+}
+
+/* central との接続が切れたらライブと要約転送を止める(再購読時に central が on を送り直す) */
+static int peripheral_status_listener(const zmk_event_t *eh) {
+    const struct zmk_split_peripheral_status_changed *ev =
+        as_zmk_split_peripheral_status_changed(eh);
+
+    if (ev != NULL && !ev->connected) {
+        (void)iqs9151_dev_live_enable(false, 0);
+        live_clear();
+        forward_summary = false;
+        k_msgq_purge(&tp_tuner_summary_msgq);
+    }
+    return ZMK_EV_EVENT_BUBBLE;
+}
+
+ZMK_LISTENER(tp_tuner_peripheral, peripheral_status_listener);
+ZMK_SUBSCRIPTION(tp_tuner_peripheral, zmk_split_peripheral_status_changed);
+
 static int tp_tuner_peripheral_init(void) {
     iqs9151_dev_set_summary_callback(summary_cb, NULL);
+    iqs9151_dev_set_frame_callback(frame_cb, NULL);
     return 0;
 }
 
