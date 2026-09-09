@@ -1,19 +1,23 @@
 /*
  * tp-tuner の左右間プロトコル定義。
  * central → peripheral は behavior "tp_param" の param1(index / オペコード)と param2(値)、
- * peripheral → central は zmk,input-split(reg 2)の入力イベント(type / code / value / sync)。
+ * peripheral → central は左トラックパッド用の zmk,input-split(reg 1)に相乗りした入力イベント。
+ * 専用の特性を増やすと ZMK v0.3.0 の central が購読に失敗する(探索が応答内の属性順に依存する)ため、
+ * 既存チャネルをベンダ範囲の type(0xF0〜)で共用し、sync は常に 0 にして
+ * central のリスナーがマウスレポートを送らないようにする。
  */
 
 #pragma once
 
 #include <stdint.h>
 
-#define TP_TUNER_SPLIT_REG 2
+#define TP_TUNER_SPLIT_REG 1
 
-#define TP_TUNER_EV_SUMMARY 1
-#define TP_TUNER_EV_PARAM 2
-#define TP_TUNER_EV_ACK 3
-#define TP_TUNER_EV_STATUS 4
+#define TP_TUNER_EV_FIRST 0xF0
+#define TP_TUNER_EV_SUMMARY 0xF0
+#define TP_TUNER_EV_PARAM 0xF1
+#define TP_TUNER_EV_ACK 0xF2
+#define TP_TUNER_EV_STATUS 0xF3
 
 #define TP_TUNER_OP_BASE 0x8000
 #define TP_TUNER_OP_RESET 0x8000

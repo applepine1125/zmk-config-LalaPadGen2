@@ -45,11 +45,11 @@ tp-tuner を「キーボードが BT でつながっているときに開けば�
 
 #### 左手への転送
 - central → peripheral: behavior `tp_param`(compatible `lalapad,behavior-tp-param`、`#binding-cells = <2>`、devicetree ノード名 `tp_param`)を `zmk_split_central_invoke_behavior(0, &binding, event, true)` で左手に送る。`param1` が 0x8000 未満ならパラメータ index(値は `param2` を int32 として解釈)、0x8000 以上はオペコード: `0x8000 reset`、`0x8001 reati`、`0x8002 save`、`0x8003 summary on|off`(`param2` 0/1)、`0x8004 dump`(全パラメータと状態を返す)、`0x8005 info`(状態のみ)。behavior は peripheral では要求をキューに積んで work を起こすだけ(BT RX スレッドを塞がない)。central で呼ばれても何もしない
-- peripheral → central: `zmk_split_peripheral_report_event` の入力イベントを `reg = 2` で送る。`zmk,input-split` ノード `tp_tuner_split_L@2`(`reg = <2>`、`zmk,input-listener` は付けない)は左右とも okay にする。ZMK v0.3.0 の peripheral 側 split サービスは okay なノードにしか GATT characteristic を作らず、disabled のままだと reg 2 の送信が `-ENODEV` になるため。左手側の `device` には何も報告しない空デバイス `tp_tuner_src_L`(compatible `lalapad,tp-tuner-source`)を与える。central 側は `INPUT_CALLBACK_DEFINE` で自前のハンドラに渡す。イベント種別は `type` で区別する:
-  - `1 SUMMARY`: `code` = 語 index 0..9、`value` = 語。最後の語で `sync = 1`
-  - `2 PARAM`: `code` = パラメータ index、`value` = 現在値(dump のとき index 順に全件)
-  - `3 ACK`: `code` = 要求した `param1`、`value` = 実行結果(errno、0 で成功)
-  - `4 STATUS`: `value` = `saved(bit0) | summary_on(bit1) | count<<8 | min(uptime_s,65535)<<16`。dump/info の最後に送り `sync = 1`
+- peripheral → central: `zmk_split_peripheral_report_event` の入力イベントを、左トラックパッド用の既存 `zmk,input-split` チャネル `trackpad_split_L@1`(`reg = 1`)に相乗りさせて送る。専用の特性を増やさないのは、ZMK v0.3.0 の central の GATT 探索が 1 応答内の属性順に依存していて、入力特性を 2 本にすると 2 本目を購読できない(実機で `-ENOTCONN` を確認)ため。イベントの `type` はベンダ範囲 `0xF0` 以降を使い、`sync` は常に 0 にする(central の `zmk,input-listener` は未知の type を無視し、入力プロセッサはすべて type で弾く。`sync` を立てないので空のマウスレポートも出ない)。central 側は同じデバイスに `INPUT_CALLBACK_DEFINE` した自前のハンドラで `type < 0xF0` を捨てて受ける:
+  - `0xF0 SUMMARY`: `code` = 語 index 0..9、`value` = 語。語 9 で 1 件完成
+  - `0xF1 PARAM`: `code` = パラメータ index、`value` = 現在値(dump のとき index 順に全件)
+  - `0xF2 ACK`: `code` = 要求した `param1`、`value` = 実行結果(errno、0 で成功)
+  - `0xF3 STATUS`: `value` = `saved(bit0) | summary_on(bit1) | count<<8 | min(uptime_s,65535)<<16`。dump/info の最後に送る
 - peripheral 側の送信は work で行い、1 回の work で最大 2 イベントを送って 10ms 後に再スケジュールする(central の ZMK 受信キューを溢れさせないためのペーシング。要約 10 通知で約 50ms、dump 55 通知で約 280ms)。`-ENOMEM`/`-EAGAIN`/`-ENOBUFS` なら 10ms 後に同じ index から再試行する(最大 50 回)。要約はキュー(深さ 4)に積む。central 側は `CONFIG_ZMK_SPLIT_BLE_CENTRAL_POSITION_QUEUE_SIZE=32` で受信キューを広げる。要約と応答の送信は `summary on|off` の状態でゲートする(BT 経由の `summary off` を効かせる)
 - central 側は左手向けコマンドを 1 つずつ処理する(処理中は次を待たせる)。`L set <name> <value>` は名前を index に解決し範囲を central でも検証してから送り、ACK を `L OK <name>=<value>` / `L ERR out of range <min>..<max>` に整形する。`L list` は dump を送り、PARAM を `L <name> <value> <min> <max> <kind> <default>`(名前・範囲・既定値は central 側の同じテーブルから)に整形し、STATUS で終端する。`L info` は STATUS を `L side=peripheral uptime_ms=<n> params=<n> saved=<yes|no>` に整形する。`L reset`/`reati`/`save`/`summary on|off` は ACK を `L OK …`/`L ERR <errno>` にする。`L get`/`L trace` は `L ERR unsupported`。1000ms 応答がなければ `L ERR timeout`(`list` は PARAM を受け取るたびに延長し、index の欠落があれば STATUS 到達時に `L ERR param missing` を出す)。タイムアウト後 200ms は次の `L` コマンドを待たせ、遅れて届いた応答を次のコマンドに誤って帰属させない。いずれも最後に `L .`
 - 左手の要約(SUMMARY 10 語)は `iqs9151_summary_unpack` → `iqs9151_summary_format` で `L T S …` の行にしてストリームに流す

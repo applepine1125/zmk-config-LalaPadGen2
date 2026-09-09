@@ -22,7 +22,3 @@
 &trackpad_listener_L {
     status = "okay";
 };
-
-&tp_tuner_split_L {
-    status = "okay";
-};

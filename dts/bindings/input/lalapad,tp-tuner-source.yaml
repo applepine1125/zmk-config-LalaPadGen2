@@ -1,8 +1,0 @@
-description: |
-  左手の tp_tuner_split_L(zmk,input-split)が要求する入力デバイス。
-  tp-tuner のイベントは tp_tuner_peripheral.c が split 転送 API に直接渡すため、
-  このデバイス自体は input_report を行わない。
-
-compatible: "lalapad,tp-tuner-source"
-
-include: base.yaml

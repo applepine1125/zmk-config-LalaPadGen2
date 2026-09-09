@@ -2,7 +2,8 @@
  * tp-tuner 右手(central)側。
  * ボンド済みホスト向けの GATT サービス(command 書き込み / stream 通知)を提供し、
  * "R ..." はローカルの iqs9151_cmd_exec、"L ..." は behavior "tp_param" で左手へ転送する。
- * 左手からの応答・要約は zmk,input-split(reg 2)の入力イベントで受ける。
+ * 左手からの応答・要約は左トラックパッド用 zmk,input-split(reg 1)に相乗りした
+ * ベンダ type の入力イベントで受ける(トラックパッド本来のイベントは無視する)。
  */
 
 #include <zephyr/bluetooth/bluetooth.h>
@@ -541,7 +542,7 @@ static void cmd_work_cb(struct k_work *work) {
 static uint32_t summary_words[IQS9151_SUMMARY_WORDS];
 static size_t summary_next;
 
-static void handle_summary(uint16_t code, uint32_t value, bool sync) {
+static void handle_summary(uint16_t code, uint32_t value) {
     if (code >= IQS9151_SUMMARY_WORDS) {
         return;
     }
@@ -554,9 +555,6 @@ static void handle_summary(uint16_t code, uint32_t value, bool sync) {
     }
     summary_words[code] = value;
     summary_next = code + 1;
-    if (!sync) {
-        return;
-    }
     if (summary_next == IQS9151_SUMMARY_WORDS) {
         struct iqs9151_attempt_summary summary;
         char buf[TP_TUNER_LINE_MAX];
@@ -564,10 +562,8 @@ static void handle_summary(uint16_t code, uint32_t value, bool sync) {
         iqs9151_summary_unpack(summary_words, &summary);
         (void)iqs9151_summary_format(&summary, buf, sizeof(buf));
         stream_put_line('L', buf);
-    } else {
-        LOG_WRN("summary ended early at word %u", (unsigned)summary_next);
+        summary_next = 0;
     }
-    summary_next = 0;
 }
 
 static void handle_param(uint16_t code, int32_t value) {
@@ -675,9 +671,12 @@ static void handle_ack(uint16_t code, int32_t ret) {
 }
 
 static void left_event_handler(struct input_event *evt) {
+    if (evt->type < TP_TUNER_EV_FIRST) {
+        return;
+    }
     switch (evt->type) {
     case TP_TUNER_EV_SUMMARY:
-        handle_summary(evt->code, (uint32_t)evt->value, evt->sync);
+        handle_summary(evt->code, (uint32_t)evt->value);
         break;
     case TP_TUNER_EV_PARAM:
         handle_param(evt->code, evt->value);
@@ -694,7 +693,7 @@ static void left_event_handler(struct input_event *evt) {
     }
 }
 
-INPUT_CALLBACK_DEFINE(DEVICE_DT_GET(DT_NODELABEL(tp_tuner_split_l)), left_event_handler);
+INPUT_CALLBACK_DEFINE(DEVICE_DT_GET(DT_NODELABEL(trackpad_split_l)), left_event_handler);
 
 /* ---- 右手自身の要約 ---- */
 

@@ -1,10 +1,8 @@
 /*
  * tp-tuner 左手(peripheral)側。
  * central から behavior "tp_param" で届いた要求を実行し、応答と試行要約を
- * zmk,input-split(reg 2)の入力イベントとして central へ送る。
+ * 左トラックパッド用 zmk,input-split(reg 1)の入力イベントとして central へ送る。
  */
-
-#define DT_DRV_COMPAT lalapad_tp_tuner_source
 
 #include <zephyr/device.h>
 #include <zephyr/init.h>
@@ -124,13 +122,11 @@ static void build_event(struct zmk_split_transport_peripheral_event *ev) {
     uint8_t type;
     uint16_t code = 0;
     uint32_t value;
-    bool sync = true;
 
     if (job.kind == TP_TUNER_JOB_SUMMARY) {
         type = TP_TUNER_EV_SUMMARY;
         code = job.pos;
         value = job.words[job.pos];
-        sync = job.pos + 1 == job.total;
     } else if (job.req.op == TP_TUNER_OP_DUMP && job.pos + 1 < job.total) {
         int32_t current = 0;
 
@@ -138,7 +134,6 @@ static void build_event(struct zmk_split_transport_peripheral_event *ev) {
         type = TP_TUNER_EV_PARAM;
         code = job.pos;
         value = (uint32_t)current;
-        sync = false;
     } else if (job.req.op == TP_TUNER_OP_DUMP || job.req.op == TP_TUNER_OP_INFO) {
         type = TP_TUNER_EV_STATUS;
         value = status_word();
@@ -152,7 +147,7 @@ static void build_event(struct zmk_split_transport_peripheral_event *ev) {
         .type = ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_INPUT_EVENT,
         .data = {.input_event = {
                      .reg = TP_TUNER_SPLIT_REG,
-                     .sync = sync ? 1 : 0,
+                     .sync = 0,
                      .type = type,
                      .code = code,
                      .value = (int32_t)value,
@@ -239,9 +234,3 @@ static int tp_tuner_peripheral_init(void) {
 }
 
 SYS_INIT(tp_tuner_peripheral_init, APPLICATION, CONFIG_APPLICATION_INIT_PRIORITY);
-
-/* tp_tuner_split_L の device に指す空デバイス。input_report はしない */
-#if DT_HAS_COMPAT_STATUS_OKAY(DT_DRV_COMPAT)
-DEVICE_DT_INST_DEFINE(0, NULL, NULL, NULL, NULL, POST_KERNEL, CONFIG_KERNEL_INIT_PRIORITY_DEFAULT,
-                      NULL);
-#endif

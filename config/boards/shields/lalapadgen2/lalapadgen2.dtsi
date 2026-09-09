@@ -75,15 +75,10 @@
         #address-cells = <1>;
         #size-cells = <0>;
 
+        // tp-tuner の左手からの応答・試行要約もこのチャネルに相乗りする(src/tp_tuner_proto.h)
         trackpad_split_L: trackpad_split_L@1 {
             compatible = "zmk,input-split";
             reg = <1>;
-        };
-        // tp-tuner: 左手からの応答・試行要約(左右のオーバーレイで okay にする)
-        tp_tuner_split_L: tp_tuner_split_L@2 {
-            compatible = "zmk,input-split";
-            reg = <2>;
-            status = "disabled";
         };
     };
 
