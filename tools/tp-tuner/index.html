@@ -376,6 +376,7 @@
   let side = 'R';
   let awaitingDevicePick = false;
   let lastDevices = [];
+  let lastFailedDeviceSetKey = null;
   const clock = { offset: { R: 0, L: 0 } };
   const view = { ms: 5000, frozenNow: null };
   const rec = { frames: [], fw: [], hostBtn: [], hostWheel: [], hostMove: [], paused: false };
@@ -657,6 +658,7 @@
       $('btnTrace').textContent = 'trace OFF';
       $('btnTrace').classList.remove('active');
       hideDevicePanel();
+      lastFailedDeviceSetKey = null;
     }
     updateModeUi();
     renderAllCards();
@@ -726,6 +728,7 @@
 
   function connectNative() {
     awaitingDevicePick = true;
+    lastFailedDeviceSetKey = null;
     setStatus('機器を検索しています...');
     renderDevicePanel([]);
     transport.listDevices();
@@ -770,6 +773,36 @@
     $('devicePanel').hidden = true;
   }
 
+  function deviceSetKey(devices) {
+    return devices.map((d) => d.id).sort().join(',');
+  }
+
+  async function tryAutoConnectNative(devices, key) {
+    busyConnecting = true;
+    try {
+      const ordered = T.orderDevices(devices);
+      for (const device of ordered) {
+        if (isConnected()) return;
+        try {
+          setStatus(`自動接続を試しています... (${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
+          const info = await establishConnection(device.id);
+          finalizeConnected(device.id, info);
+          setStatus(`自動接続しました(${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
+          await loadParams();
+          setStatus(`パラメータ ${params.length} 件を読み込みました`);
+          return;
+        } catch (e) {
+          log('自動接続の候補が応答しませんでした: ' + errText(e));
+          await disconnect(null, true);
+        }
+      }
+      lastFailedDeviceSetKey = key;
+      setStatus('自動接続できませんでした。「接続」で機器を選んでください', true);
+    } finally {
+      busyConnecting = false;
+    }
+  }
+
   function handleNativeDevices(devices) {
     lastDevices = devices;
     if (awaitingDevicePick) {
@@ -781,8 +814,8 @@
         renderDevicePanel(devices);
       }
     } else if (autoConnectEnabled && !isConnected() && !busyConnecting) {
-      const pick = T.pickDevice(devices);
-      if (pick) connectToDevice(pick);
+      const key = deviceSetKey(devices);
+      if (devices.length && key !== lastFailedDeviceSetKey) tryAutoConnectNative(devices, key);
     }
   }
 
@@ -1671,7 +1704,10 @@
   function renderPadState() {
     const last = rec.frames[rec.frames.length - 1];
     let text;
-    if (!last || nowMs() - last.t > STATE_STALE_MS) text = isConnected() && !traceOn ? '待機(trace OFF)' : '待機';
+    if (!last || nowMs() - last.t > STATE_STALE_MS) {
+      const ble = isConnected() && transport && transport.kind === 'ble';
+      text = ble ? '待機(要約で判定)' : isConnected() && !traceOn ? '待機(trace OFF)' : '待機';
+    }
     else text = T.describeState(last);
     if (text === padStateText) return;
     padStateText = text;

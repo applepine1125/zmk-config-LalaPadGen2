@@ -123,6 +123,18 @@ test('isEndMarker はピリオド1文字だけを終端行と判定する', () =
   assert.equal(T.isEndMarker(''), false);
 });
 
+test('orderDevices は BLE を先頭に USB を列挙順のまま後ろへ並べる', () => {
+  const usb1 = { id: 'u1', kind: 'usb', name: 'usbmodem1' };
+  const usb2 = { id: 'u2', kind: 'usb', name: 'usbmodem2' };
+  const ble = { id: 'b1', kind: 'ble', name: 'LalapadGen2' };
+  assert.deepEqual(T.orderDevices([usb1, ble, usb2]), [ble, usb1, usb2]);
+});
+
+test('orderDevices は候補が空なら空配列を返す', () => {
+  assert.deepEqual(T.orderDevices([]), []);
+  assert.deepEqual(T.orderDevices(undefined), []);
+});
+
 test('pickDevice は BLE を USB より優先して選ぶ', () => {
   const usb = { id: 'u1', kind: 'usb', name: 'usbmodem1' };
   const ble = { id: 'b1', kind: 'ble', name: 'LalapadGen2' };

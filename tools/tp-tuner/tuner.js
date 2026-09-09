@@ -97,12 +97,16 @@
     return rest === '.';
   }
 
+  function orderDevices(devices) {
+    if (!devices || !devices.length) return [];
+    const ble = devices.filter((d) => d.kind === 'ble');
+    const usb = devices.filter((d) => d.kind === 'usb');
+    return ble.concat(usb);
+  }
+
   function pickDevice(devices) {
-    if (!devices || !devices.length) return null;
-    const ble = devices.find((d) => d.kind === 'ble');
-    if (ble) return ble;
-    const usb = devices.find((d) => d.kind === 'usb');
-    return usb || null;
+    const ordered = orderDevices(devices);
+    return ordered.length ? ordered[0] : null;
   }
 
   function pickPortOrder(ports, lastInfo) {
@@ -1095,7 +1099,7 @@
   const api = {
     BTN, REL, BTN_NAMES, GESTURES, DEFAULT_PARAMS,
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
-    splitSidePrefix, bleCommand, isEndMarker, pickDevice,
+    splitSidePrefix, bleCommand, isEndMarker, orderDevices, pickDevice,
     clockOffset, pickPortOrder, toConfName, exportConf, detectDrops, detectStuckButton,
     detectMissingWheel, detectTwoFingerNoScroll,
     paramValue, stepParam, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, judgeAttempt, whyNot, describeState,
