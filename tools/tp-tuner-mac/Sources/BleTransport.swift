@@ -115,6 +115,12 @@ final class BleTransport: NSObject {
 extension BleTransport: CBCentralManagerDelegate {
   func centralManagerDidUpdateState(_ central: CBCentralManager) {
     FileHandle.standardError.write("[ble] state=\(central.state.rawValue)\n".data(using: .utf8)!)
+    if central.state != .poweredOn, connectedPeripheral != nil || connectingPeripheral != nil {
+      connectingPeripheral = nil
+      switchTargetId = nil
+      teardownConnection()
+      delegate?.bleTransportDidDisconnect(reason: "Bluetooth が停止したため切断されました")
+    }
     if central.state != lastReportedState {
       lastReportedState = central.state
       if central.state == .poweredOff || central.state == .unauthorized {
