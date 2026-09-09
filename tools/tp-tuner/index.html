@@ -38,6 +38,10 @@
   }
   #topbar .sep { width: 1px; height: 20px; background: var(--border); }
   #info { color: var(--muted); }
+  #devicePanel:not([hidden]) {
+    display: flex; align-items: center; gap: 8px; margin-top: 8px; padding: 6px 10px;
+    background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+  }
   #autoConnectLabel { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); cursor: pointer; white-space: nowrap; }
   #dirtyIndicator { color: #92400e; font-weight: 600; white-space: nowrap; }
   #status { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -162,12 +166,20 @@
   <button id="btnDisconnect" disabled>切断</button>
   <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
   <span id="info">未接続</span>
+  <select id="selSide" hidden>
+    <option value="R">右手 (R)</option>
+    <option value="L">左手 (L)</option>
+  </select>
   <span class="sep"></span>
   <button id="btnSave" disabled>ファームに保存</button>
   <span id="dirtyIndicator" hidden>未保存の変更あり</span>
   <span class="sep"></span>
   <button id="btnTrace" disabled>trace OFF</button>
   <span id="status"></span>
+</div>
+<div id="devicePanel" hidden>
+  <select id="selDevice"></select>
+  <button id="btnConnectDevice">この機器に接続</button>
 </div>
 <div id="notice" hidden></div>
 <details id="logbox">
@@ -248,6 +260,11 @@
 
 <script src="tuner.js"></script>
 <script>
+  if (/(?:^|[?&])fakeNative=1(?:&|$)/.test(location.search)) {
+    document.write('<script src="dev/fake-native.js"><\/script>');
+  }
+</script>
+<script>
 (function () {
   'use strict';
   const T = globalThis.TpTuner;
@@ -258,6 +275,7 @@
     return;
   }
   const CMD_TIMEOUT_MS = 5000;
+  const BLE_LIST_TIMEOUT_MS = 8000;
   const PROBE_TIMEOUT_MS = 1500;
   const SETTLE_MS = 200;
   const KEEP_MS = 60000;
@@ -350,11 +368,15 @@
     return `${h.what}。上げると${h.up}。下げると${h.down}`;
   }
 
-  const serial = {
-    port: null, reader: null, writer: null, loopDone: null, buffer: '', pending: null, lines: [], queue: [],
-    onTrace: null, onLog: null,
-  };
-  const clock = { offset: 0 };
+  const hasNativeBridge = !!(window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.tpTuner);
+  const link = { pending: null, lines: [], queue: [], onTrace: null, onLog: null };
+  let transport = null;
+  let connected = false;
+  let buffer = '';
+  let side = 'R';
+  let awaitingDevicePick = false;
+  let lastDevices = [];
+  const clock = { offset: { R: 0, L: 0 } };
   const view = { ms: 5000, frozenNow: null };
   const rec = { frames: [], fw: [], hostBtn: [], hostWheel: [], hostMove: [], paused: false };
   let params = [];
@@ -409,96 +431,218 @@
   }
 
   function isConnected() {
-    return !!(serial.port && serial.writer);
+    return !!(transport && connected);
   }
 
   function nowMs() {
     return rec.paused && view.frozenNow !== null ? view.frozenNow : performance.now();
   }
 
-  function handleLine(raw) {
+  function handleUsbLine(raw) {
     const line = T.stripPromptPrefix(raw);
     const trace = T.parseTraceLine(line);
     if (trace) {
-      if (serial.onTrace) serial.onTrace(trace);
+      if (link.onTrace) link.onTrace(trace);
       return;
     }
-    const p = serial.pending;
+    const p = link.pending;
     if (p) {
       if (!p.seen) {
         if (T.isEcho(line, p.cmd)) p.seen = true;
       } else if (line.trim() !== '') {
-        serial.lines.push(line);
+        link.lines.push(line);
       }
     }
-    if (serial.onLog) serial.onLog(line);
+    if (link.onLog) link.onLog(line);
+  }
+
+  function handleBleLine(line) {
+    const parsed = T.splitSidePrefix(line);
+    if (parsed && parsed.side === side) {
+      if (T.isEndMarker(parsed.rest)) {
+        finishPending(null, link.lines);
+      } else {
+        const trace = T.parseTraceLine(parsed.rest);
+        if (trace) {
+          if (link.onTrace) link.onTrace(trace);
+        } else if (link.pending && parsed.rest.trim() !== '') {
+          link.lines.push(parsed.rest);
+        }
+      }
+    }
+    if (link.onLog) link.onLog(line);
+  }
+
+  function onRawData(text) {
+    if (!transport) return;
+    buffer += text;
+    if (transport.kind === 'ble') {
+      let nl;
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        handleBleLine(buffer.slice(0, nl).replace(/\r$/, ''));
+        buffer = buffer.slice(nl + 1);
+      }
+    } else {
+      let nl;
+      while ((nl = buffer.indexOf('\n')) >= 0) {
+        handleUsbLine(T.stripAnsi(buffer.slice(0, nl)).replace(/\r/g, ''));
+        buffer = buffer.slice(nl + 1);
+      }
+      const tail = T.stripAnsi(buffer).replace(/\r/g, '');
+      if (T.isPrompt(tail)) {
+        buffer = '';
+        if (link.pending && link.pending.seen) finishPending(null, link.lines);
+      }
+    }
   }
 
   function finishPending(err, lines) {
-    const p = serial.pending;
+    const p = link.pending;
     if (!p) return;
-    serial.pending = null;
+    link.pending = null;
     clearTimeout(p.timer);
-    serial.lines = [];
+    link.lines = [];
     if (err) p.reject(err); else p.resolve(lines);
     pump();
   }
 
-  async function readLoop(port) {
-    const decoder = new TextDecoderStream();
-    const closed = port.readable.pipeTo(decoder.writable).catch(() => {});
-    serial.reader = decoder.readable.getReader();
-    try {
-      for (;;) {
-        const { value, done } = await serial.reader.read();
-        if (done) break;
-        serial.buffer += value;
-        let nl;
-        while ((nl = serial.buffer.indexOf('\n')) >= 0) {
-          handleLine(T.stripAnsi(serial.buffer.slice(0, nl)).replace(/\r/g, ''));
-          serial.buffer = serial.buffer.slice(nl + 1);
+  function createWebSerialTransport() {
+    let port = null, reader = null, writer = null, loopDone = null;
+    const t = { kind: 'usb', onData: null, onClose: null };
+    async function readLoop(p) {
+      const decoder = new TextDecoderStream();
+      const closed = p.readable.pipeTo(decoder.writable).catch(() => {});
+      reader = decoder.readable.getReader();
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (t.onData) t.onData(value);
         }
-        const tail = T.stripAnsi(serial.buffer).replace(/\r/g, '');
-        if (T.isPrompt(tail)) {
-          serial.buffer = '';
-          if (serial.pending && serial.pending.seen) finishPending(null, serial.lines);
-        }
+      } catch (e) {
+        if (port === p) log('読み取りエラー: ' + errText(e));
+      } finally {
+        try { reader.releaseLock(); } catch (e) { /* already released */ }
+        await closed;
       }
-    } catch (e) {
-      if (serial.port === port) log('読み取りエラー: ' + errText(e));
-    } finally {
-      try { serial.reader.releaseLock(); } catch (e) { /* already released */ }
-      await closed;
     }
+    t.connect = async (target) => {
+      await target.open({ baudRate: 115200 });
+      port = target;
+      writer = port.writable.getWriter();
+      port.addEventListener('disconnect', () => { if (port === target) { port = null; if (t.onClose) t.onClose(DISCONNECTED_MSG); } });
+      loopDone = readLoop(target);
+      loopDone.then(() => { if (port === target) { port = null; if (t.onClose) t.onClose(DISCONNECTED_MSG); } });
+    };
+    t.disconnect = async () => {
+      const p = port;
+      if (!p) return;
+      port = null;
+      try { if (writer) writer.releaseLock(); } catch (e) { /* ignore */ }
+      writer = null;
+      try { if (reader) await reader.cancel(); } catch (e) { /* ignore */ }
+      try { await loopDone; } catch (e) { /* ignore */ }
+      reader = null;
+      loopDone = null;
+      try { await p.close(); } catch (e) { log('ポートを閉じられません: ' + errText(e)); }
+    };
+    t.write = (text) => {
+      if (!writer) return Promise.reject(new Error('未接続です'));
+      return writer.write(new TextEncoder().encode(text + '\r\n'));
+    };
+    t.getPort = () => port;
+    return t;
+  }
+
+  function createNativeTransport() {
+    const bridge = window.webkit.messageHandlers.tpTuner;
+    const t = {
+      kind: 'usb', isNative: true, onData: null, onClose: null, onDevices: null, onConnected: null, onStatus: null,
+    };
+    t.listDevices = () => { bridge.postMessage({ type: 'listDevices' }); };
+    t.connect = (id) => new Promise((resolve, reject) => {
+      const savedOnConnected = t.onConnected;
+      const savedOnClose = t.onClose;
+      let settled = false;
+      const finish = (fn, arg) => {
+        if (settled) return;
+        settled = true;
+        t.onConnected = savedOnConnected;
+        t.onClose = savedOnClose;
+        fn(arg);
+      };
+      t.onConnected = (evt) => { t.kind = evt.kind; finish(resolve, evt); };
+      t.onClose = (reason) => finish(reject, new Error(reason || '接続に失敗しました'));
+      bridge.postMessage({ type: 'connect', id });
+    });
+    t.disconnect = () => {
+      bridge.postMessage({ type: 'disconnect' });
+      return Promise.resolve();
+    };
+    t.write = (text) => {
+      bridge.postMessage({ type: 'write', text: t.kind === 'usb' ? text + '\r\n' : text });
+      return Promise.resolve();
+    };
+    window.tpTunerNative = {
+      onEvent(evt) {
+        if (!evt || typeof evt !== 'object') return;
+        if (evt.type === 'devices') { if (t.onDevices) t.onDevices(evt.devices || []); }
+        else if (evt.type === 'connected') { t.kind = evt.kind; if (t.onConnected) t.onConnected(evt); }
+        else if (evt.type === 'data') { if (t.onData) t.onData(evt.text); }
+        else if (evt.type === 'disconnected') { if (t.onClose) t.onClose(evt.reason); }
+        else if (evt.type === 'status') { if (t.onStatus) t.onStatus(evt.text); }
+      },
+    };
+    return t;
+  }
+
+  function attachTransportHandlers(t) {
+    t.onData = onRawData;
+    t.onClose = (reason) => { if (transport === t) disconnect(reason || DISCONNECTED_MSG, true); };
+    if ('onDevices' in t) t.onDevices = handleNativeDevices;
+    if ('onStatus' in t) t.onStatus = (text) => setStatus(text);
   }
 
   function pump() {
-    if (serial.pending || serial.queue.length === 0) return;
+    if (link.pending || link.queue.length === 0) return;
     if (!isConnected()) {
-      for (const q of serial.queue.splice(0)) q.reject(new Error('未接続です'));
+      for (const q of link.queue.splice(0)) q.reject(new Error('未接続です'));
       return;
     }
-    const p = serial.queue.shift();
-    serial.pending = p;
-    serial.lines = [];
+    const p = link.queue.shift();
+    link.pending = p;
+    link.lines = [];
     p.timer = setTimeout(() => {
-      if (serial.pending === p) finishPending(new Error('タイムアウト: ' + p.cmd));
+      if (link.pending === p) finishPending(new Error('タイムアウト: ' + p.cmd));
     }, p.timeoutMs);
-    serial.writer.write(new TextEncoder().encode(p.cmd + '\r\n')).catch((e) => {
-      if (serial.pending === p) finishPending(new Error('送信失敗: ' + errText(e)));
+    const wireText = transport.kind === 'ble' ? T.bleCommand(side, p.cmd) : p.cmd;
+    transport.write(wireText).catch((e) => {
+      if (link.pending === p) finishPending(new Error('送信失敗: ' + errText(e)));
     });
+  }
+
+  function defaultTimeoutFor(cmd) {
+    if (transport && transport.kind === 'ble' && cmd === 'tp list') return BLE_LIST_TIMEOUT_MS;
+    return CMD_TIMEOUT_MS;
   }
 
   function send(cmd, timeoutMs) {
     return new Promise((resolve, reject) => {
       if (!isConnected()) return reject(new Error('未接続です: ' + cmd));
-      serial.queue.push({ cmd, resolve, reject, timer: null, seen: false, timeoutMs: timeoutMs || CMD_TIMEOUT_MS });
+      link.queue.push({ cmd, resolve, reject, timer: null, seen: false, timeoutMs: timeoutMs || defaultTimeoutFor(cmd) });
       pump();
     });
   }
 
+  function updateModeUi() {
+    const ble = isConnected() && transport && transport.kind === 'ble';
+    $('selSide').hidden = !ble;
+    if (ble) $('selSide').value = side;
+    $('btnTrace').hidden = ble;
+  }
+
   function setConnectedUi(connected) {
-    $('btnConnect').disabled = connected || !navigator.serial;
+    $('btnConnect').disabled = connected || (!navigator.serial && !hasNativeBridge);
     $('btnDisconnect').disabled = !connected;
     $('btnSave').disabled = !connected;
     $('btnTrace').disabled = !connected;
@@ -509,31 +653,30 @@
       renderConnInfo();
       setDirty(false);
       traceOn = false;
+      side = 'R';
       $('btnTrace').textContent = 'trace OFF';
       $('btnTrace').classList.remove('active');
+      hideDevicePanel();
     }
+    updateModeUi();
     renderAllCards();
   }
 
-  async function establishConnection(port) {
-    await port.open({ baudRate: 115200 });
-    serial.port = port;
-    serial.buffer = '';
-    serial.writer = port.writable.getWriter();
-    port.addEventListener('disconnect', () => { if (serial.port === port) disconnect(DISCONNECTED_MSG, true); });
-    serial.loopDone = readLoop(port);
-    serial.loopDone.then(() => { if (serial.port === port) disconnect(DISCONNECTED_MSG, true); });
+  async function establishConnection(target) {
+    buffer = '';
+    await transport.connect(target);
+    connected = true;
     await new Promise((r) => setTimeout(r, SETTLE_MS));
-    serial.buffer = '';
+    buffer = '';
     let info = null;
     try {
-      await send('tp trace off', PROBE_TIMEOUT_MS);
+      if (transport.kind !== 'ble') await send('tp trace off', PROBE_TIMEOUT_MS);
       for (let attempt = 0; attempt < 2 && !info; attempt++) {
         const before = performance.now();
         const infoLines = await send('tp info', PROBE_TIMEOUT_MS);
         const after = performance.now();
         info = infoLines.map(T.parseInfoLine).find(Boolean);
-        if (info) clock.offset = T.clockOffset(before, after, info.uptimeMs);
+        if (info) clock.offset[side] = T.clockOffset(before, after, info.uptimeMs);
       }
     } catch (e) {
       log('接続確認に失敗: ' + errText(e));
@@ -542,20 +685,19 @@
     return info;
   }
 
-  function finalizeConnected(port, info) {
-    rememberPort(port, info);
+  function finalizeConnected(target, info) {
+    if (!transport.isNative) rememberPort(target, info);
     lastConnInfo = info;
     renderConnInfo();
     setDirty(false);
     setConnectedUi(true);
   }
 
-  async function connect() {
+  async function connectWebSerial() {
     if (!navigator.serial) {
       setStatus('このブラウザは Web Serial に対応していません。Chrome / Edge で開いてください', true);
       return;
     }
-    if (isConnected() || busyConnecting) return;
     let port;
     try {
       port = await navigator.serial.requestPort();
@@ -565,6 +707,8 @@
     }
     busyConnecting = true;
     try {
+      transport = createWebSerialTransport();
+      attachTransportHandlers(transport);
       setStatus('接続中...');
       const info = await establishConnection(port);
       finalizeConnected(port, info);
@@ -578,6 +722,74 @@
     } finally {
       busyConnecting = false;
     }
+  }
+
+  function connectNative() {
+    awaitingDevicePick = true;
+    setStatus('機器を検索しています...');
+    renderDevicePanel([]);
+    transport.listDevices();
+  }
+
+  async function connectToDevice(device) {
+    if (isConnected() || busyConnecting) return;
+    busyConnecting = true;
+    hideDevicePanel();
+    try {
+      setStatus(`接続中... (${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
+      const info = await establishConnection(device.id);
+      finalizeConnected(device.id, info);
+      setStatus('接続しました');
+      await loadParams();
+      setStatus(`パラメータ ${params.length} 件を読み込みました`);
+    } catch (e) {
+      setStatus(errText(e), true);
+      log('接続失敗: ' + errText(e));
+      await disconnect(null, true);
+    } finally {
+      busyConnecting = false;
+    }
+  }
+
+  function renderDevicePanel(devices) {
+    const panel = $('devicePanel');
+    const sel = $('selDevice');
+    sel.innerHTML = '';
+    for (const d of devices) {
+      const o = document.createElement('option');
+      o.value = d.id;
+      o.textContent = (d.kind === 'ble' ? 'BT: ' : 'USB: ') + d.name;
+      sel.appendChild(o);
+    }
+    panel.hidden = devices.length === 0;
+    $('btnConnectDevice').disabled = devices.length === 0;
+  }
+
+  function hideDevicePanel() {
+    awaitingDevicePick = false;
+    $('devicePanel').hidden = true;
+  }
+
+  function handleNativeDevices(devices) {
+    lastDevices = devices;
+    if (awaitingDevicePick) {
+      if (devices.length === 1) {
+        awaitingDevicePick = false;
+        hideDevicePanel();
+        connectToDevice(devices[0]);
+      } else {
+        renderDevicePanel(devices);
+      }
+    } else if (autoConnectEnabled && !isConnected() && !busyConnecting) {
+      const pick = T.pickDevice(devices);
+      if (pick) connectToDevice(pick);
+    }
+  }
+
+  async function connect() {
+    if (isConnected() || busyConnecting) return;
+    if (hasNativeBridge) connectNative();
+    else await connectWebSerial();
   }
 
   function readAutoConnectPref() {
@@ -626,6 +838,8 @@
       for (const port of ordered) {
         try {
           setStatus('自動接続を試しています...');
+          transport = createWebSerialTransport();
+          attachTransportHandlers(transport);
           const info = await establishConnection(port);
           finalizeConnected(port, info);
           const pi = port.getInfo ? port.getInfo() : {};
@@ -644,35 +858,38 @@
     }
   }
 
-  if (navigator.serial) {
+  if (!hasNativeBridge && navigator.serial) {
     navigator.serial.addEventListener('connect', () => {
       if (!autoConnectEnabled || isConnected()) return;
       setTimeout(() => { tryAutoConnect(); }, RECONNECT_SETTLE_MS);
     });
     navigator.serial.addEventListener('disconnect', (e) => {
-      if (serial.port && e.target === serial.port) disconnect(DISCONNECTED_MSG, true);
+      if (transport && transport.getPort && transport.getPort() === e.target) disconnect(DISCONNECTED_MSG, true);
     });
   }
 
   async function disconnect(msg, isError) {
-    const port = serial.port;
-    if (!port) return;
-    serial.port = null;
-    for (const q of serial.queue.splice(0)) q.reject(new Error('切断されました'));
+    if (!transport || !connected) {
+      if (msg) setStatus(msg, !!isError);
+      return;
+    }
+    connected = false;
+    for (const q of link.queue.splice(0)) q.reject(new Error('切断されました'));
     finishPending(new Error('切断されました'));
-    try { if (serial.writer) serial.writer.releaseLock(); } catch (e) { /* ignore */ }
-    serial.writer = null;
-    try { if (serial.reader) await serial.reader.cancel(); } catch (e) { /* ignore */ }
-    try { await serial.loopDone; } catch (e) { /* ignore */ }
-    serial.reader = null;
-    serial.loopDone = null;
-    try { await port.close(); } catch (e) { log('ポートを閉じられません: ' + errText(e)); }
+    try {
+      await transport.disconnect();
+    } catch (e) {
+      log('切断に失敗しました: ' + errText(e));
+    }
+    if (!transport.isNative) transport = null;
+    buffer = '';
     setConnectedUi(false);
     if (msg) setStatus(msg, !!isError);
     else if (!isError) setStatus('切断しました');
   }
 
   async function toggleTrace(quiet) {
+    if (transport && transport.kind === 'ble') return;
     const next = !traceOn;
     try {
       const lines = await send('tp trace ' + (next ? 'on' : 'off'));
@@ -685,6 +902,39 @@
     } catch (e) {
       setStatus(errText(e), true);
     }
+  }
+
+  async function switchSide(newSide) {
+    if (newSide === side) return;
+    if (dirty && !window.confirm('未保存の変更があります。側を切り替えると破棄されます。よろしいですか?')) {
+      $('selSide').value = side;
+      return;
+    }
+    for (const q of link.queue.splice(0)) q.reject(new Error('側を切り替えました'));
+    finishPending(new Error('側を切り替えました'));
+    side = newSide;
+    pendingSummaries.length = 0;
+    try {
+      const before = performance.now();
+      const lines = await send('tp info');
+      const after = performance.now();
+      const info = lines.map(T.parseInfoLine).find(Boolean);
+      if (info) {
+        clock.offset[side] = T.clockOffset(before, after, info.uptimeMs);
+        lastConnInfo = info;
+        renderConnInfo();
+      }
+    } catch (e) {
+      setStatus(errText(e), true);
+    }
+    try {
+      await loadParams();
+    } catch (e) {
+      setStatus(errText(e), true);
+    }
+    setDirty(false);
+    updateModeUi();
+    renderAllCards();
   }
 
   const byName = () => Object.fromEntries(params.map((p) => [p.name, p]));
@@ -1345,9 +1595,9 @@
   }
 
   function handleSummary(tr) {
-    const start = tr.startMs + clock.offset;
+    const start = tr.startMs + clock.offset[side];
     if (processedStarts.has(start)) return;
-    pendingSummaries.push({ tr, start, end: tr.endMs + clock.offset });
+    pendingSummaries.push({ tr, start, end: tr.endMs + clock.offset[side] });
     processPendingSummaries();
   }
 
@@ -1364,7 +1614,7 @@
       processedStarts.add(p.start);
       pendingSummaries.splice(i, 1);
       const host = { btn: rec.hostBtn, move: rec.hostMove, wheel: rec.hostWheel };
-      const obs = T.observationFromSummary(p.tr, host, clock.offset, { tailMs });
+      const obs = T.observationFromSummary(p.tr, host, clock.offset[side], { tailMs });
       if (armed && obs.start >= armedAt) {
         const kind = armed;
         armed = null;
@@ -1439,13 +1689,13 @@
       `buttons=${hostState.buttons}${names.length ? '(' + names.join('+') + ')' : ''} move=${hostState.move || '-'} wheel=${hostState.wheel || '-'}`;
   }
 
-  serial.onTrace = (tr) => {
+  link.onTrace = (tr) => {
     if (rec.paused) return;
     if (tr.type === 'S') { handleSummary(tr); return; }
-    const t = tr.ms + clock.offset;
+    const t = tr.ms + clock.offset[side];
     if (tr.type === 'F') rec.frames.push({ ...tr, t }); else rec.fw.push({ ...tr, t });
   };
-  serial.onLog = (line) => { if (line.trim() !== '') log(line); };
+  link.onLog = (line) => { if (line.trim() !== '') log(line); };
 
   function drawTimeline() {
     const cv = $('timeline');
@@ -1808,7 +2058,13 @@
   for (const b of document.querySelectorAll('.zoom')) {
     b.onclick = () => setZoom(Number(b.dataset.ms));
   }
-  window.addEventListener('beforeunload', () => { if (serial.port) disconnect(null, true); });
+  $('selSide').onchange = () => { switchSide($('selSide').value); };
+  $('btnConnectDevice').onclick = () => {
+    const id = $('selDevice').value;
+    const device = lastDevices.find((d) => d.id === id);
+    if (device) { hideDevicePanel(); connectToDevice(device); }
+  };
+  window.addEventListener('beforeunload', () => { if (isConnected()) disconnect(null, true); });
 
   renderProfiles();
   renderCards();
@@ -1822,9 +2078,14 @@
   $('chkAutoConnect').onchange = () => {
     autoConnectEnabled = $('chkAutoConnect').checked;
     writeAutoConnectPref(autoConnectEnabled);
-    if (autoConnectEnabled) tryAutoConnect();
+    if (autoConnectEnabled) { if (hasNativeBridge) transport.listDevices(); else tryAutoConnect(); }
   };
-  if (!navigator.serial) {
+  if (hasNativeBridge) {
+    transport = createNativeTransport();
+    attachTransportHandlers(transport);
+    setStatus('「接続」を押して機器を選んでください');
+    if (autoConnectEnabled) transport.listDevices();
+  } else if (!navigator.serial) {
     showNotice('このブラウザは Web Serial API に対応していません。Google Chrome または Microsoft Edge で開いてください。接続なしでも「ダミーデータ」で表示は確認できます');
   } else {
     setStatus('「接続」を押してトラックパッド側の USB シリアルポートを選んでください');

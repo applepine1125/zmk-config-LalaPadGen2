@@ -98,6 +98,49 @@ test('往復時間の半分を補正した時刻オフセットを計算でき�
   assert.equal(T.clockOffset(1000, 1020, 500), 510);
 });
 
+test('R または L で始まる行から側と残りを取り出せる', () => {
+  assert.deepEqual(T.splitSidePrefix('R OK a=1'), { side: 'R', rest: 'OK a=1' });
+  assert.deepEqual(T.splitSidePrefix('L .'), { side: 'L', rest: '.' });
+});
+
+test('側の接頭辞がない行は splitSidePrefix が null を返す', () => {
+  assert.equal(T.splitSidePrefix('OK a=1'), null);
+  assert.equal(T.splitSidePrefix(''), null);
+});
+
+test('bleCommand は tp を外して側を前置する', () => {
+  assert.equal(T.bleCommand('L', 'tp set a 1'), 'L set a 1');
+  assert.equal(T.bleCommand('R', 'tp info'), 'R info');
+});
+
+test('bleCommand は tp 接頭辞がなくてもそのまま前置する', () => {
+  assert.equal(T.bleCommand('R', 'info'), 'R info');
+});
+
+test('isEndMarker はピリオド1文字だけを終端行と判定する', () => {
+  assert.equal(T.isEndMarker('.'), true);
+  assert.equal(T.isEndMarker('OK .'), false);
+  assert.equal(T.isEndMarker(''), false);
+});
+
+test('pickDevice は BLE を USB より優先して選ぶ', () => {
+  const usb = { id: 'u1', kind: 'usb', name: 'usbmodem1' };
+  const ble = { id: 'b1', kind: 'ble', name: 'LalapadGen2' };
+  assert.deepEqual(T.pickDevice([usb, ble]), ble);
+  assert.deepEqual(T.pickDevice([ble, usb]), ble);
+});
+
+test('pickDevice は BLE がなければ最初の USB を選ぶ', () => {
+  const usb1 = { id: 'u1', kind: 'usb', name: 'usbmodem1' };
+  const usb2 = { id: 'u2', kind: 'usb', name: 'usbmodem2' };
+  assert.deepEqual(T.pickDevice([usb1, usb2]), usb1);
+});
+
+test('pickDevice は候補が空なら null を返す', () => {
+  assert.equal(T.pickDevice([]), null);
+  assert.equal(T.pickDevice(undefined), null);
+});
+
 test('lastInfo が null のとき pickPortOrder は元の順序のまま返す', () => {
   const a = { getInfo: () => ({ usbVendorId: 1, usbProductId: 2 }) };
   const b = { getInfo: () => ({ usbVendorId: 3, usbProductId: 4 }) };
