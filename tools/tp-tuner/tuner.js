@@ -484,7 +484,8 @@
     const second = o.touches[1];
     if (!first) return 'unknown';
     if (o.fingersMax >= 3) {
-      return o.buttonsPressed.includes(BTN[2]) || first.moveSum <= 2 * P('3f_tap_move') ? 'tap3' : 'move';
+      if (o.buttonsPressed.includes(BTN[2]) || first.moveSum <= 2 * P('3f_tap_move')) return 'tap3';
+      return o.buttonsPressed.some((c) => c >= 0x113 && c <= 0x116) ? 'swipe3' : 'move3';
     }
     if (o.fingersMax === 2) {
       if (o.mode2fSeen.includes(2)) return 'pinch';
@@ -750,7 +751,8 @@
 
   const KIND_LABELS = {
     tap1: '1 本指タップ', tapdrag: 'タップドラッグ', tap2: '2 本指タップ', scroll2: '2 本指スクロール',
-    pinch: 'ピンチ', tap3: '3 本指タップ', move: 'カーソル移動', cursor: 'カーソル移動',
+    pinch: 'ピンチ', tap3: '3 本指タップ', swipe3: '3 本指スワイプ', move3: '3 本指移動',
+    move: 'カーソル移動', cursor: 'カーソル移動',
   };
 
   function kindLabel(kind) {

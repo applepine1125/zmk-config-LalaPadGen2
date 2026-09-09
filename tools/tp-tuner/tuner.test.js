@@ -645,3 +645,10 @@ test('操作種別に対して、kindLabel は短い日本語の名前を返し�
   assert.equal(T.kindLabel('scroll2'), '2 本指スクロール');
   assert.equal(T.kindLabel('nope'), '不明な操作');
 });
+
+test('指 3 本で大きく動いたとき、inferKind はスワイプのボタンがあれば swipe3、無ければ move3 になる', () => {
+  const base = { touches: [{ downMs: 300, moveSum: 400, holds: [] }], fingersMax: 3, mode2fSeen: [], wheel: { count: 0, sum: 0 }, distDelta: 0, moveSum2: 0, buttonsPressed: [], buttonsReleased: [] };
+  assert.equal(T.inferKind(base, T.DEFAULT_PARAMS), 'move3');
+  assert.equal(T.inferKind({ ...base, buttonsPressed: [0x115] }, T.DEFAULT_PARAMS), 'swipe3');
+  assert.equal(T.kindLabel('swipe3'), '3 本指スワイプ');
+});
