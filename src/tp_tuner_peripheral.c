@@ -23,6 +23,12 @@ LOG_MODULE_REGISTER(tp_tuner, CONFIG_ZMK_LOG_LEVEL);
 #define TP_TUNER_QUEUE_DEPTH 4
 #define TP_TUNER_RETRY_MS 10
 #define TP_TUNER_RETRY_MAX 50
+/*
+ * central の peripheral_event_msgq(左手のキー入力とも共用)を溢れさせないよう、
+ * 1 回の work で送る通知数を絞って PACE_MS 空ける
+ */
+#define TP_TUNER_BURST_MAX 2
+#define TP_TUNER_PACE_MS 10
 
 struct tp_tuner_request {
     uint32_t op;
@@ -154,6 +160,8 @@ static void build_event(struct zmk_split_transport_peripheral_event *ev) {
 }
 
 static void send_work_cb(struct k_work *work) {
+    int sent = 0;
+
     ARG_UNUSED(work);
 
     while (true) {
@@ -161,6 +169,10 @@ static void send_work_cb(struct k_work *work) {
         int ret;
 
         if (job.kind == TP_TUNER_JOB_NONE && !start_next_job()) {
+            return;
+        }
+        if (sent >= TP_TUNER_BURST_MAX) {
+            (void)k_work_reschedule(&send_work, K_MSEC(TP_TUNER_PACE_MS));
             return;
         }
 
@@ -177,12 +189,17 @@ static void send_work_cb(struct k_work *work) {
             return;
         }
         if (ret < 0) {
-            LOG_WRN("job %d dropped at %u/%u (%d)", job.kind, (unsigned)job.pos,
-                    (unsigned)job.total, ret);
+            if (ret == -ENOTCONN) {
+                LOG_DBG("job %d dropped: central not connected", job.kind);
+            } else {
+                LOG_WRN("job %d dropped at %u/%u (%d)", job.kind, (unsigned)job.pos,
+                        (unsigned)job.total, ret);
+            }
             job.kind = TP_TUNER_JOB_NONE;
             continue;
         }
 
+        sent++;
         job.retries = 0;
         if (++job.pos >= job.total) {
             job.kind = TP_TUNER_JOB_NONE;

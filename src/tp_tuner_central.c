@@ -50,6 +50,8 @@ LOG_MODULE_REGISTER(tp_tuner, CONFIG_ZMK_LOG_LEVEL);
 #define TP_TUNER_NOTIFY_RETRY_MS 5
 #define TP_TUNER_NOTIFY_RETRY_MAX 200
 #define TP_TUNER_LEFT_TIMEOUT_MS 1000
+/* タイムアウト後に遅れて届いた応答を次のコマンドに誤帰属しないよう、次の L コマンドを待たせる時間 */
+#define TP_TUNER_LEFT_COOLDOWN_MS 200
 
 /* ---- 出力ストリーム(リングバッファ → stream 通知) ---- */
 
@@ -162,6 +164,12 @@ static void stream_flush(void) {
             stream_retries = 0;
             continue;
         }
+        if (ret == -ENOTCONN || ret == -EINVAL) {
+            LOG_WRN("stream subscriber gone (%d), buffer dropped", ret);
+            stream_retries = 0;
+            stream_reset();
+            break;
+        }
         if (++stream_retries > TP_TUNER_NOTIFY_RETRY_MAX) {
             LOG_WRN("stream notify keeps failing (%d), buffer dropped", ret);
             stream_retries = 0;
@@ -194,7 +202,8 @@ static void stream_ccc_changed(const struct bt_gatt_attr *attr, uint16_t value) 
 K_MSGQ_DEFINE(tp_tuner_cmd_msgq, TP_TUNER_CMD_MAX + 1, TP_TUNER_CMD_QUEUE_DEPTH, 1);
 
 static void cmd_work_cb(struct k_work *work);
-static K_WORK_DEFINE(cmd_work, cmd_work_cb);
+static K_WORK_DELAYABLE_DEFINE(cmd_work, cmd_work_cb);
+static int64_t left_cooldown_until;
 
 static ssize_t command_write(struct bt_conn *conn, const struct bt_gatt_attr *attr, const void *buf,
                              uint16_t len, uint16_t offset, uint8_t flags) {
@@ -202,10 +211,8 @@ static ssize_t command_write(struct bt_conn *conn, const struct bt_gatt_attr *at
 
     ARG_UNUSED(conn);
     ARG_UNUSED(attr);
+    ARG_UNUSED(flags);
 
-    if (flags & BT_GATT_WRITE_FLAG_PREPARE) {
-        return 0;
-    }
     if (offset != 0) {
         return BT_GATT_ERR(BT_ATT_ERR_INVALID_OFFSET);
     }
@@ -222,7 +229,7 @@ static ssize_t command_write(struct bt_conn *conn, const struct bt_gatt_attr *at
     if (k_msgq_put(&tp_tuner_cmd_msgq, line, K_NO_WAIT) != 0) {
         return BT_GATT_ERR(BT_ATT_ERR_INSUFFICIENT_RESOURCES);
     }
-    k_work_submit(&cmd_work);
+    (void)k_work_schedule(&cmd_work, K_NO_WAIT);
     return len;
 }
 
@@ -244,6 +251,7 @@ struct left_pending {
     uint32_t op;
     int32_t value;
     const struct iqs9151_param_def *def;
+    size_t received;
 };
 
 static struct left_pending left;
@@ -277,7 +285,7 @@ static bool left_peek(struct left_pending *out) {
 
 static void left_finish(void) {
     stream_put_line('L', ".");
-    k_work_submit(&cmd_work);
+    (void)k_work_schedule(&cmd_work, K_NO_WAIT);
 }
 
 static void left_timeout_cb(struct k_work *work) {
@@ -287,6 +295,7 @@ static void left_timeout_cb(struct k_work *work) {
     if (!left_take(&p)) {
         return;
     }
+    left_cooldown_until = k_uptime_get() + TP_TUNER_LEFT_COOLDOWN_MS;
     stream_put_line('L', "ERR timeout");
     left_finish();
 }
@@ -506,8 +515,14 @@ static void run_local(const char *args) {
 static void cmd_work_cb(struct k_work *work) {
     char line[TP_TUNER_CMD_MAX + 1];
     struct left_pending pending;
+    int64_t remaining = left_cooldown_until - k_uptime_get();
 
     ARG_UNUSED(work);
+
+    if (remaining > 0) {
+        (void)k_work_reschedule(&cmd_work, K_MSEC(remaining));
+        return;
+    }
 
     while (!left_peek(&pending) && k_msgq_get(&tp_tuner_cmd_msgq, line, K_NO_WAIT) == 0) {
         if (strncmp(line, "R ", 2) == 0) {
@@ -559,6 +574,7 @@ static void handle_param(uint16_t code, int32_t value) {
     struct left_pending p;
     const struct iqs9151_param_def *def;
     char buf[TP_TUNER_LINE_MAX];
+    k_spinlock_key_t key;
 
     if (!left_peek(&p) || p.cmd != LEFT_CMD_LIST) {
         LOG_WRN("unexpected PARAM %u=%d", code, value);
@@ -572,6 +588,12 @@ static void handle_param(uint16_t code, int32_t value) {
     snprintf(buf, sizeof(buf), "%s %d %d %d %s %d", def->name, value, def->min, def->max,
              iqs9151_param_kind_str(def->kind), def->def);
     stream_put_line('L', buf);
+
+    key = k_spin_lock(&left_lock);
+    if (left.cmd == LEFT_CMD_LIST) {
+        left.received++;
+    }
+    k_spin_unlock(&left_lock, key);
     (void)k_work_reschedule(&left_timeout_work, K_MSEC(TP_TUNER_LEFT_TIMEOUT_MS));
 }
 
@@ -595,6 +617,10 @@ static void handle_status(uint32_t value) {
         stream_put_line('L', buf);
     } else if (TP_TUNER_STATUS_COUNT(value) != iqs9151_param_count()) {
         stream_put_line('L', "ERR param count mismatch");
+    } else if (p.received != iqs9151_param_count()) {
+        LOG_WRN("list received %u of %u params", (unsigned)p.received,
+                (unsigned)iqs9151_param_count());
+        stream_put_line('L', "ERR param missing");
     }
     left_finish();
 }
