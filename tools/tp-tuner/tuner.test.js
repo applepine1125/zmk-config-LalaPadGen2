@@ -272,116 +272,105 @@ test('観測からジェスチャ種別を参考推定できる', () => {
 
 test('観測なしで判定すると期待段階の一覧が閾値つきの未判定として返る', () => {
   const r = T.judgeAttempt('tap1', null, PARAMS);
-  assert.equal(r.verdict, 'none');
+  assert.equal(r.failIndex, -1);
   assert.equal(r.stages.length, 6);
   assert.ok(r.stages.every((s) => s.ok === null));
   assert.ok(r.stages[1].label.includes('1f_tap_max_ms(250ms)'));
   assert.ok(r.stages[2].label.includes('1f_tap_move(50)'));
 });
 
-test('1本指タップ待ちで短いタップをしドライバもホストも左クリックを出せば全段階 ✔ で合格になる', () => {
+test('1本指タップ待ちで短いタップをしドライバもホストも左クリックを出せば全段階が成立する', () => {
   const r = T.judgeAttempt('tap1', observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host), PARAMS);
-  assert.equal(r.verdict, 'pass');
+  assert.equal(r.failIndex, -1);
   assert.equal(marks(r), 'oooooo');
-  assert.equal(r.stages[1].detail, '実測 120ms');
-  assert.equal(r.reason, '');
-  assert.deepEqual(r.suggest, []);
+  assert.equal(r.stages[1].detail, '押下 120ms');
 });
 
-test('1本指タップ待ちで押下時間が 1f_tap_max_ms を超えると段階 ② が ✘ になり +50 の提案がつく', () => {
+test('1本指タップ待ちで押下時間が 1f_tap_max_ms を超えると段階 ② が不成立になり超過量が書かれる', () => {
   const fr = frames(0, 320, 1).concat(frames(330, 800, 0));
   const r = T.judgeAttempt('tap1', observe(fr), PARAMS);
-  assert.equal(r.verdict, 'fail');
   assert.equal(marks(r), 'oxox--');
   assert.equal(r.failIndex, 1);
-  assert.equal(r.stages[1].detail, '実測 320ms > 1f_tap_max_ms=250');
-  assert.deepEqual(r.suggest, [{ name: '1f_tap_max_ms', delta: 50 }]);
-  assert.ok(r.reason.startsWith('押下時間'));
+  assert.equal(r.stages[1].detail, '押下 320ms > 1f_tap_max_ms=250');
 });
 
-test('1本指タップ待ちで移動量が 1f_tap_move を超えると段階 ③ が ✘ になり +10 の提案がつく', () => {
+test('1本指タップ待ちで移動量が 1f_tap_move を超えると段階 ③ が不成立になる', () => {
   const fr = frames(0, 100, 1, { relX: 8 }).concat(frames(110, 600, 0));
   const r = T.judgeAttempt('tap1', observe(fr), PARAMS);
   assert.equal(marks(r), 'ooxx--');
-  assert.equal(r.stages[2].detail, '実測 88 > 1f_tap_move=50');
-  assert.deepEqual(r.suggest, [{ name: '1f_tap_move', delta: 10 }]);
+  assert.equal(r.stages[2].detail, '移動 88 > 1f_tap_move=50');
 });
 
-test('1本指タップ待ちで条件内なのにボタン報告がなければ段階 ④ が ✘ になり tap_enable の確認を促す', () => {
+test('1本指タップ待ちで条件内なのにボタン報告がなければ段階 ④ が不成立になり tap_enable の確認を促す', () => {
   const fr = frames(0, 100, 1).concat(frames(110, 600, 0));
   const r = T.judgeAttempt('tap1', observe(fr), PARAMS);
   assert.equal(marks(r), 'ooox--');
   assert.ok(r.stages[3].detail.includes('1f_tap_enable'));
-  assert.deepEqual(r.suggest, []);
 });
 
-test('1本指タップ待ちでドライバは離したのにホストの左ボタンが押されたままなら段階 ⑥ が ✘ で不合格になる', () => {
+test('1本指タップ待ちでドライバは離したのにホストの左ボタンが押されたままなら段階 ⑥ が不成立になる', () => {
   const r = T.judgeAttempt('tap1', observe(TAP1_OK.fr, TAP1_OK.fw, { btn: [{ t: 132, buttons: 1 }], move: [], wheel: [] }), PARAMS);
-  assert.equal(r.verdict, 'fail');
   assert.equal(marks(r), 'ooooox');
+  assert.equal(r.stages[5].host, false);
   assert.ok(r.stages[5].detail.includes('ホストで左ボタンが押されたまま'));
 });
 
-test('1本指タップ待ちでドライバは押して離したがホストで観測できなければ段階 ⑥ が ✘ の一部合格になる', () => {
+test('1本指タップ待ちでドライバは押して離したがホストで観測できなければ段階 ⑥ がホスト側の不成立になる', () => {
   const r = T.judgeAttempt('tap1', observe(TAP1_OK.fr, TAP1_OK.fw, HOST0), PARAMS);
-  assert.equal(r.verdict, 'partial');
+  assert.equal(r.stages[5].host, true);
   assert.equal(marks(r), 'ooooox');
   assert.ok(r.stages[5].detail.includes('ホスト側で左ボタンが観測されていない'));
 });
 
-test('1本指タップ待ちで指 2 本が認識されると段階 ① が ✘ になり残りは判定しない', () => {
+test('1本指タップ待ちで指 2 本が認識されると段階 ① が不成立になり残りは判定しない', () => {
   const fr = frames(0, 100, 2).concat(frames(110, 600, 0));
   const r = T.judgeAttempt('tap1', observe(fr), PARAMS);
-  assert.equal(r.verdict, 'fail');
+  assert.equal(r.failIndex, 0);
   assert.equal(marks(r), 'x-----');
   assert.equal(r.stages[0].detail, '指 2 本で認識されました');
 });
 
-test('接触のない試行を判定すると段階 ① が接触なしで ✘ になる', () => {
+test('接触のない試行を判定すると段階 ① が接触なしで不成立になる', () => {
   const r = T.judgeAttempt('tap1', T.observeAttempt({ start: 0, end: 0, frames: [] }, [], HOST0), PARAMS);
   assert.equal(marks(r), 'x-----');
   assert.equal(r.stages[0].detail, '接触なし');
 });
 
-test('タップドラッグ待ちで 2 回目の接触が 1f_tapdrag_gap_max_ms より遅いと段階 ③ が ✘ になり実測 gap と +40 の提案がつく', () => {
+test('タップドラッグ待ちで 2 回目の接触が 1f_tapdrag_gap_max_ms より遅いと段階 ③ が不成立になり実測の間隔が書かれる', () => {
   const fr = frames(0, 120, 1).concat(frames(130, 350, 0), frames(360, 900, 1, { relX: 3 }), frames(910, 1500, 0));
   const fw = [K(125, 272, 1), K(290, 272, 0)];
   const host = { btn: [{ t: 132, buttons: 1 }, { t: 297, buttons: 0 }], move: [{ t: 400, dx: 3, dy: 0 }], wheel: [] };
   const r = T.judgeAttempt('tapdrag', observe(fr, fw, host), PARAMS);
-  assert.equal(r.verdict, 'fail');
   assert.equal(r.failIndex, 2);
-  assert.equal(r.stages[2].detail, '実測 240ms > 1f_tapdrag_gap_max_ms=160');
+  assert.equal(r.stages[2].detail, '間隔 240ms > 1f_tapdrag_gap_max_ms=160');
   assert.equal(r.stages[3].ok, false);
   assert.ok(r.stages[3].detail.includes('2 本目の接触前'));
-  assert.deepEqual(r.suggest, [{ name: '1f_tapdrag_gap_max_ms', delta: 40 }]);
-  assert.ok(r.reason.includes('1f_tapdrag_gap_max_ms'));
 });
 
-test('タップドラッグ待ちで gap 内に再接触し保持したまま動かして離せば全段階 ✔ で合格になる', () => {
+test('タップドラッグ待ちで gap 内に再接触し保持したまま動かして離せば全段階が成立する', () => {
   const fr = frames(0, 120, 1).concat(frames(130, 210, 0, { hold: 272, pending: 1 }), frames(220, 800, 1, { relX: 3, hold: 272 }), frames(810, 1400, 0));
   const fw = [K(125, 272, 1), K(805, 272, 0)];
   const host = { btn: [{ t: 132, buttons: 1 }, { t: 812, buttons: 0 }], move: [{ t: 300, dx: 3, dy: 0 }], wheel: [] };
   const r = T.judgeAttempt('tapdrag', observe(fr, fw, host), PARAMS);
-  assert.equal(r.verdict, 'pass');
+  assert.equal(r.failIndex, -1);
   assert.equal(marks(r), 'oooooo');
-  assert.equal(r.stages[2].detail, '実測 100ms');
+  assert.equal(r.stages[2].detail, '間隔 100ms');
 });
 
-test('タップドラッグ待ちで 1 回目の接触が長すぎると段階 ① が ✘ になり 1f_tap_max_ms の提案がつく', () => {
+test('タップドラッグ待ちで 1 回目の接触が長すぎると段階 ① が不成立になる', () => {
   const fr = frames(0, 400, 1).concat(frames(410, 500, 0), frames(510, 900, 1, { relX: 3 }), frames(910, 1500, 0));
   const r = T.judgeAttempt('tapdrag', observe(fr), PARAMS);
   assert.equal(r.failIndex, 0);
   assert.equal(r.stages[0].detail, '押下 400ms > 1f_tap_max_ms=250');
-  assert.deepEqual(r.suggest, [{ name: '1f_tap_max_ms', delta: 50 }]);
 });
 
-test('タップドラッグ待ちで 2 回目の接触がなければ段階 ③ が ✘ になる', () => {
+test('タップドラッグ待ちで 2 回目の接触がなければ段階 ③ が不成立になる', () => {
   const r = T.judgeAttempt('tapdrag', observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host), PARAMS);
   assert.equal(marks(r), 'oox-ox');
   assert.equal(r.stages[2].detail, '2 本目の接触なし');
 });
 
-test('2本指スクロール待ちでスクロール判定になり wheel がホストに届けば全段階 ✔ で合格になる', () => {
+test('2本指スクロール待ちでスクロール判定になり wheel がホストに届けば全段階が成立する', () => {
   const fr = frames(0, 50, 2, { relY: 4 }).concat(frames(60, 500, 2, { relY: 4, mode2f: 1 }), frames(510, 1000, 0));
   const fw = [];
   const host = { btn: [], move: [], wheel: [] };
@@ -390,77 +379,405 @@ test('2本指スクロール待ちでスクロール判定になり wheel がホ
     host.wheel.push({ t: t + 12, deltaX: 0, deltaY: 24 });
   }
   const r = T.judgeAttempt('scroll2', observe(fr, fw, host), PARAMS);
-  assert.equal(r.verdict, 'pass');
+  assert.equal(r.failIndex, -1);
   assert.equal(marks(r), 'oooo');
   assert.equal(r.stages[2].detail, 'wheel 9 回');
 });
 
-test('2本指スクロール待ちで移動量が 2f_scroll_start_move に届かないと段階 ② が ✘ になり -5 の提案がつく', () => {
+test('2本指スクロール待ちで移動量が 2f_scroll_start_move に届かないと段階 ② が不成立になる', () => {
   const fr = frames(0, 90, 2, { relY: 1 }).concat(frames(100, 300, 2), frames(310, 800, 0));
   const r = T.judgeAttempt('scroll2', observe(fr), PARAMS);
-  assert.equal(r.verdict, 'fail');
   assert.equal(marks(r), 'oxx-');
   assert.equal(r.stages[1].detail, '2 本指移動量 10 < 2f_scroll_start_move=15');
-  assert.deepEqual(r.suggest, [{ name: '2f_scroll_start_move', delta: -5 }]);
 });
 
-test('2本指スクロール待ちでドライバは wheel を出したがホストに届かないと段階 ④ が ✘ の一部合格になる', () => {
+test('2本指スクロール待ちでドライバは wheel を出したがホストに届かないと段階 ④ がホスト側の不成立になる', () => {
   const fr = frames(0, 500, 2, { relY: 4, mode2f: 1 }).concat(frames(510, 1000, 0));
   const r = T.judgeAttempt('scroll2', observe(fr, [R(100, 8, -1), R(150, 8, -1)]), PARAMS);
-  assert.equal(r.verdict, 'partial');
+  assert.equal(r.stages[3].host, true);
   assert.equal(marks(r), 'ooox');
   assert.ok(r.stages[3].detail.includes('wheel がホストに届いていない'));
 });
 
-test('2本指スクロール待ちで指 1 本しか認識されないと段階 ① が ✘ になる', () => {
+test('2本指スクロール待ちで指 1 本しか認識されないと段階 ① が不成立になる', () => {
   const r = T.judgeAttempt('scroll2', observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host), PARAMS);
   assert.equal(marks(r), 'x---');
   assert.equal(r.stages[0].detail, '指 1 本で認識されました');
 });
 
-test('2本指タップ待ちで短く叩きドライバが右を押して離しホストも右クリックを受ければ合格になる', () => {
+test('2本指タップ待ちで短く叩きドライバが右を押して離しホストも右クリックを受ければ全段階が成立する', () => {
   const fr = frames(0, 100, 2).concat(frames(110, 600, 0));
   const fw = [K(105, 273, 1), K(270, 273, 0)];
   const host = { btn: [{ t: 112, buttons: 2 }, { t: 277, buttons: 0 }], move: [], wheel: [] };
   const r = T.judgeAttempt('tap2', observe(fr, fw, host), PARAMS);
-  assert.equal(r.verdict, 'pass');
+  assert.equal(r.failIndex, -1);
   assert.equal(marks(r), 'oooooo');
   assert.ok(r.stages[3].label.includes('K273'));
   assert.ok(r.stages[5].label.includes('右クリック'));
 });
 
-test('3本指タップ待ちで 3f_tap_max_ms を超えると段階 ② が ✘ になり 3f_tap_max_ms の提案がつく', () => {
+test('3本指タップ待ちで 3f_tap_max_ms を超えると段階 ② が不成立になる', () => {
   const fr = frames(0, 260, 3).concat(frames(270, 800, 0));
   const r = T.judgeAttempt('tap3', observe(fr), PARAMS);
   assert.equal(r.failIndex, 1);
-  assert.equal(r.stages[1].detail, '実測 260ms > 3f_tap_max_ms=200');
-  assert.deepEqual(r.suggest, [{ name: '3f_tap_max_ms', delta: 50 }]);
+  assert.equal(r.stages[1].detail, '押下 260ms > 3f_tap_max_ms=200');
 });
 
-test('ピンチ待ちでピンチ判定になり BTN_7 が報告されれば合格になる', () => {
+test('ピンチ待ちでピンチ判定になり BTN_7 が報告されれば全段階が成立する', () => {
   const fr = frames(0, 300, 2, { mode2f: 2 }).concat(frames(310, 800, 0));
   const r = T.judgeAttempt('pinch', observe(fr, [K(150, 279, 1), K(310, 279, 0)]), PARAMS);
-  assert.equal(r.verdict, 'pass');
+  assert.equal(r.failIndex, -1);
   assert.equal(marks(r), 'ooo');
 });
 
-test('ピンチ待ちで距離変化が 2f_pinch_start_distance に届かないと段階 ② が ✘ になり -10 の提案がつく', () => {
+test('ピンチ待ちで距離変化が 2f_pinch_start_distance に届かないと段階 ② が不成立になる', () => {
   const fr = frames(0, 300, 2, { f1x: 100, f1y: 100, f2x: 200, f2y: 100 }).concat(frames(310, 800, 0));
   const r = T.judgeAttempt('pinch', observe(fr), PARAMS);
-  assert.equal(r.verdict, 'fail');
   assert.equal(marks(r), 'ox-');
   assert.equal(r.stages[1].detail, '距離変化 0 < 2f_pinch_start_distance=30');
-  assert.deepEqual(r.suggest, [{ name: '2f_pinch_start_distance', delta: -10 }]);
 });
 
 test('観測をドライバの見え方とホスト側の一文にできる', () => {
   const o = observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host);
   assert.equal(T.observationText(o), '指 1 本 / 押下 120ms / 移動 0 / ボタン 272(左) 押→離');
-  assert.equal(T.hostText(o), '左クリック(down→up)');
+  assert.equal(T.hostText(o), '左クリック 1 回');
   const drag = frames(0, 120, 1).concat(frames(130, 210, 0), frames(220, 800, 1, { relX: 3, hold: 272 }), frames(810, 1400, 0));
   const od = observe(drag, [K(125, 272, 1)], { btn: [{ t: 132, buttons: 1 }], move: [{ t: 300, dx: 3, dy: 0 }], wheel: [] });
   assert.equal(T.observationText(od), '指 1 本 / 押下 120ms / 移動 0 / 2 本目 間隔 100ms 移動 177 / ボタン 272(左) 押(離しなし)');
-  assert.equal(T.hostText(od), '左クリック(down のみ、up なし)、移動 1 回');
-  assert.equal(T.hostText(observe(frames(0, 100, 1))), 'ホスト側の受信なし');
+  assert.equal(T.hostText(od), '左ボタン押されたまま、移動 1 回');
+  assert.equal(T.hostText(observe(frames(0, 100, 1))), '受信なし');
   assert.equal(T.observationText(T.observeAttempt({ start: 0, end: 0, frames: [] }, [], HOST0)), '接触なし');
+});
+
+test('カードは 7 枚でカーソル移動が先頭にある', () => {
+  assert.equal(T.GESTURES.length, 7);
+  assert.equal(T.GESTURES[0].kind, 'cursor');
+  assert.ok(T.GESTURES.every((g) => g.params.every((p) => typeof p.name === 'string')));
+});
+
+const TAP1_LONG = frames(0, 320, 1).concat(frames(330, 800, 0));
+
+test('1本指タップの試行を認識文にすると指本数・押下・移動と送信したクリックとホストの受信が 1 行になる', () => {
+  const o = observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host);
+  assert.equal(T.recognitionText('tap1', o, PARAMS),
+    '指 1 本 / 押下 120ms / 移動 0 → タップと認識 → 左クリック 1 回送信 → ホストで左クリック 1 回受信');
+});
+
+test('1本指タップでドライバがボタンを出さなかった認識文には理由の候補が現在値つきで入る', () => {
+  const o = observe(TAP1_LONG);
+  assert.equal(T.recognitionText('tap1', o, PARAMS),
+    '指 1 本 / 押下 320ms / 移動 0 → ボタン報告なし(押下 320ms > 1f_tap_max_ms=250) → ホスト受信なし');
+});
+
+test('1本指タップで条件内なのにボタンが出なかった認識文には tap_enable の確認が入る', () => {
+  const o = observe(frames(0, 100, 1).concat(frames(110, 600, 0)));
+  assert.ok(T.recognitionText('tap1', o, PARAMS).includes('ボタン報告なし(1f_tap_enable を確認)'));
+});
+
+test('タップドラッグで 2 回目の接触が遅かった認識文にはクリック確定と間隔の超過が入る', () => {
+  const fr = frames(0, 120, 1).concat(frames(130, 350, 0), frames(360, 900, 1, { relX: 3 }), frames(910, 1500, 0));
+  const fw = [K(125, 272, 1), K(290, 272, 0)];
+  const host = { btn: [{ t: 132, buttons: 1 }, { t: 297, buttons: 0 }], move: [{ t: 400, dx: 3, dy: 0 }], wheel: [] };
+  const text = T.recognitionText('tapdrag', observe(fr, fw, host), PARAMS);
+  assert.ok(text.startsWith('指 1 本 / 押下 120ms / 移動 0 / 2 回目 間隔 240ms 移動 165 → '), text);
+  assert.ok(text.includes('ドラッグにならず左クリック 1 回送信(間隔 240ms > 1f_tapdrag_gap_max_ms=160'), text);
+  assert.ok(text.endsWith('→ ホストで左クリック 1 回、移動 1 回受信'), text);
+});
+
+test('タップドラッグが成立した認識文はドラッグと認識になる', () => {
+  const fr = frames(0, 120, 1).concat(frames(130, 210, 0, { hold: 272, pending: 1 }), frames(220, 800, 1, { relX: 3, hold: 272 }), frames(810, 1400, 0));
+  const fw = [K(125, 272, 1), K(805, 272, 0)];
+  const host = { btn: [{ t: 132, buttons: 1 }, { t: 812, buttons: 0 }], move: [{ t: 300, dx: 3, dy: 0 }], wheel: [] };
+  assert.equal(T.recognitionText('tapdrag', observe(fr, fw, host), PARAMS),
+    '指 1 本 / 押下 120ms / 移動 0 / 2 回目 間隔 100ms 移動 177 → タップドラッグと認識 → 左ボタン押し→保持→離し送信 → ホストで左クリック 1 回、移動 1 回受信');
+});
+
+test('2本指スクロールの認識文には 2 本指移動量と wheel の送受信回数が入る', () => {
+  const fr = frames(0, 50, 2, { relY: 4 }).concat(frames(60, 500, 2, { relY: 4, mode2f: 1 }), frames(510, 1000, 0));
+  const fw = [];
+  const host = { btn: [], move: [], wheel: [] };
+  for (let t = 100; t <= 500; t += 50) {
+    fw.push(R(t, 8, -1));
+    host.wheel.push({ t: t + 12, deltaX: 0, deltaY: 24 });
+  }
+  assert.equal(T.recognitionText('scroll2', observe(fr, fw, host), PARAMS),
+    '指 2 本 / 接触 500ms / 2 本指移動 204 → スクロールと認識 → wheel 9 回送信 → ホストで wheel 9 回受信');
+  const short = frames(0, 90, 2, { relY: 1 }).concat(frames(100, 300, 2), frames(310, 800, 0));
+  assert.equal(T.recognitionText('scroll2', observe(short), PARAMS),
+    '指 2 本 / 接触 300ms / 2 本指移動 10 → スクロール判定なし(2 本指移動量 10 < 2f_scroll_start_move=15) → ホスト受信なし');
+});
+
+test('ピンチの認識文には距離変化とピンチボタンの送信が入りホスト受信は対象外と書かれる', () => {
+  const fr = frames(0, 300, 2, { mode2f: 2, f1x: 100, f1y: 100, f2x: 200, f2y: 100 }).concat(frames(310, 800, 0));
+  assert.equal(T.recognitionText('pinch', observe(fr, [K(150, 279, 1), K(310, 279, 0)]), PARAMS),
+    '指 2 本 / 接触 300ms / 距離変化 0 → ピンチと認識 → ピンチ(BTN_7) 1 回送信 → ホスト受信は判定対象外');
+});
+
+test('接触のない試行の認識文は指が認識されていないと出る', () => {
+  const o = T.observeAttempt({ start: 0, end: 0, frames: [] }, [], HOST0);
+  assert.equal(T.recognitionText('tap1', o, PARAMS), '接触なし(指が認識されていません)');
+});
+
+function cursorScenario() {
+  const fr = frames(0, 30, 1).concat(frames(40, 400, 1, { relX: 1, relY: 1 }), frames(410, 600, 1, { relX: 8, relY: 0 }), frames(610, 1200, 0));
+  const fw = [];
+  for (let t = 40; t <= 600; t += 10) fw.push(R(t, 0, t < 410 ? 1 : 8));
+  fw.push(R(620, 0, 4), R(640, 0, 2));
+  const host = { btn: [], move: [], wheel: [] };
+  for (let t = 45; t <= 605; t += 10) host.move.push({ t, dx: t < 415 ? 1 : 8, dy: t < 415 ? 1 : 0 });
+  return { fr, fw, host };
+}
+
+test('カーソル移動の試行から動き出し遅延・移動量・フレーム間隔・微小動き割合・慣性の指標が取れる', () => {
+  const { fr, fw, host } = cursorScenario();
+  const m = T.cursorMetrics(T.segmentAttempts(fr)[0], fw, host, { tailMs: 500 });
+  assert.equal(m.touchMs, 600);
+  assert.equal(m.startDelayMs, 40);
+  assert.equal(m.fwMove, 37 * 2 + 20 * 8);
+  assert.equal(m.hostMove, 37 * 2 + 20 * 8);
+  assert.equal(m.frameGapMs, 10);
+  assert.equal(m.tinyRatio, Math.round((37 / 61) * 100));
+  assert.equal(m.relCount, 57);
+  assert.equal(m.inertiaCount, 2);
+  assert.equal(m.inertiaMs, 40);
+});
+
+test('動きのない接触ではカーソル指標の動き出し遅延が null になり慣性は 0 になる', () => {
+  const m = T.cursorMetrics(T.segmentAttempts(frames(0, 100, 1))[0], [], HOST0, { tailMs: 500 });
+  assert.equal(m.startDelayMs, null);
+  assert.equal(m.fwMove, 0);
+  assert.equal(m.inertiaCount, 0);
+  assert.equal(m.tinyRatio, 0);
+});
+
+test('カーソル移動の認識文には各指標とホストの移動受信回数が入る', () => {
+  const { fr, fw, host } = cursorScenario();
+  assert.equal(T.recognitionText('cursor', observe(fr, fw, host), PARAMS),
+    '指 1 本 / 接触 600ms / 動き出し 40ms / 移動量 ファーム 234・ホスト 234 / フレーム間隔 10ms / 微小動き 61% / 慣性あり(2 回 40ms) → 移動 57 回送信 → ホストで移動 57 回受信');
+});
+
+test('各カードの体感ボタンが取れ、意図と違う動作にはサブ選択がある', () => {
+  const tap = T.feedbackOptions('tap1');
+  assert.deepEqual(tap.map((f) => f.id), ['ok', 'none', 'wrong', 'slow', 'sensitive']);
+  assert.deepEqual(tap[2].sub.map((f) => f.id), ['wrong:drag', 'wrong:other', 'wrong:cursor', 'wrong:double']);
+  assert.equal(T.feedbackOptions('tap2')[2].sub[1].label, '別のボタンになった');
+  assert.deepEqual(T.feedbackOptions('tapdrag').map((f) => f.id), ['ok', 'nodrag', 'stuck', 'slowclick']);
+  assert.deepEqual(T.feedbackOptions('scroll2').map((f) => f.id), ['ok', 'none', 'heavy', 'fast', 'slow', 'inertia_more', 'inertia_less', 'diagonal']);
+  assert.deepEqual(T.feedbackOptions('pinch').map((f) => f.id), ['ok', 'none', 'scroll', 'sensitive']);
+  assert.deepEqual(T.feedbackOptions('cursor').map((f) => f.id), ['ok', 'start_slow', 'light_miss', 'jitter', 'jump', 'fast', 'slow', 'inertia_more', 'inertia_less']);
+  assert.ok(T.feedbackOptions('cursor').every((f) => f.label));
+});
+
+const LIST = [
+  { name: '1f_tap_max_ms', value: 250, min: 1, max: 1000, kind: 'driver', def: 250 },
+  { name: '1f_tap_move', value: 50, min: 0, max: 500, kind: 'driver', def: 50 },
+  { name: '1f_tapdrag_gap_max_ms', value: 160, min: 0, max: 1000, kind: 'driver', def: 160 },
+  { name: '2f_scroll_start_move', value: 15, min: 0, max: 200, kind: 'driver', def: 15 },
+  { name: '2f_pinch_start_distance', value: 30, min: 0, max: 500, kind: 'driver', def: 30 },
+  { name: 'scroll_inertia_enable', value: 1, min: 0, max: 1, kind: 'driver_bool', def: 1 },
+  { name: 'scroll_inertia_decay', value: 980, min: 0, max: 1000, kind: 'driver', def: 980 },
+  { name: 'scroll_inertia_min_avg_speed', value: 10, min: 0, max: 100, kind: 'driver', def: 10 },
+  { name: 'cursor_inertia_enable', value: 0, min: 0, max: 1, kind: 'driver_bool', def: 0 },
+  { name: 'cursor_inertia_decay', value: 950, min: 0, max: 1000, kind: 'driver', def: 950 },
+  { name: 'cursor_inertia_min_avg_speed', value: 10, min: 0, max: 100, kind: 'driver', def: 10 },
+  { name: 'touch_set_threshold', value: 20, min: 1, max: 255, kind: 'ic_u8', def: 20 },
+  { name: 'finger_confidence_threshold', value: 6, min: 0, max: 255, kind: 'ic_u8', def: 6 },
+  { name: 'alp_set_debounce', value: 2, min: 0, max: 15, kind: 'ic_u8', def: 2 },
+  { name: 'stationary_touch_mov_threshold', value: 2, min: 0, max: 255, kind: 'ic_u8', def: 2 },
+  { name: 'jitter_filter_delta', value: 3, min: 0, max: 255, kind: 'ic_u8', def: 3 },
+  { name: 'dynamic_filter_bottom_beta', value: 20, min: 0, max: 255, kind: 'ic_u8', def: 20 },
+  { name: 'dynamic_filter_bottom_speed', value: 30, min: 0, max: 511, kind: 'ic_u16', def: 30 },
+  { name: 'idle_mode_sampling_period_ms', value: 50, min: 1, max: 65535, kind: 'ic_u16', def: 50 },
+  { name: 'lp1_mode_sampling_period_ms', value: 80, min: 1, max: 65535, kind: 'ic_u16', def: 80 },
+];
+const names = (r) => r.suggestions.map((s) => `${s.name}${s.delta > 0 ? '+' : ''}${s.delta}`);
+
+test('1本指タップが反応しなかったとき押下が上限を超えていれば 1f_tap_max_ms +50 を理由と副作用つきで提案する', () => {
+  const r = T.suggestFor('tap1', 'none', observe(TAP1_LONG), LIST);
+  assert.deepEqual(names(r), ['1f_tap_max_ms+50']);
+  const s = r.suggestions[0];
+  assert.equal(s.from, 250);
+  assert.equal(s.to, 300);
+  assert.ok(s.reason.includes('押下 320ms'), s.reason);
+  assert.ok(s.side.length > 0);
+  assert.equal(s.ic, false);
+});
+
+test('1本指タップが反応しなかったとき移動が上限を超えていれば 1f_tap_move +10 を提案する', () => {
+  const r = T.suggestFor('tap1', 'none', observe(frames(0, 100, 1, { relX: 8 }).concat(frames(110, 600, 0))), LIST);
+  assert.deepEqual(names(r), ['1f_tap_move+10']);
+  assert.ok(r.suggestions[0].reason.includes('移動 88'));
+});
+
+test('1本指タップが反応しなかったとき条件内でボタン報告がなければ tap_enable の確認だけを出す', () => {
+  const r = T.suggestFor('tap1', 'none', observe(frames(0, 100, 1).concat(frames(110, 600, 0))), LIST);
+  assert.deepEqual(r.suggestions, []);
+  assert.ok(r.notes.some((n) => n.includes('1f_tap_enable')));
+});
+
+test('1本指タップが反応しなかったとき指が認識されていなければ IC 感度を下げる提案になる', () => {
+  const r = T.suggestFor('tap1', 'none', T.observeAttempt({ start: 0, end: 0, frames: [] }, [], HOST0), LIST);
+  assert.deepEqual(names(r), ['touch_set_threshold-2', 'finger_confidence_threshold-2']);
+  assert.ok(r.suggestions.every((s) => s.ic));
+  assert.ok(r.notes.some((n) => n.includes('次にパッドへ触れたとき')));
+});
+
+test('1本指タップが反応しなかったときドライバは送信したがホストが受信していなければ伝送の注記になる', () => {
+  const r = T.suggestFor('tap1', 'none', observe(TAP1_OK.fr, TAP1_OK.fw, HOST0), LIST);
+  assert.deepEqual(r.suggestions, []);
+  assert.ok(r.notes.some((n) => n.includes('ホストが受信していない')));
+  const dropped = TAP1_OK.fw.map((e) => ({ ...e, ret: -12 }));
+  const r2 = T.suggestFor('tap1', 'none', observe(TAP1_OK.fr, dropped, HOST0), LIST);
+  assert.ok(r2.notes.some((n) => n.includes('ret≠0') && n.includes('2 件')));
+});
+
+test('1本指タップがドラッグになったとき 2 回目の接触が待ち時間内なら 1f_tapdrag_gap_max_ms -40 を提案する', () => {
+  const fr = frames(0, 120, 1).concat(frames(130, 210, 0, { hold: 272, pending: 1 }), frames(220, 800, 1, { relX: 3, hold: 272 }), frames(810, 1400, 0));
+  const r = T.suggestFor('tap1', 'wrong:drag', observe(fr, [K(125, 272, 1), K(805, 272, 0)]), LIST);
+  assert.deepEqual(names(r), ['1f_tapdrag_gap_max_ms-40']);
+  assert.equal(r.suggestions[0].to, 120);
+  assert.ok(r.suggestions[0].reason.includes('100ms'));
+});
+
+test('1本指タップが別のボタンになったとき指 2 本と認識されていれば finger_confidence_threshold +2 を提案する', () => {
+  const fr = frames(0, 100, 2).concat(frames(110, 600, 0));
+  const r = T.suggestFor('tap1', 'wrong:other', observe(fr, [K(105, 273, 1), K(270, 273, 0)]), LIST);
+  assert.deepEqual(names(r), ['finger_confidence_threshold+2']);
+  assert.ok(r.suggestions[0].reason.includes('指 2 本'));
+  assert.equal(r.suggestions[0].ic, true);
+});
+
+test('1本指タップが 2 回クリックになったときは仕様の説明だけを出す', () => {
+  const r = T.suggestFor('tap1', 'wrong:double', observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host), LIST);
+  assert.deepEqual(r.suggestions, []);
+  assert.ok(r.notes.some((n) => n.includes('1f_tapdrag_gap_max_ms')));
+});
+
+test('1本指タップが鈍いときは 1f_tapdrag_gap_max_ms -40 を副作用つきで提案する', () => {
+  const r = T.suggestFor('tap1', 'slow', observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host), LIST);
+  assert.deepEqual(names(r), ['1f_tapdrag_gap_max_ms-40']);
+  assert.ok(r.suggestions[0].side.includes('ドラッグ'));
+});
+
+test('1本指タップが敏感すぎるときは IC の閾値を上げる提案になる', () => {
+  const r = T.suggestFor('tap1', 'sensitive', observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host), LIST);
+  assert.deepEqual(names(r), ['touch_set_threshold+2', 'finger_confidence_threshold+2']);
+});
+
+test('体感どおりのときは提案なしで肯定の注記だけになる', () => {
+  const r = T.suggestFor('tap1', 'ok', observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host), LIST);
+  assert.deepEqual(r.suggestions, []);
+  assert.equal(r.notes.length, 1);
+});
+
+test('提案値は tp list の min/max でクランプされ、動かせないときは注記になる', () => {
+  const list = LIST.map((p) => (p.name === '1f_tap_max_ms' ? { ...p, max: 280 } : p));
+  const r = T.suggestFor('tap1', 'none', observe(TAP1_LONG), list);
+  assert.equal(r.suggestions[0].to, 280);
+  const maxed = LIST.map((p) => (p.name === '1f_tap_max_ms' ? { ...p, value: 260, max: 260 } : p));
+  const r2 = T.suggestFor('tap1', 'none', observe(TAP1_LONG), maxed);
+  assert.deepEqual(r2.suggestions, []);
+  assert.ok(r2.notes.some((n) => n.includes('上限')));
+});
+
+test('未接続で min/max が分からないときは提案値を現在値からの差分で出す', () => {
+  const r = T.suggestFor('tap1', 'none', observe(TAP1_LONG), PARAMS);
+  assert.equal(r.suggestions[0].from, 250);
+  assert.equal(r.suggestions[0].to, 300);
+});
+
+test('観測から原因を絞れない組み合わせは正直にその旨を返す', () => {
+  const r = T.suggestFor('tap1', 'wrong:drag', observe(TAP1_OK.fr, TAP1_OK.fw, TAP1_OK.host), LIST);
+  assert.deepEqual(r.suggestions, []);
+  assert.ok(r.notes.some((n) => n.includes('原因を絞れません')));
+});
+
+test('タップドラッグに入らなかったとき 2 回目の接触が遅ければ 1f_tapdrag_gap_max_ms +40 を提案する', () => {
+  const fr = frames(0, 120, 1).concat(frames(130, 350, 0), frames(360, 900, 1, { relX: 3 }), frames(910, 1500, 0));
+  const r = T.suggestFor('tapdrag', 'nodrag', observe(fr, [K(125, 272, 1), K(290, 272, 0)]), LIST);
+  assert.deepEqual(names(r), ['1f_tapdrag_gap_max_ms+40']);
+  assert.ok(r.suggestions[0].reason.includes('240ms'));
+});
+
+test('タップドラッグに入らなかったとき 2 回目の接触中に保持がなければ presshold の確認になる', () => {
+  const fr = frames(0, 120, 1).concat(frames(130, 210, 0), frames(220, 800, 1, { relX: 3 }), frames(810, 1400, 0));
+  const r = T.suggestFor('tapdrag', 'nodrag', observe(fr, [K(125, 272, 1)]), LIST);
+  assert.deepEqual(r.suggestions, []);
+  assert.ok(r.notes.some((n) => n.includes('1f_presshold_enable')));
+});
+
+test('タップドラッグが終わらないときドライバは離したのにホストが押したままなら伝送の注記になる', () => {
+  const fr = frames(0, 120, 1).concat(frames(130, 210, 0, { hold: 272, pending: 1 }), frames(220, 800, 1, { relX: 3, hold: 272 }), frames(810, 1400, 0));
+  const r = T.suggestFor('tapdrag', 'stuck', observe(fr, [K(125, 272, 1), K(805, 272, 0)], { btn: [{ t: 132, buttons: 1 }], move: [], wheel: [] }), LIST);
+  assert.ok(r.notes.some((n) => n.includes('離しが落ちている')));
+  const r2 = T.suggestFor('tapdrag', 'stuck', observe(fr, [K(125, 272, 1)], { btn: [{ t: 132, buttons: 1 }], move: [], wheel: [] }), LIST);
+  assert.ok(r2.notes.some((n) => n.includes('ドライバ側の不具合')));
+});
+
+test('2本指スクロールしなかったとき指が 1 本しか認識されていなければ finger_confidence_threshold -2 を提案する', () => {
+  const r = T.suggestFor('scroll2', 'none', observe(frames(0, 300, 1, { relY: 4 }).concat(frames(310, 800, 0))), LIST);
+  assert.deepEqual(names(r), ['finger_confidence_threshold-2']);
+  assert.ok(r.notes.some((n) => n.includes('指の間隔')));
+});
+
+test('2本指スクロールしなかったとき移動量が開始値に届いていなければ 2f_scroll_start_move -5 を提案する', () => {
+  const r = T.suggestFor('scroll2', 'none', observe(frames(0, 90, 2, { relY: 1 }).concat(frames(100, 300, 2), frames(310, 800, 0))), LIST);
+  assert.deepEqual(names(r), ['2f_scroll_start_move-5']);
+  assert.equal(r.suggestions[0].to, 10);
+});
+
+test('2本指スクロールの速さはキーマップ側なので提案ではなく注記になる', () => {
+  const r = T.suggestFor('scroll2', 'fast', observe(frames(0, 300, 2, { relY: 4, mode2f: 1 })), LIST);
+  assert.deepEqual(r.suggestions, []);
+  assert.ok(r.notes.some((n) => n.includes('zip_vertical_scroll_scaler')));
+});
+
+test('2本指スクロールが滑りすぎるときは慣性の減衰を下げ最低速度を上げる', () => {
+  const r = T.suggestFor('scroll2', 'inertia_more', observe(frames(0, 300, 2, { relY: 4, mode2f: 1 })), LIST);
+  assert.deepEqual(names(r), ['scroll_inertia_decay-10', 'scroll_inertia_min_avg_speed+2']);
+  const r2 = T.suggestFor('scroll2', 'inertia_less', observe(frames(0, 300, 2, { relY: 4, mode2f: 1 })), LIST);
+  assert.deepEqual(names(r2), ['scroll_inertia_decay+10', 'scroll_inertia_min_avg_speed-2']);
+});
+
+test('ピンチがスクロールになるときはスクロール開始を上げるかピンチ開始を下げる 2 案を出す', () => {
+  const fr = frames(0, 300, 2, { relY: 4, mode2f: 1, f1x: 100, f1y: 100, f2x: 200, f2y: 100 }).concat(frames(310, 800, 0));
+  const r = T.suggestFor('pinch', 'scroll', observe(fr), LIST);
+  assert.deepEqual(names(r), ['2f_scroll_start_move+5', '2f_pinch_start_distance-10']);
+});
+
+test('ピンチにならないとき距離変化が開始値に届いていなければ 2f_pinch_start_distance -10 を提案する', () => {
+  const fr = frames(0, 300, 2, { f1x: 100, f1y: 100, f2x: 200, f2y: 100 }).concat(frames(310, 800, 0));
+  const r = T.suggestFor('pinch', 'none', observe(fr), LIST);
+  assert.deepEqual(names(r), ['2f_pinch_start_distance-10']);
+});
+
+test('カーソルの動き出しが遅いときは動き出し遅延を引用して復帰と周期のパラメータを提案する', () => {
+  const { fr, fw, host } = cursorScenario();
+  const r = T.suggestFor('cursor', 'start_slow', observe(fr, fw, host), LIST);
+  assert.deepEqual(names(r), ['alp_set_debounce-1', 'stationary_touch_mov_threshold-1', 'idle_mode_sampling_period_ms-10', 'lp1_mode_sampling_period_ms-10']);
+  assert.ok(r.suggestions[0].reason.includes('40ms'));
+  assert.ok(r.suggestions[2].side.includes('電池'));
+});
+
+test('カーソルが震えるときは微小動きの割合を引用してフィルタ系を提案する', () => {
+  const { fr, fw, host } = cursorScenario();
+  const r = T.suggestFor('cursor', 'jitter', observe(fr, fw, host), LIST);
+  assert.deepEqual(names(r), ['jitter_filter_delta+1', 'stationary_touch_mov_threshold+1', 'dynamic_filter_bottom_beta+5']);
+  assert.ok(r.suggestions[0].reason.includes('61%'));
+});
+
+test('カーソルが速すぎるときは zip_xy_scaler の注記と低速追従の提案になる', () => {
+  const { fr, fw, host } = cursorScenario();
+  const r = T.suggestFor('cursor', 'fast', observe(fr, fw, host), LIST);
+  assert.deepEqual(names(r), ['dynamic_filter_bottom_speed-5']);
+  assert.ok(r.notes.some((n) => n.includes('zip_xy_scaler')));
+});
+
+test('カーソルが離した後に滑らないとき慣性が OFF ならまず有効化を提案する', () => {
+  const { fr, fw, host } = cursorScenario();
+  const r = T.suggestFor('cursor', 'inertia_less', observe(fr, fw, host), LIST);
+  assert.deepEqual(names(r), ['cursor_inertia_enable+1']);
+  const on = LIST.map((p) => (p.name === 'cursor_inertia_enable' ? { ...p, value: 1 } : p));
+  const r2 = T.suggestFor('cursor', 'inertia_less', observe(fr, fw, host), on);
+  assert.deepEqual(names(r2), ['cursor_inertia_decay+10', 'cursor_inertia_min_avg_speed-2']);
 });

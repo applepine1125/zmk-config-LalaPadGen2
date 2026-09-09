@@ -75,49 +75,52 @@
   #padArmed .instr { display: block; font-weight: 400; font-size: 13px; color: var(--muted); }
   #observed { margin-top: 8px; font-size: 12px; min-height: 20px; color: var(--muted); overflow-wrap: anywhere; }
   #observed b { color: var(--fg); }
-  #observed.pass b { color: #166534; }
-  #observed.fail b { color: var(--danger); }
-  #observed.partial b { color: #92400e; }
   #cards { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
   .card {
     background: var(--panel); border: 1px solid var(--border); border-left: 4px solid var(--border);
     border-radius: 6px; padding: 8px 10px; min-width: 0;
   }
-  .card.pass { border-left-color: #16a34a; }
-  .card.fail { border-left-color: var(--danger); }
-  .card.partial { border-left-color: #f59e0b; }
+  .card.done { border-left-color: var(--accent); }
   .card.armed { border-color: #f59e0b; border-left-color: #f59e0b; background: #fffbeb; box-shadow: 0 0 0 2px #fde68a; }
   .card .head { display: flex; align-items: center; gap: 8px; }
   .card .head h3 { margin: 0; font-size: 14px; flex: 1; }
-  .card .hist { font-size: 12px; letter-spacing: 2px; }
-  .card .hist .pass { color: #16a34a; }
-  .card .hist .fail { color: var(--danger); }
-  .card .hist .partial { color: #f59e0b; }
   .badge { font-size: 11px; padding: 1px 8px; border-radius: 10px; background: #e5e7eb; color: var(--muted); white-space: nowrap; }
-  .badge.pass { background: #dcfce7; color: #166534; }
-  .badge.fail { background: #fee2e2; color: #991b1b; }
-  .badge.partial { background: #fef3c7; color: #92400e; }
   .badge.armed { background: #fde68a; color: #92400e; }
   .card .arm { padding: 2px 10px; font-size: 12px; white-space: nowrap; }
   .card.armed .arm { background: #f59e0b; border-color: #f59e0b; color: #fff; }
   .card .instr { margin: 4px 0 2px; }
-  .card .stages { list-style: none; margin: 4px 0; padding: 0; display: flex; flex-direction: column; gap: 1px; }
-  .card .stages li { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 6px; font-size: 12px; padding: 2px 4px; border-radius: 4px; align-items: start; }
-  .card .stages .mark { font-weight: 700; text-align: center; color: var(--border); }
-  .card .stages li.ok .mark { color: #16a34a; }
-  .card .stages li.ng .mark { color: var(--danger); }
-  .card .stages li.ng.first { background: #fee2e2; }
-  .card .stages .detail { color: var(--muted); }
-  .card .stages li.ng .detail { color: var(--danger); }
-  .card .stages .fix { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 3px; }
-  .card .stages .fix button { padding: 1px 8px; font-size: 11px; }
-  .card .obs { font-size: 12px; color: var(--muted); margin: 4px 0; overflow-wrap: anywhere; }
-  .card .knobs { display: flex; flex-direction: column; gap: 3px; margin-top: 6px; }
+  .card .note { font-size: 11px; color: var(--muted); margin: 0 0 2px; }
+  .card .recog { margin: 6px 0 4px; font-weight: 700; font-size: 13px; overflow-wrap: anywhere; }
+  .card .recog.pending { color: #92400e; }
+  .card .recog.empty { color: var(--muted); font-weight: 400; }
+  .card details.breakdown { font-size: 12px; margin: 2px 0 4px; }
+  .card details.breakdown summary { cursor: pointer; color: var(--muted); }
+  .card details.breakdown ul { margin: 2px 0 0; padding-left: 18px; color: var(--muted); }
+  .card details.breakdown li b { color: var(--fg); font-weight: 600; }
+  .card .feel { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0 2px; align-items: center; }
+  .card .feel .lead { font-size: 12px; color: var(--muted); margin-right: 2px; }
+  .card .feel button { padding: 2px 8px; font-size: 12px; }
+  .card .feel button.sel { background: #dbeafe; border-color: var(--accent); }
+  .card .feel .sub { display: flex; flex-wrap: wrap; gap: 4px; flex-basis: 100%; padding-left: 12px; }
+  .card .proposal { margin: 6px 0 4px; padding: 6px 8px; border: 1px solid #f59e0b; border-radius: 6px; background: #fffbeb; font-size: 12px; }
+  .card .proposal .title { font-weight: 600; margin-bottom: 4px; }
+  .card .proposal .item { margin: 3px 0; padding-left: 8px; border-left: 3px solid #f59e0b; overflow-wrap: anywhere; }
+  .card .proposal .item code { font-family: ui-monospace, Menlo, monospace; font-weight: 600; }
+  .card .proposal .item .why { color: var(--fg); }
+  .card .proposal .item .help { color: var(--muted); font-size: 11px; }
+  .card .proposal .note { margin: 3px 0; }
+  .card .proposal .actions { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+  .card .history { margin: 4px 0 0; padding-left: 0; list-style: none; font-size: 11px; color: var(--muted); }
+  .card .history li { overflow-wrap: anywhere; padding: 1px 0; border-top: 1px dashed var(--border); }
+  .card .history li b { color: var(--fg); font-weight: 600; }
+  .card details.knobbox { margin-top: 6px; font-size: 12px; }
+  .card details.knobbox summary { cursor: pointer; color: var(--muted); }
+  .card .knobs { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
   .card .knob { display: flex; align-items: center; gap: 6px; font-size: 12px; padding: 1px 4px; border-radius: 4px; flex-wrap: wrap; }
-  .card .knob.suggest { background: #fff6cc; }
   .card .knob code { font-family: ui-monospace, Menlo, monospace; }
   .card .knob .val { min-width: 48px; }
   .card .knob button { padding: 1px 8px; font-size: 11px; }
+  .card .knob .help { flex-basis: 100%; color: var(--muted); font-size: 11px; padding-left: 4px; }
   details.section { margin-top: 12px; background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
   details.section > summary { cursor: pointer; font-weight: 600; color: var(--muted); }
   details.section > .body { padding-top: 8px; }
@@ -254,6 +257,7 @@
   const KEEP_MS = 60000;
   const SET_DEBOUNCE_MS = 150;
   const ATTEMPT_IDLE_MS = 400;
+  const PROCESS_INTERVAL_MS = 250;
   const STATE_STALE_MS = 600;
   const LANE_H = 40;
   const LANES = ['FW 指', 'FW ボタン', 'FW REL/WHEEL', 'HOST ボタン', 'HOST move', 'HOST wheel'];
@@ -270,16 +274,66 @@
     { title: 'IC サンプリング周期', ic: true, names: ['active_mode_sampling_period_ms', 'idle_touch_mode_sampling_period_ms', 'idle_mode_sampling_period_ms', 'lp1_mode_sampling_period_ms', 'lp2_mode_sampling_period_ms', 'active_mode_timeout_ms'] },
     { title: 'IC フィルタ / ATI(変更後は Re-ATI)', ic: true, names: ['ati_targetcount', 'dynamic_filter_bottom_speed', 'dynamic_filter_top_speed', 'dynamic_filter_bottom_beta'] },
   ];
-  const DESCRIPTIONS = {
-    '1f_tap_max_ms': 'タップと判定する最大押下時間',
-    '1f_tap_move': 'タップと判定する最大移動量',
-    '1f_tapdrag_gap_max_ms': 'タップ後にボタンを押したまま2回目の接触を待つ時間(タップドラッグ)',
-    '2f_scroll_start_move': '2本指スクロールを開始する移動量',
-    'touch_set_threshold': 'タッチ検出の閾値(小さいほど敏感)',
-    'touch_clear_threshold': 'タッチ解除の閾値',
-    'alp_set_debounce': '低消費電力モードからの復帰デバウンス(小さいほど立ち上がりが速い)',
-    'ati_targetcount': 'ATI のターゲットカウント。変更後は Re-ATI',
+  const PARAM_HELP = {
+    '1f_tap_enable': { what: '1 本指タップを左クリックにする', on: 'タップでクリックする', off: 'タップでクリックしない' },
+    '1f_tap_max_ms': { what: 'タップと見なす押下時間の上限(ms)', up: '長めのタップも拾うが短い押し込みもクリックになる', down: '素早いタップだけ拾う' },
+    '1f_tap_move': { what: 'タップ中に許す指の移動量', up: '指がぶれてもタップになる', down: '少しの動きでカーソル移動扱いになる' },
+    '1f_presshold_enable': { what: 'タップ後にボタンを押したまま 2 回目の接触を待ち、ドラッグにつなげる(タップドラッグ)', on: 'タップ→触れ直しでドラッグできる', off: 'タップドラッグしない' },
+    '1f_tapdrag_gap_max_ms': { what: 'タップ後に 2 回目の接触を待つ時間(ms)', up: 'ゆっくりのダブルタップでもドラッグに入るがシングルクリックの確定が遅れる', down: 'クリックの確定は速いが素早く触れ直さないとドラッグに入らない' },
+    '2f_tap_enable': { what: '2 本指タップを右クリックにする', on: '2 本指タップでクリックする', off: '2 本指タップでクリックしない' },
+    '2f_tap_max_ms': { what: '2 本指タップと見なす押下時間の上限(ms)', up: '長めのタップも拾うが短い押し込みもクリックになる', down: '素早いタップだけ拾う' },
+    '2f_tap_move': { what: '2 本指タップ中に許す移動量', up: '指がぶれてもタップになる', down: '少しの動きでスクロール扱いになる' },
+    '2f_presshold_enable': { what: '2 本指タップ後にボタンを押したまま 2 回目の接触を待つ', on: '2 本指のタップドラッグができる', off: 'しない' },
+    '2f_tapdrag_gap_max_ms': { what: '2 本指タップ後に 2 回目の接触を待つ時間(ms)', up: 'ゆっくりでもドラッグに入るが右クリックの確定が遅れる', down: '確定は速いがドラッグに入りにくい' },
+    '3f_tap_enable': { what: '3 本指タップを中クリックにする', on: '3 本指タップでクリックする', off: '3 本指タップでクリックしない' },
+    '3f_tap_max_ms': { what: '3 本指タップと見なす押下時間の上限(ms)', up: '長めのタップも拾うが短い押し込みもクリックになる', down: '素早いタップだけ拾う' },
+    '3f_tap_move': { what: '3 本指タップ中に許す移動量', up: '指がぶれてもタップになる', down: '少しの動きでスワイプ扱いになる' },
+    '3f_presshold_enable': { what: '3 本指タップ後にボタンを押したまま 2 回目の接触を待つ', on: '3 本指のタップドラッグができる', off: 'しない' },
+    '3f_tapdrag_gap_max_ms': { what: '3 本指タップ後に 2 回目の接触を待つ時間(ms)', up: 'ゆっくりでもドラッグに入るが中クリックの確定が遅れる', down: '確定は速いがドラッグに入りにくい' },
+    '3f_swipe_threshold': { what: '3 本指スワイプと見なす移動量', up: '大きく動かさないとスワイプにならない', down: '小さな動きでスワイプになる' },
+    scroll_x_enable: { what: '横の 2 本指スクロール', on: '横スクロールする', off: '横スクロールしない' },
+    scroll_y_enable: { what: '縦の 2 本指スクロール', on: '縦スクロールする', off: '縦スクロールしない' },
+    '2f_scroll_start_move': { what: '2 本指の移動をスクロールと判定し始める移動量', up: 'スクロールの始まりが重くなる', down: '小さな動きで始まる(2 本指タップがスクロール扱いになりやすい)' },
+    '2f_pinch_enable': { what: '2 本指ピンチ', on: 'ピンチする', off: 'ピンチしない' },
+    '2f_pinch_start_distance': { what: '指の間隔の変化がこれを超えるとピンチ', up: '大きく開閉しないとピンチにならない', down: '敏感になる(スクロールがピンチに化けやすい)' },
+    '2f_pinch_wheel_gain_x10': { what: 'ピンチで送るホイール量の倍率(10 = 1.0 倍)', up: '同じ開閉で大きく拡大縮小する', down: '小さく拡大縮小する' },
+    cursor_inertia_enable: { what: '指を離した後もカーソルが滑る慣性', on: '離した後に滑る', off: '離すと止まる' },
+    cursor_inertia_decay: { what: '慣性の減衰(1000 に近いほど長く滑る)', up: '長く滑る', down: '早く止まる' },
+    cursor_inertia_recent_window_ms: { what: '離す直前の速度を見る時間幅(ms)', up: '長い区間の平均速度で判断する', down: '離す直前の速度だけで判断する' },
+    cursor_inertia_stale_gap_ms: { what: '最後の移動から離すまでがこれを超えると慣性を出さない(ms)', up: '止めてから離しても滑る', down: '止めてから離すと滑らない' },
+    cursor_inertia_min_samples: { what: '慣性を出すのに必要な直近の移動サンプル数', up: '短い動きでは滑らない', down: '短い動きでも滑る' },
+    cursor_inertia_min_avg_speed: { what: 'この速度以上で離したときだけ慣性を出す', up: '滑りにくくなる', down: 'ゆっくり離しても滑る' },
+    scroll_inertia_enable: { what: '指を離した後もスクロールが続く慣性', on: '離した後に滑る', off: '離すと止まる' },
+    scroll_inertia_decay: { what: 'スクロール慣性の減衰(1000 に近いほど長く滑る)', up: '長く滑る', down: '早く止まる' },
+    scroll_inertia_recent_window_ms: { what: '離す直前の速度を見る時間幅(ms)', up: '長い区間の平均速度で判断する', down: '離す直前の速度だけで判断する' },
+    scroll_inertia_stale_gap_ms: { what: '最後の移動から離すまでがこれを超えると慣性を出さない(ms)', up: '止めてから離しても滑る', down: '止めてから離すと滑らない' },
+    scroll_inertia_min_samples: { what: '慣性を出すのに必要な直近の移動サンプル数', up: '短い動きでは滑らない', down: '短い動きでも滑る' },
+    scroll_inertia_min_avg_speed: { what: 'この速度以上で離したときだけ慣性を出す', up: '滑りにくくなる', down: 'ゆっくり離しても滑る' },
+    touch_set_threshold: { what: 'タッチと判定する強さの閾値', up: '軽いタッチを拾わなくなる', down: '軽いタッチを拾うが誤反応も増える' },
+    touch_clear_threshold: { what: 'タッチ解除の閾値(set より小さくする)', up: 'set との差が小さくなり離し判定が遅れやすい', down: 'set との差が大きくなり離し判定が遅れにくい' },
+    alp_set_debounce: { what: '低消費電力モードからの復帰に必要な連続検出回数', up: '誤起動が減るが初動が遅い', down: '初動が速いが誤起動が増える' },
+    alp_clear_debounce: { what: '低消費電力モードへ戻るのに必要な連続非検出回数', up: '戻りにくい', down: 'すぐ戻る' },
+    stationary_touch_mov_threshold: { what: 'これ以下の移動は静止と見なす', up: '小さなふらつきを無視する', down: '小さな動きも拾う' },
+    jitter_filter_delta: { what: 'ジッタ(震え)フィルタの幅', up: '細かな震えを消すが細かい動きも消える', down: '細かい動きが通るが震えも出る' },
+    finger_confidence_threshold: { what: '指と認める信頼度', up: '誤検出が減るが拾いにくい', down: '拾いやすいが誤検出が増える' },
+    dynamic_filter_bottom_speed: { what: '速度に応じた平滑化の下限速度', up: '低速域が広がり遅い動きも強く平滑化する', down: '低速域が狭まる' },
+    dynamic_filter_top_speed: { what: '速度に応じた平滑化の上限速度', up: '高速域まで平滑化が残る', down: '速い動きはすぐ生の座標になる' },
+    dynamic_filter_bottom_beta: { what: '低速時の平滑化の強さ', up: '滑らかだが遅れる', down: '追従が速いが震えが出る' },
+    ati_targetcount: { what: '感度の基準カウント。変えたら Re-ATI', up: '基準が高くなる', down: '基準が低くなる' },
+    active_mode_sampling_period_ms: { what: 'アクティブモードのサンプリング周期(ms)', up: '電池は持つが反応が遅い', down: '反応が速いが電池を使う' },
+    idle_touch_mode_sampling_period_ms: { what: '触れたまま静止しているときの周期(ms)', up: '電池は持つが反応が遅い', down: '反応が速いが電池を使う' },
+    idle_mode_sampling_period_ms: { what: '待機中の周期(ms)', up: '電池は持つが初動が遅い', down: '初動が速いが電池を使う' },
+    lp1_mode_sampling_period_ms: { what: '省電力 1 の周期(ms)', up: '電池は持つが初動が遅い', down: '初動が速いが電池を使う' },
+    lp2_mode_sampling_period_ms: { what: '省電力 2 の周期(ms)', up: '電池は持つが初動が遅い', down: '初動が速いが電池を使う' },
+    active_mode_timeout_ms: { what: 'アクティブモードから省電力へ落ちるまでの時間(ms)', up: '省電力に落ちにくい', down: 'すぐ省電力に落ちる' },
   };
+
+  function helpText(name) {
+    const h = PARAM_HELP[name];
+    if (!h) return '';
+    if (h.on) return `${h.what}。ON: ${h.on}。OFF: ${h.off}`;
+    return `${h.what}。上げると${h.up}。下げると${h.down}`;
+  }
 
   const serial = {
     port: null, reader: null, writer: null, loopDone: null, buffer: '', pending: null, lines: [], queue: [],
@@ -491,7 +545,7 @@
     else if (!isError) setStatus('切断しました');
   }
 
-  async function toggleTrace() {
+  async function toggleTrace(quiet) {
     const next = !traceOn;
     try {
       const lines = await send('tp trace ' + (next ? 'on' : 'off'));
@@ -500,7 +554,7 @@
       traceOn = next;
       $('btnTrace').textContent = traceOn ? 'trace ON' : 'trace OFF';
       $('btnTrace').classList.toggle('active', traceOn);
-      setStatus(traceOn ? 'trace ON: パッドに触れるとタイムラインが動きます' : 'trace OFF');
+      if (!quiet) setStatus(traceOn ? 'trace ON: パッドに触れるとタイムラインが動きます' : 'trace OFF');
     } catch (e) {
       setStatus(errText(e), true);
     }
@@ -556,7 +610,7 @@
     row.dataset.name = p.name;
     const label = document.createElement('label');
     label.textContent = p.name;
-    label.title = `${DESCRIPTIONS[p.name] || ''} [${p.kind}] 範囲 ${p.min}..${p.max} 既定 ${p.def}`.trim();
+    label.title = `[${p.kind}] 範囲 ${p.min}..${p.max} 既定 ${p.def}`;
     row.appendChild(label);
     if (p.kind === 'driver_bool') {
       const cb = document.createElement('input');
@@ -584,10 +638,11 @@
     reset.textContent = '既定に戻す';
     reset.onclick = () => setParam(p, p.def);
     row.appendChild(reset);
-    if (DESCRIPTIONS[p.name]) {
+    const help = helpText(p.name);
+    if (help) {
       const d = document.createElement('div');
       d.className = 'desc';
-      d.textContent = DESCRIPTIONS[p.name];
+      d.textContent = help;
       row.appendChild(d);
     }
     syncRow(row, p);
@@ -719,10 +774,10 @@
     pad.classList.toggle('testing', testMode);
     $('btnTest').textContent = testMode ? 'テスト終了' : 'テスト開始';
     $('btnTest').classList.toggle('primary', !testMode);
-    let hint = '「テスト開始」でカーソルをこの領域に固定するとホスト側の段階も判定できる(Esc で終了)';
+    let hint = '「テスト開始」でカーソルをこの領域に固定するとホストが受け取ったクリック・移動・wheel も認識文に載る(Esc で終了)';
     if (testMode) {
       hint = padLocked()
-        ? 'カーソル固定中(Esc で終了)。キー 1〜6 でカードを選択、Space で同じカードをもう一度'
+        ? 'カーソル固定中(Esc で終了)。キー 1〜7 でカードを選択、Space で同じカードをもう一度'
         : 'ポインタロックなし。カーソルをこの領域に置いたまま操作する';
     }
     $('padHint').textContent = hint;
@@ -760,14 +815,10 @@
 
   const cards = {};
   const processedStarts = new Set();
-  const CIRCLED = ['①', '②', '③', '④', '⑤', '⑥'];
+  const HISTORY_MAX = 5;
   let armed = null;
   let armedAt = 0;
   let lastJudgedKind = null;
-
-  function verdictLabel(v) {
-    return v === 'pass' ? '✔ 合格' : v === 'fail' ? '✘ 不合格' : v === 'partial' ? '△ ホスト未観測' : '未試行';
-  }
 
   function renderCards() {
     const root = $('cards');
@@ -775,101 +826,234 @@
     T.GESTURES.forEach((g, i) => {
       const el = document.createElement('div');
       el.className = 'card';
-      el.innerHTML = '<div class="head"><h3></h3><span class="hist"></span><span class="badge"></span><button class="arm"></button></div>'
-        + '<div class="instr"></div><ol class="stages"></ol><div class="obs" hidden></div><div class="knobs"></div>';
+      el.innerHTML = '<div class="head"><h3></h3><span class="badge" hidden></span><button class="arm"></button></div>'
+        + '<div class="instr"></div><div class="note" hidden></div><div class="recog"></div>'
+        + '<details class="breakdown" hidden><summary>認識の内訳</summary><ul></ul></details>'
+        + '<div class="feel" hidden></div><div class="proposal" hidden></div><ol class="history" hidden></ol>'
+        + '<details class="knobbox"><summary>関係するパラメータ</summary><div class="knobs"></div></details>';
       el.querySelector('h3').textContent = `${i + 1}. ${g.title}`;
       el.querySelector('.instr').textContent = `やること: ${g.instruction} → 期待: ${g.expect}`;
+      if (g.kind === 'cursor') {
+        const note = el.querySelector('.note');
+        note.hidden = false;
+        note.textContent = 'ポインタ速度そのものはキーマップの zip_xy_scaler(ビルドが必要)で決まる。システムレイヤー(レイヤー 1+2 同時押し)の ZDS_XY INC/DEC で実行時にも段階調整できる';
+      }
       el.querySelector('.arm').onclick = () => { armCard(g.kind); };
       root.appendChild(el);
-      cards[g.kind] = { el, g, last: null, obs: null, history: [] };
+      cards[g.kind] = { el, g, obs: null, feedback: null, proposal: null, history: [] };
       renderCard(g.kind);
     });
   }
 
-  function renderStage(kind, r, s, i) {
-    const li = document.createElement('li');
-    const state = s.ok === true ? 'ok' : s.ok === false ? 'ng' : 'pending';
-    li.className = state + (r && i === r.failIndex ? ' first' : '');
-    const mark = document.createElement('span');
-    mark.className = 'mark';
-    mark.textContent = s.ok === true ? '✔' : s.ok === false ? '✘' : r ? '－' : '○';
-    const body = document.createElement('div');
-    const label = document.createElement('span');
-    label.textContent = `${CIRCLED[i] || i + 1} ${s.label}`;
-    body.appendChild(label);
-    if (s.detail) {
-      const detail = document.createElement('span');
-      detail.className = 'detail';
-      detail.textContent = ' … ' + s.detail;
-      body.appendChild(detail);
+  function breakdownItems(kind, o) {
+    const items = [];
+    const li = (label, text) => items.push({ label, text });
+    const first = o.touches[0];
+    if (!first) {
+      li('接触', 'なし(指が認識されていない)');
+    } else {
+      li('指本数', `最大 ${o.fingersMax} 本、接触 ${o.touches.length} 回`);
+      li('押下時間', `1 回目 ${first.downMs}ms` + (o.touches[1] ? `、2 回目 ${o.touches[1].downMs}ms` : ''));
+      li('移動量', `1 回目 ${first.moveSum}` + (o.touches[1] ? `、2 回目 ${o.touches[1].moveSum}` : '') + (o.fingersMax >= 2 ? `、2 本指時 ${o.moveSum2}、距離変化 ${o.distDelta}` : ''));
+      li('2 回目の接触までの間隔', o.gapMs === null ? 'なし' : `${o.gapMs}ms` + (o.touches[1].holds.length ? `(保持: ${o.touches[1].holds.map((h) => T.BTN_NAMES[h] || h).join('、')})` : '(保持なし)'));
+      if (o.mode2fSeen.length) li('2 本指モード', o.mode2fSeen.map((m) => (m === 1 ? 'スクロール' : m === 2 ? 'ピンチ' : String(m))).join('、'));
     }
-    if (r && i === r.failIndex && s.suggest.length) {
-      const fix = document.createElement('div');
-      fix.className = 'fix';
-      const map = byName();
-      for (const sg of s.suggest) {
-        const p = map[sg.name];
-        const b = document.createElement('button');
-        b.textContent = `緩める: ${sg.name} ${sg.delta > 0 ? '+' : ''}${sg.delta} → もう一度`;
-        b.disabled = !p || !isConnected();
-        b.title = p ? '' : '接続してパラメータを読み込むと押せます';
-        b.onclick = () => { nudgeParam(sg.name, sg.delta, kind); };
-        fix.appendChild(b);
+    li('ドライバの報告', T.sentText(o) || 'なし');
+    li('ホストの受信', T.hostText(o));
+    li('ret≠0(input_report が捨てた)', o.drops ? `${o.drops} 件` : 'なし');
+    if (kind === 'cursor') {
+      const m = o.cursor;
+      li('動き出し遅延', m.startDelayMs === null ? '動きなし' : `${m.startDelayMs}ms(接触フレームから最初の非ゼロ rel まで)`);
+      li('移動量合計', `ファーム ${m.fwMove}(|rel_x|+|rel_y|)、ホスト ${m.hostMove}(movementX/Y)`);
+      li('フレーム間隔の平均', `${m.frameGapMs}ms`);
+      li('微小動き(|rel|≤2)の割合', `${m.tinyRatio}%(静止時のふらつきの目安)`);
+      li('慣性', m.inertiaCount ? `離した後に移動 ${m.inertiaCount} 回、${m.inertiaMs}ms 継続` : 'なし');
+    } else {
+      const r = T.judgeAttempt(kind, o, params);
+      if (r) for (const st of r.stages) if (st.ok !== null) li(st.label, st.detail);
+    }
+    return items;
+  }
+
+  function renderProposal(c) {
+    const box = c.el.querySelector('.proposal');
+    box.innerHTML = '';
+    const pr = c.proposal;
+    box.hidden = !pr;
+    if (!pr) return;
+    const title = document.createElement('div');
+    title.className = 'title';
+    title.textContent = `体感「${pr.label}」への提案`;
+    box.appendChild(title);
+    for (const sg of pr.suggestions) {
+      const item = document.createElement('div');
+      item.className = 'item';
+      const code = document.createElement('code');
+      code.textContent = sg.name;
+      const cur = sg.from === null ? '現在値 不明(未接続)' : `${sg.from}`;
+      const to = sg.to === null ? `${sg.delta > 0 ? '+' : ''}${sg.delta}` : `${sg.to}`;
+      item.append(code, document.createTextNode(`: ${cur} → ${to}(${sg.delta > 0 ? '+' : ''}${sg.delta})`));
+      const why = document.createElement('div');
+      why.className = 'why';
+      why.textContent = `理由: ${sg.reason}。副作用: ${sg.side}`;
+      item.appendChild(why);
+      const help = helpText(sg.name);
+      if (help) {
+        const h = document.createElement('div');
+        h.className = 'help';
+        h.textContent = help;
+        item.appendChild(h);
       }
-      body.appendChild(fix);
+      box.appendChild(item);
     }
-    li.append(mark, body);
-    return li;
+    for (const n of pr.notes) {
+      const d = document.createElement('div');
+      d.className = 'note';
+      d.textContent = n;
+      box.appendChild(d);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'actions';
+    if (pr.suggestions.length) {
+      const apply = document.createElement('button');
+      apply.className = 'primary';
+      apply.textContent = '適用して再試行';
+      const map = byName();
+      const missing = pr.suggestions.filter((sg) => !map[sg.name]);
+      apply.disabled = !isConnected() || missing.length > 0;
+      apply.title = !isConnected() ? '接続すると適用できます' : missing.length ? `${missing.map((m) => m.name).join(', ')} が読み込まれていません` : '';
+      apply.onclick = () => { applyProposal(c.g.kind); };
+      actions.appendChild(apply);
+    }
+    const dismiss = document.createElement('button');
+    dismiss.textContent = pr.suggestions.length ? '適用しない' : '閉じる';
+    dismiss.onclick = () => { c.proposal = null; renderCard(c.g.kind); };
+    actions.appendChild(dismiss);
+    const retry = document.createElement('button');
+    retry.textContent = 'そのままもう一度試す';
+    retry.onclick = () => { c.proposal = null; armCard(c.g.kind, { force: true }); };
+    actions.appendChild(retry);
+    box.appendChild(actions);
+  }
+
+  function renderFeel(c) {
+    const feel = c.el.querySelector('.feel');
+    feel.innerHTML = '';
+    feel.hidden = !c.obs || armed === c.g.kind;
+    if (feel.hidden) return;
+    const lead = document.createElement('span');
+    lead.className = 'lead';
+    lead.textContent = '体感は?';
+    feel.appendChild(lead);
+    const options = T.feedbackOptions(c.g.kind);
+    const selectedTop = c.feedback ? c.feedback.split(':')[0] : null;
+    let subRow = null;
+    for (const f of options) {
+      const b = document.createElement('button');
+      b.textContent = f.label;
+      b.classList.toggle('sel', selectedTop === f.id);
+      b.onclick = () => { giveFeedback(c.g.kind, f.sub ? (c.feedback && c.feedback.startsWith(f.id + ':') ? c.feedback : f.id) : f.id, f.label); };
+      feel.appendChild(b);
+      if (f.sub && selectedTop === f.id) {
+        subRow = document.createElement('div');
+        subRow.className = 'sub';
+        for (const sf of f.sub) {
+          const sb = document.createElement('button');
+          sb.textContent = sf.label;
+          sb.classList.toggle('sel', c.feedback === sf.id);
+          sb.onclick = () => { giveFeedback(c.g.kind, sf.id, `${f.label}: ${sf.label}`); };
+          subRow.appendChild(sb);
+        }
+      }
+    }
+    if (subRow) feel.appendChild(subRow);
   }
 
   function renderCard(kind) {
     const c = cards[kind];
     if (!c) return;
     const isArmed = armed === kind;
-    const r = isArmed ? null : c.last;
-    const v = r ? r.verdict : 'none';
-    c.el.classList.remove('pass', 'fail', 'partial');
-    if (r) c.el.classList.add(v);
     c.el.classList.toggle('armed', isArmed);
+    c.el.classList.toggle('done', !isArmed && !!c.obs);
     const badge = c.el.querySelector('.badge');
-    badge.textContent = isArmed ? '待機中: 次の動作を判定' : verdictLabel(v);
-    badge.className = 'badge' + (isArmed ? ' armed' : r ? ' ' + v : '');
-    c.el.querySelector('.arm').textContent = isArmed ? '待機を解除' : c.last ? 'もう一度試す' : 'このジェスチャを試す';
-    const hist = c.el.querySelector('.hist');
-    hist.innerHTML = '';
-    for (const h of c.history) {
-      const s = document.createElement('span');
-      s.className = h;
-      s.textContent = '●';
-      s.title = verdictLabel(h);
-      hist.appendChild(s);
+    badge.hidden = !isArmed;
+    badge.textContent = '待機中';
+    badge.className = 'badge armed';
+    c.el.querySelector('.arm').textContent = isArmed ? '待機を解除' : c.obs ? 'もう一度試す' : 'この操作を試す';
+    const recog = c.el.querySelector('.recog');
+    if (isArmed) {
+      recog.className = 'recog pending';
+      recog.textContent = '待機中: 次の動作をこの操作として認識します(指を離してから約 1 秒で表示)';
+    } else if (c.obs) {
+      recog.className = 'recog';
+      recog.textContent = `PC の認識: ${T.recognitionText(kind, c.obs, params)}`;
+    } else {
+      recog.className = 'recog empty';
+      recog.textContent = '未試行。「この操作を試す」を押してから動作すると、PC が何を認識したかがここに出ます';
     }
-    const ol = c.el.querySelector('.stages');
-    ol.innerHTML = '';
-    (r || T.judgeAttempt(kind, null, params)).stages.forEach((s, i) => ol.appendChild(renderStage(kind, r, s, i)));
-    const obs = c.el.querySelector('.obs');
-    obs.hidden = !(r && c.obs);
-    obs.textContent = r && c.obs ? `ドライバの見え方: ${T.observationText(c.obs)} ／ ホスト: ${T.hostText(c.obs)}` : '';
+    const bd = c.el.querySelector('.breakdown');
+    bd.hidden = !c.obs || isArmed;
+    const ul = bd.querySelector('ul');
+    ul.innerHTML = '';
+    if (!bd.hidden) {
+      for (const it of breakdownItems(kind, c.obs)) {
+        const li = document.createElement('li');
+        const b = document.createElement('b');
+        b.textContent = it.label + ': ';
+        li.append(b, document.createTextNode(it.text));
+        ul.appendChild(li);
+      }
+    }
+    renderFeel(c);
+    renderProposal(c);
+    const hist = c.el.querySelector('.history');
+    hist.innerHTML = '';
+    hist.hidden = c.history.length === 0;
+    c.history.forEach((h, i) => {
+      const li = document.createElement('li');
+      const b = document.createElement('b');
+      b.textContent = `#${c.history.length - i} `;
+      li.append(b, document.createTextNode(`認識: ${h.recog} ／ 体感: ${h.feel || '未回答'} ／ 適用: ${h.applied || 'なし'}`));
+      hist.appendChild(li);
+    });
     const knobs = c.el.querySelector('.knobs');
     knobs.innerHTML = '';
     const map = byName();
     for (const k of c.g.params) {
       const p = map[k.name];
       const row = document.createElement('div');
-      row.className = 'knob' + (r && r.suggest.some((s) => s.name === k.name) ? ' suggest' : '');
+      row.className = 'knob';
       const code = document.createElement('code');
       code.textContent = k.name;
       const val = document.createElement('span');
       val.className = 'val';
-      val.textContent = p ? `= ${p.value}` : `= ${T.DEFAULT_PARAMS[k.name]}(未接続)`;
+      const isBool = p ? p.kind === 'driver_bool' : !k.step;
+      const shown = p ? p.value : T.DEFAULT_PARAMS[k.name];
+      const fmt = (v) => (isBool ? (v ? 'ON' : 'OFF') : String(v));
+      val.textContent = shown === undefined ? '= ?(未接続)' : `= ${fmt(shown)}` + (p ? '' : '(未接続)');
       row.append(code, val);
-      for (const [label, sign] of [['緩める', 1], ['厳しくする', -1]]) {
-        const delta = sign * k.loosen;
+      if (isBool) {
         const b = document.createElement('button');
-        b.textContent = `${label} (${delta > 0 ? '+' : ''}${delta})`;
+        b.textContent = 'ON/OFF 切替';
         b.disabled = !p || !isConnected();
-        b.onclick = () => { nudgeParam(k.name, delta, kind); };
+        b.onclick = () => { nudgeParam(k.name, p.value ? -1 : 1, kind); };
         row.appendChild(b);
+      } else {
+        for (const sign of [-1, 1]) {
+          const delta = sign * k.step;
+          const b = document.createElement('button');
+          b.textContent = `${delta > 0 ? '+' : ''}${delta}`;
+          b.disabled = !p || !isConnected();
+          b.onclick = () => { nudgeParam(k.name, delta, kind); };
+          row.appendChild(b);
+        }
+      }
+      const help = helpText(k.name);
+      if (help) {
+        const h = document.createElement('div');
+        h.className = 'help';
+        h.textContent = help;
+        row.appendChild(h);
       }
       knobs.appendChild(row);
     }
@@ -884,13 +1068,13 @@
     pad.classList.toggle('armed', !!armed);
     if (armed) {
       const g = cards[armed].g;
-      el.textContent = `次の動作を「${g.title}」として判定します`;
+      el.textContent = `次の動作を「${g.title}」として認識します`;
       const instr = document.createElement('span');
       instr.className = 'instr';
       instr.textContent = g.instruction;
       el.appendChild(instr);
     } else {
-      el.textContent = 'カードの「このジェスチャを試す」(またはキー 1〜6)を押すと、次の動作をそのジェスチャとして判定します';
+      el.textContent = 'カードの「この操作を試す」(またはキー 1〜7)を押してから動作すると、PC が認識した内容がカードに出ます';
     }
   }
 
@@ -898,15 +1082,56 @@
     const force = !!(opts && opts.force);
     armed = armed === kind && !force ? null : kind;
     armedAt = opts && typeof opts.since === 'number' ? opts.since : nowMs();
+    if (armed && isConnected() && !traceOn) toggleTrace(true);
     renderAllCards();
     renderPadArmed();
     if (opts && opts.quiet) return;
     if (armed) {
       const g = cards[armed].g;
-      setStatus(`「${g.title}」を待機中: 次の動作を判定します(${g.instruction})`);
+      setStatus(`「${g.title}」を待機中: ${g.instruction}`);
     } else {
       setStatus('待機を解除しました');
     }
+  }
+
+  function giveFeedback(kind, id, label) {
+    const c = cards[kind];
+    if (!c.obs) return;
+    c.feedback = id;
+    const top = T.feedbackOptions(kind).find((f) => f.id === id);
+    if (top && top.sub) {
+      c.proposal = null;
+      if (c.history[0]) c.history[0].feel = label;
+      renderCard(kind);
+      setStatus(`「${label}」: どう違ったかを選んでください`);
+      return;
+    }
+    const r = T.suggestFor(kind, id, c.obs, params.length ? params : T.DEFAULT_PARAMS);
+    c.proposal = { label, suggestions: r.suggestions, notes: r.notes };
+    if (c.history[0]) c.history[0].feel = label;
+    renderCard(kind);
+    setStatus(r.suggestions.length ? `「${label}」: 提案 ${r.suggestions.length} 件。「適用して再試行」で tp set して再待機します` : `「${label}」: ${r.notes[0] || ''}`);
+  }
+
+  async function applyProposal(kind) {
+    const c = cards[kind];
+    const pr = c.proposal;
+    if (!pr) return;
+    const map = byName();
+    const applied = [];
+    for (const sg of pr.suggestions) {
+      const p = map[sg.name];
+      if (!p || sg.to === null) continue;
+      const before = p.value;
+      if (before === sg.to) continue;
+      if (await applyParam(p, sg.to)) applied.push(`${sg.name}: ${before} → ${sg.to}`);
+    }
+    if (c.history[0]) c.history[0].applied = applied.length ? applied.join('、') : '失敗';
+    c.proposal = null;
+    c.feedback = null;
+    if (!applied.length) { renderCard(kind); setStatus('パラメータを適用できませんでした', true); return; }
+    armCard(kind, { force: true, quiet: true });
+    setStatus(`${applied.join('、')}。「${c.g.title}」を再待機中: ${c.g.instruction}`);
   }
 
   async function nudgeParam(name, delta, rearmKind) {
@@ -917,8 +1142,10 @@
     if (v === before) { setStatus(`${name} は既に${delta > 0 ? '上限' : '下限'} ${v} です`); return; }
     if (!(await applyParam(p, v))) return;
     if (rearmKind) {
+      const c = cards[rearmKind];
+      if (c.history[0]) c.history[0].applied = (c.history[0].applied && c.history[0].applied !== 'なし' ? c.history[0].applied + '、' : '') + `${name}: ${before} → ${v}`;
       armCard(rearmKind, { force: true, quiet: true });
-      setStatus(`${name}: ${before} → ${v}。「${cards[rearmKind].g.title}」を再待機中: 次の動作を判定します`);
+      setStatus(`${name}: ${before} → ${v}。「${c.g.title}」を再待機中: ${c.g.instruction}`);
     } else {
       setStatus(`${name}: ${before} → ${v}`);
     }
@@ -943,43 +1170,47 @@
       if (armed && a.start >= armedAt) {
         const kind = armed;
         armed = null;
-        onJudged(kind, obs);
+        onRecognized(kind, obs);
       } else {
-        showObserved(obs, null, null);
+        showObserved(obs, null);
       }
     }
   }
 
-  function showObserved(obs, kind, r) {
+  function showObserved(obs, kind) {
     const inferred = T.inferKind(obs, params);
     const ig = T.GESTURES.find((g) => g.kind === inferred);
-    const inferredText = ig ? ig.title : inferred === 'move' ? '移動' : '不明';
+    const inferredText = ig ? ig.title : inferred === 'move' ? 'カーソル移動' : '不明';
     const el = $('observed');
     el.innerHTML = '';
     const head = document.createElement('b');
-    head.textContent = r ? `「${cards[kind].g.title}」として判定: ${verdictLabel(r.verdict)}` : '直近の動作(カード未選択のため判定なし)';
-    el.append(head, document.createTextNode(` ｜ ドライバの見え方: ${T.observationText(obs)} ｜ ホスト: ${T.hostText(obs)} ｜ 参考推定: ${inferredText}`));
-    el.className = r ? r.verdict : '';
+    if (kind) {
+      head.textContent = `「${cards[kind].g.title}」として認識: `;
+      el.append(head, document.createTextNode(T.recognitionText(kind, obs, params)));
+    } else {
+      head.textContent = '直近の動作(カード未選択): ';
+      el.append(head, document.createTextNode(`ドライバの見え方: ${T.observationText(obs)} ｜ ホスト: ${T.hostText(obs)} ｜ 参考推定: ${inferredText}`));
+    }
   }
 
-  function onJudged(kind, obs) {
+  function onRecognized(kind, obs) {
     const c = cards[kind];
-    const r = T.judgeAttempt(kind, obs, params);
-    c.last = r;
     c.obs = obs;
-    c.history.push(r.verdict);
-    while (c.history.length > 3) c.history.shift();
+    c.feedback = null;
+    c.proposal = null;
+    c.history.unshift({ recog: T.recognitionText(kind, obs, params), feel: null, applied: null });
+    while (c.history.length > HISTORY_MAX) c.history.pop();
     lastJudgedKind = kind;
     renderAllCards();
     renderPadArmed();
-    showObserved(obs, kind, r);
-    setStatus(`「${c.g.title}」: ${verdictLabel(r.verdict)}` + (r.reason ? `。${r.reason}` : '') + '。Space で同じカードをもう一度');
+    showObserved(obs, kind);
+    setStatus(`「${c.g.title}」の認識結果をカードに表示しました。体感と違えばカードのボタンで答えてください(Space で同じカードをもう一度)`);
   }
 
   document.addEventListener('keydown', (e) => {
     const tag = e.target && e.target.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.metaKey || e.ctrlKey || e.altKey) return;
-    if (/^[1-6]$/.test(e.key)) {
+    if (/^[1-7]$/.test(e.key) && T.GESTURES[Number(e.key) - 1]) {
       armCard(T.GESTURES[Number(e.key) - 1].kind, { force: true });
       e.preventDefault();
     } else if ((e.key === ' ' || e.key === 'Enter') && tag !== 'BUTTON' && lastJudgedKind) {
@@ -1166,7 +1397,7 @@
     prune();
     processAttempts();
     refreshDiagnostics();
-  }, 500);
+  }, PROCESS_INTERVAL_MS);
   (function loop() {
     try { drawTimeline(); renderPadState(); } catch (e) { /* keep the loop alive */ }
     requestAnimationFrame(loop);
@@ -1184,13 +1415,12 @@
     for (const key of ['frames', 'fw', 'hostBtn', 'hostWheel', 'hostMove']) rec[key].length = 0;
     hostState.buttons = 0; hostState.move = null; hostState.wheel = null;
     processedStarts.clear();
-    for (const c of Object.values(cards)) { c.last = null; c.obs = null; c.history = []; }
+    for (const c of Object.values(cards)) { c.obs = null; c.feedback = null; c.proposal = null; c.history = []; }
     armed = null;
     lastJudgedKind = null;
     renderAllCards();
     renderPadArmed();
     $('observed').textContent = '直近の動作: -';
-    $('observed').className = '';
     renderHostState();
     refreshDiagnostics();
     if (rec.paused) setPaused(false);
@@ -1203,7 +1433,7 @@
 
   function injectDummy() {
     const now = performance.now();
-    const base = now - 4500;
+    const base = now - 7000;
     const F = (ms, fingers, relX, relY, extra) => ({
       type: 'F', t: base + ms, ms, fingers, relX, relY, f1x: 0, f1y: 0, f2x: 0, f2y: 0, flags: 0,
       hold: 0, mode2f: 0, pending: 0, ...(extra || {}),
@@ -1214,43 +1444,48 @@
       for (let ms = from; ms <= to; ms += 10) rec.frames.push(F(ms, fingers, relX, relY, extra));
     };
     const idle = (from, to, extra) => touch(from, to, 0, 0, 0, extra);
-    const drag = (from, to, extra) => {
-      touch(from, to, 1, 3, -1, extra);
-      for (let ms = from + 10; ms <= to; ms += 20) {
-        rec.fw.push(R(ms, T.REL.X, 3), R(ms, T.REL.Y, -1));
-        rec.hostMove.push({ t: base + ms + 8, dx: 3, dy: -1 });
+    const move = (from, to, relX, relY, extra) => {
+      touch(from, to, 1, relX, relY, extra);
+      for (let ms = from + 10; ms <= to; ms += 10) {
+        rec.fw.push(R(ms, T.REL.X, relX), R(ms, T.REL.Y, relY));
+        rec.hostMove.push({ t: base + ms + 8, dx: relX, dy: relY });
       }
     };
     const press = (ms) => { rec.fw.push(K(ms, T.BTN[0], 1)); rec.hostBtn.push({ t: base + ms + 7, buttons: 1 }); };
     const release = (ms) => { rec.fw.push(K(ms, T.BTN[0], 0)); rec.hostBtn.push({ t: base + ms + 7, buttons: 0 }); };
     const sortAll = () => { for (const key of ['frames', 'fw', 'hostBtn', 'hostMove']) rec[key].sort((a, b) => a.t - b.t); };
 
-    setZoom(5000);
+    setZoom(10000);
     setPaused(true);
 
-    touch(0, 120, 1, 0, 0);
-    press(125);
-    idle(130, 280, { hold: T.BTN[0], pending: 1 });
-    release(290);
-    idle(290, 1490);
+    touch(0, 40, 1, 0, 0);
+    move(50, 700, 1, 1);
+    move(710, 1000, 8, -2);
+    idle(1010, 1500);
     sortAll();
-    armCard('tap1', { since: base - 1, force: true, quiet: true });
+    armCard('cursor', { since: base - 1, force: true, quiet: true });
     processAttempts();
 
-    touch(1500, 1620, 1, 0, 0);
-    press(1625);
-    idle(1630, 1780, { hold: T.BTN[0], pending: 1 });
-    release(1790);
-    idle(1790, 1850);
-    drag(1860, 2500);
-    idle(2510, 3500);
+    touch(2000, 2320, 1, 0, 0);
+    idle(2330, 3490);
     sortAll();
-    armCard('tapdrag', { since: base + 1499, force: true, quiet: true });
+    armCard('tap1', { since: base + 1999, force: true, quiet: true });
+    processAttempts();
+
+    touch(3500, 3620, 1, 0, 0);
+    press(3625);
+    idle(3630, 3780, { hold: T.BTN[0], pending: 1 });
+    release(3790);
+    idle(3790, 3850);
+    move(3860, 4500, 3, -1);
+    idle(4510, 5500);
+    sortAll();
+    armCard('tapdrag', { since: base + 3499, force: true, quiet: true });
     processAttempts();
 
     hostState.buttons = 0; hostState.move = '3,-1'; hostState.wheel = null;
     renderHostState();
-    setStatus('ダミーデータ: 「1本指タップ」を待機して合格シナリオ、「タップドラッグ」を待機して 2 回目の接触が遅い不合格シナリオを投入し、一時停止しました');
+    setStatus('ダミーデータ: 「カーソル移動」「1本指タップ(押下が長くクリックにならない)」「タップドラッグ(2 回目の接触が遅い)」の 3 試行を投入して一時停止しました。体感ボタンを押すと提案が出ます');
   }
 
   function updateConfPreview() {
