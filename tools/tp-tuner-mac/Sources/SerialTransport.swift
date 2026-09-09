@@ -13,7 +13,9 @@ final class SerialTransport {
   weak var delegate: SerialTransportDelegate?
 
   private var fileDescriptor: Int32 = -1
+  private var connectedPath: String?
   private var isReading = false
+  private let readStoppedSemaphore = DispatchSemaphore(value: 0)
 
   func currentCandidates() -> [DeviceCandidate] {
     var globResult = glob_t()
@@ -34,17 +36,21 @@ final class SerialTransport {
   }
 
   func connect(id: String) {
+    if fileDescriptor >= 0 {
+      if connectedPath == id { return }
+      closeCurrentConnection(reason: "切断しました")
+    }
+
     let fd = open(id, O_RDWR | O_NOCTTY | O_NONBLOCK)
     guard fd >= 0 else {
       delegate?.serialTransportDidDisconnect(reason: "USB デバイスを開けませんでした: \(id)")
       return
     }
 
-    let currentFlags = fcntl(fd, F_GETFL, 0)
-    _ = fcntl(fd, F_SETFL, currentFlags & ~O_NONBLOCK)
-
     var options = termios()
-    tcgetattr(fd, &options)
+    if tcgetattr(fd, &options) != 0 {
+      FileHandle.standardError.write("[usb] tcgetattr に失敗しました: \(id)\n".data(using: .utf8)!)
+    }
     cfmakeraw(&options)
     cfsetspeed(&options, speed_t(115200))
     options.c_cflag &= ~tcflag_t(CSIZE)
@@ -52,22 +58,24 @@ final class SerialTransport {
     options.c_cflag &= ~tcflag_t(PARENB)
     options.c_cflag &= ~tcflag_t(CSTOPB)
     options.c_cflag |= tcflag_t(CLOCAL | CREAD)
-    tcsetattr(fd, TCSANOW, &options)
+    if tcsetattr(fd, TCSANOW, &options) != 0 {
+      FileHandle.standardError.write("[usb] tcsetattr に失敗しました: \(id)\n".data(using: .utf8)!)
+    }
 
-    _ = ioctl(fd, TIOCSDTR)
+    if ioctl(fd, TIOCSDTR) != 0 {
+      FileHandle.standardError.write("[usb] DTR の設定に失敗しました: \(id)\n".data(using: .utf8)!)
+    }
 
     fileDescriptor = fd
+    connectedPath = id
     let name = (id as NSString).lastPathComponent
     delegate?.serialTransportDidConnect(id: id, name: name)
     startReading(fd: fd)
   }
 
   func disconnect() {
-    isReading = false
-    if fileDescriptor >= 0 {
-      close(fileDescriptor)
-      fileDescriptor = -1
-    }
+    guard fileDescriptor >= 0 else { return }
+    closeCurrentConnection(reason: "切断しました")
   }
 
   func write(_ text: String) {
@@ -89,7 +97,17 @@ final class SerialTransport {
     let queue = DispatchQueue(label: "tp-tuner.serial.read")
     queue.async { [weak self] in
       var buffer = [UInt8](repeating: 0, count: 256)
+      var disconnectedByPeer = false
       while self?.isReading == true {
+        var pollfds = pollfd(fd: fd, events: Int16(POLLIN), revents: 0)
+        let ready = poll(&pollfds, 1, 200)
+        if ready < 0 {
+          if errno == EINTR { continue }
+          disconnectedByPeer = true
+          break
+        }
+        if ready == 0 { continue }
+
         let count = read(fd, &buffer, buffer.count)
         if count > 0 {
           let chunk = Array(buffer[0..<count])
@@ -98,28 +116,36 @@ final class SerialTransport {
             self?.delegate?.serialTransportDidReceiveText(text)
           }
         } else if count == 0 {
-          DispatchQueue.main.async {
-            self?.handleDisconnected()
-          }
+          disconnectedByPeer = true
           break
         } else {
           if errno == EAGAIN || errno == EINTR { continue }
-          DispatchQueue.main.async {
-            self?.handleDisconnected()
-          }
+          disconnectedByPeer = true
           break
+        }
+      }
+      self?.readStoppedSemaphore.signal()
+      if disconnectedByPeer {
+        DispatchQueue.main.async {
+          self?.handlePeerDisconnected()
         }
       }
     }
   }
 
-  private func handleDisconnected() {
-    guard isReading || fileDescriptor >= 0 else { return }
+  private func handlePeerDisconnected() {
+    guard fileDescriptor >= 0 else { return }
+    closeCurrentConnection(reason: "USB が切断されました")
+  }
+
+  private func closeCurrentConnection(reason: String) {
     isReading = false
+    _ = readStoppedSemaphore.wait(timeout: .now() + 1)
     if fileDescriptor >= 0 {
       close(fileDescriptor)
       fileDescriptor = -1
     }
-    delegate?.serialTransportDidDisconnect(reason: "USB が切断されました")
+    connectedPath = nil
+    delegate?.serialTransportDidDisconnect(reason: reason)
   }
 }
