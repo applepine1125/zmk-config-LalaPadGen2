@@ -32,6 +32,12 @@
 #define TP_TUNER_EV_LIVE_3F 0xFB
 #define TP_TUNER_EV_LIVE_3F_HOLD 0xFC
 #define TP_TUNER_EV_LIVE_LAST 0xFC
+/*
+ * hold 中のボタン(code = INPUT_BTN_*)。type は指本数から hold コードを復元するため、
+ * 1 本指ドラッグに 2 本目を置いたときなどドライバの hold_button と食い違う。
+ * ボタンが変わったフレームの直前に 1 件送り、central はこれを優先する
+ */
+#define TP_TUNER_EV_LIVE_HOLD 0xFD
 
 #define TP_TUNER_OP_BASE 0x8000
 #define TP_TUNER_OP_RESET 0x8000

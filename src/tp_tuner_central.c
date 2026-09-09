@@ -47,10 +47,19 @@ LOG_MODULE_REGISTER(tp_tuner, CONFIG_ZMK_LOG_LEVEL);
 #define TP_TUNER_CMD_MAX_TOKENS 3
 #define TP_TUNER_LINE_MAX 160
 #define TP_TUNER_STREAM_SIZE 4096
+/* ライブ行は応答行(終端 "." を含む)のためにこの空きを残して捨てる */
+#define TP_TUNER_STREAM_RESERVE (TP_TUNER_STREAM_SIZE / 4)
 #define TP_TUNER_NOTIFY_MAX 244
 #define TP_TUNER_NOTIFY_MIN 20
 #define TP_TUNER_NOTIFY_RETRY_MS 5
 #define TP_TUNER_NOTIFY_RETRY_MAX 200
+/*
+ * 1 回の flush で送る通知数。ATT の TX メタ(BT_CONN_TX_MAX=10)を使い切ると
+ * HID レポートがメタ待ちになるので、半分以上を常に残す
+ */
+#define TP_TUNER_NOTIFY_BURST 4
+/* ライブ行はこの時間まとめてから通知し、1 通知に複数行を載せる */
+#define TP_TUNER_LIVE_BATCH_MS 10
 #define TP_TUNER_LEFT_TIMEOUT_MS 1000
 /* タイムアウト後に遅れて届いた応答を次のコマンドに誤帰属しないよう、次の L コマンドを待たせる時間 */
 #define TP_TUNER_LEFT_COOLDOWN_MS 200
@@ -89,9 +98,10 @@ static void stream_reset(void) {
     k_spin_unlock(&stream_lock, key);
 }
 
-static void stream_put(char side, const char *text, bool warn_on_full) {
+static void stream_put(char side, const char *text, bool lossy) {
     char line[TP_TUNER_LINE_MAX];
     int len;
+    uint32_t need;
     bool stored;
     k_spinlock_key_t key;
 
@@ -107,28 +117,33 @@ static void stream_put(char side, const char *text, bool warn_on_full) {
         len = sizeof(line) - 1;
         line[len - 1] = '\n';
     }
+    need = (uint32_t)len + (lossy ? TP_TUNER_STREAM_RESERVE : 0);
 
     key = k_spin_lock(&stream_lock);
-    stored = ring_buf_space_get(&stream_rb) >= (uint32_t)len &&
+    stored = ring_buf_space_get(&stream_rb) >= need &&
              ring_buf_put(&stream_rb, (const uint8_t *)line, len) == (uint32_t)len;
     k_spin_unlock(&stream_lock, key);
 
     if (!stored) {
-        if (warn_on_full) {
+        if (!lossy) {
             LOG_WRN("stream full, line dropped");
         }
         return;
     }
-    (void)k_work_schedule(&stream_work, K_NO_WAIT);
+    if (lossy) {
+        (void)k_work_schedule(&stream_work, K_MSEC(TP_TUNER_LIVE_BATCH_MS));
+    } else {
+        (void)k_work_reschedule(&stream_work, K_NO_WAIT);
+    }
 }
 
 static void stream_put_line(char side, const char *text) {
-    stream_put(side, text, true);
+    stream_put(side, text, false);
 }
 
-/* ライブフレーム用。次のフレームで追いつくので、満杯なら黙って捨てる */
+/* ライブフレーム用。次のフレームで追いつくので、余裕が無ければ黙って捨てる */
 static void stream_put_line_lossy(char side, const char *text) {
-    stream_put(side, text, false);
+    stream_put(side, text, true);
 }
 
 static void find_subscribed_conn(struct bt_conn *conn, void *data) {
@@ -154,11 +169,18 @@ static void stream_flush(void) {
     mtu = bt_gatt_get_mtu(conn);
     chunk = mtu > TP_TUNER_NOTIFY_MIN + 3 ? MIN(mtu - 3, TP_TUNER_NOTIFY_MAX) : TP_TUNER_NOTIFY_MIN;
 
-    while (true) {
+    for (int sent = 0;; sent++) {
         uint8_t *data;
         uint32_t size;
         int ret;
         k_spinlock_key_t key;
+
+        if (sent >= TP_TUNER_NOTIFY_BURST) {
+            if (ring_buf_size_get(&stream_rb) > 0) {
+                (void)k_work_reschedule(&stream_work, K_MSEC(TP_TUNER_NOTIFY_RETRY_MS));
+            }
+            break;
+        }
 
         key = k_spin_lock(&stream_lock);
         size = ring_buf_get_claim(&stream_rb, &data, chunk);
@@ -227,12 +249,23 @@ static void sub_request(const char *args) {
     (void)k_work_schedule(&cmd_work, K_NO_WAIT);
 }
 
+/*
+ * 左手への summary on は購読開始時ではなく、購読中に最初のホスト L コマンドを処理する直前に送る。
+ * ボンド済みホストの再接続では CCC が復元されて購読中扱いになるため、ホストが command を
+ * 書くまで有効扱いにしない。左手から ACK が来るまでは未確認とし、ホスト L コマンドごとに送り直す
+ */
+static bool sub_summary_wanted;
+static bool sub_summary_confirmed;
+static bool sub_summary_tried;
+
 static void stream_ccc_changed(const struct bt_gatt_attr *attr, uint16_t value) {
     ARG_UNUSED(attr);
     stream_subscribed = value == BT_GATT_CCC_NOTIFY;
     LOG_INF("stream %s", stream_subscribed ? "subscribed" : "unsubscribed");
+    sub_summary_confirmed = false;
+    sub_summary_tried = false;
+    sub_summary_wanted = stream_subscribed;
     if (stream_subscribed) {
-        sub_request("summary on");
         return;
     }
     stream_reset();
@@ -340,6 +373,7 @@ static void left_timeout_cb(struct k_work *work) {
         return;
     }
     left_cooldown_until = k_uptime_get() + TP_TUNER_LEFT_COOLDOWN_MS;
+    sub_summary_confirmed = false;
     if (p.silent) {
         LOG_WRN("subscription command op 0x%x timed out", p.op);
     }
@@ -599,9 +633,20 @@ static void cmd_work_cb(struct k_work *work) {
     while (!left_peek(&pending)) {
         if (k_msgq_get(&tp_tuner_sub_msgq, line, K_NO_WAIT) == 0) {
             run_left(line, true);
-        } else if (k_msgq_get(&tp_tuner_cmd_msgq, line, K_NO_WAIT) != 0) {
+            continue;
+        }
+        if (k_msgq_peek(&tp_tuner_cmd_msgq, line) != 0) {
             break;
-        } else if (strncmp(line, "R ", 2) == 0) {
+        }
+        if (strncmp(line, "L ", 2) == 0 && sub_summary_wanted && !sub_summary_confirmed &&
+            !sub_summary_tried) {
+            sub_summary_tried = true;
+            run_left("summary on", true);
+            continue;
+        }
+        (void)k_msgq_get(&tp_tuner_cmd_msgq, line, K_NO_WAIT);
+        sub_summary_tried = false;
+        if (strncmp(line, "R ", 2) == 0) {
             run_local(line + 2);
         } else if (strncmp(line, "L ", 2) == 0) {
             run_left(line + 2, false);
@@ -736,6 +781,10 @@ static void handle_ack(uint16_t code, int32_t ret) {
         break;
     case LEFT_CMD_SUMMARY:
         snprintf(buf, sizeof(buf), "OK summary=%s", p.value ? "on" : "off");
+        sub_summary_confirmed = p.value != 0;
+        if (!p.silent) {
+            sub_summary_wanted = p.value != 0;
+        }
         break;
     case LEFT_CMD_LIVE:
         if (ret == 0 && p.value != 0) {
@@ -756,13 +805,24 @@ static void handle_ack(uint16_t code, int32_t ret) {
     left_finish(&p);
 }
 
+/* 左手が直前に知らせた hold 中のボタン。hold の無いフレームで忘れる */
+static uint16_t left_hold_button;
+
 /* 左手のライブフレームを USB の trace と同じ T F 行にする(rel・flags・pending は持たないので 0) */
 static void handle_live(uint8_t type, uint16_t code, uint32_t value) {
     struct tp_tuner_live_frame live;
     struct iqs9151_frame_info f = {0};
     char buf[TP_TUNER_LINE_MAX];
 
-    if (!stream_subscribed || !tp_tuner_live_unpack(type, code, value, &live)) {
+    if (!tp_tuner_live_unpack(type, code, value, &live)) {
+        return;
+    }
+    if (live.hold == 0) {
+        left_hold_button = 0;
+    } else if (left_hold_button != 0) {
+        live.hold = left_hold_button;
+    }
+    if (!stream_subscribed) {
         return;
     }
     f.ms = (uint32_t)k_uptime_get();
@@ -783,6 +843,10 @@ static void left_event_handler(struct input_event *evt) {
     }
     if (evt->type >= TP_TUNER_EV_LIVE_FIRST && evt->type <= TP_TUNER_EV_LIVE_LAST) {
         handle_live(evt->type, evt->code, (uint32_t)evt->value);
+        return;
+    }
+    if (evt->type == TP_TUNER_EV_LIVE_HOLD) {
+        left_hold_button = evt->code;
         return;
     }
     switch (evt->type) {

@@ -54,13 +54,19 @@ static struct {
 } job;
 
 /* 最新のライブフレーム 1 件。上書きし、送れなければ捨てる */
-static struct {
-    bool valid;
+struct tp_tuner_live_event {
     uint8_t type;
     uint16_t code;
     uint32_t value;
+    uint16_t hold;
+};
+static struct {
+    bool valid;
+    struct tp_tuner_live_event ev;
 } live_slot;
 static struct k_spinlock live_lock;
+/* central に知らせた hold 中のボタン。send_work だけが触る */
+static uint16_t live_hold_sent;
 
 /* central が stream を購読している間だけ要約を転送する(SUMMARY オペコードで切り替え) */
 static bool forward_summary;
@@ -89,24 +95,46 @@ static bool live_pending(void) {
     return valid;
 }
 
-static bool live_take(struct zmk_split_transport_peripheral_event *ev) {
+static bool live_take(struct tp_tuner_live_event *out) {
     k_spinlock_key_t key = k_spin_lock(&live_lock);
     bool valid = live_slot.valid;
 
     if (valid) {
-        *ev = (struct zmk_split_transport_peripheral_event){
-            .type = ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_INPUT_EVENT,
-            .data = {.input_event = {
-                         .reg = TP_TUNER_SPLIT_REG,
-                         .sync = 0,
-                         .type = live_slot.type,
-                         .code = live_slot.code,
-                         .value = (int32_t)live_slot.value,
-                     }}};
+        *out = live_slot.ev;
         live_slot.valid = false;
     }
     k_spin_unlock(&live_lock, key);
     return valid;
+}
+
+static int report_input(uint8_t type, uint16_t code, uint32_t value) {
+    struct zmk_split_transport_peripheral_event ev = {
+        .type = ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_INPUT_EVENT,
+        .data = {.input_event = {
+                     .reg = TP_TUNER_SPLIT_REG,
+                     .sync = 0,
+                     .type = type,
+                     .code = code,
+                     .value = (int32_t)value,
+                 }}};
+
+    return zmk_split_peripheral_report_event(&ev);
+}
+
+/* ボタンが変わったら HOLD を先に送る。どちらも送れなければ捨てて再試行しない */
+static int send_live(const struct tp_tuner_live_event *live) {
+    int ret;
+
+    if (live->hold == 0) {
+        live_hold_sent = 0;
+    } else if (live->hold != live_hold_sent) {
+        ret = report_input(TP_TUNER_EV_LIVE_HOLD, live->hold, 0);
+        if (ret != 0) {
+            return ret;
+        }
+        live_hold_sent = live->hold;
+    }
+    return report_input(live->type, live->code, live->value);
 }
 
 static int exec_request(const struct tp_tuner_request *req) {
@@ -142,9 +170,8 @@ static int exec_request(const struct tp_tuner_request *req) {
     case TP_TUNER_OP_LIVE: {
         int ret = iqs9151_dev_live_enable(req->value != 0, (uint16_t)req->value);
 
-        if (req->value == 0) {
-            live_clear();
-        }
+        live_clear();
+        live_hold_sent = 0;
         return ret;
     }
     case TP_TUNER_OP_DUMP:
@@ -222,6 +249,7 @@ static void send_work_cb(struct k_work *work) {
 
     while (true) {
         struct zmk_split_transport_peripheral_event ev;
+        struct tp_tuner_live_event live;
         int ret;
 
         if (!live_pending() && job.kind == TP_TUNER_JOB_NONE && !start_next_job()) {
@@ -233,8 +261,8 @@ static void send_work_cb(struct k_work *work) {
         }
 
         /* ライブフレームは要約・応答より先に送り、送れなければ再試行せず捨てる */
-        if (live_take(&ev)) {
-            ret = zmk_split_peripheral_report_event(&ev);
+        if (live_take(&live)) {
+            ret = send_live(&live);
             if (ret == 0) {
                 sent++;
             } else {
@@ -319,9 +347,10 @@ static void frame_cb(const struct iqs9151_frame_info *finfo, void *user_data) {
     tp_tuner_live_pack(&frame, &type, &code, &value);
 
     key = k_spin_lock(&live_lock);
-    live_slot.type = type;
-    live_slot.code = code;
-    live_slot.value = value;
+    live_slot.ev.type = type;
+    live_slot.ev.code = code;
+    live_slot.ev.value = value;
+    live_slot.ev.hold = finfo->hold;
     live_slot.valid = true;
     k_spin_unlock(&live_lock, key);
 
@@ -336,6 +365,7 @@ static int peripheral_status_listener(const zmk_event_t *eh) {
     if (ev != NULL && !ev->connected) {
         (void)iqs9151_dev_live_enable(false, 0);
         live_clear();
+        live_hold_sent = 0;
         forward_summary = false;
         k_msgq_purge(&tp_tuner_summary_msgq);
     }
