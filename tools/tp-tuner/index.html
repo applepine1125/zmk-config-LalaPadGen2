@@ -1481,7 +1481,7 @@
     if (value !== undefined) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
-      m.textContent = `元 ${originalValue}`;
+      m.textContent = `← ${originalValue}`;
       cell.appendChild(m);
     }
     const rowHasPending = pending.common[nameKey] !== undefined || pending.R[nameKey] !== undefined || pending.L[nameKey] !== undefined;
@@ -1534,7 +1534,7 @@
     if (Object.prototype.hasOwnProperty.call(pending.common, p.name)) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
-      m.textContent = `元 ${p.value}`;
+      m.textContent = `← ${p.value}`;
       wrap.appendChild(m);
     }
     return wrap;
@@ -1555,7 +1555,7 @@
     if (Object.prototype.hasOwnProperty.call(bucket, p.name)) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
-      m.textContent = `元 ${current}`;
+      m.textContent = `← ${current}`;
       wrap.appendChild(m);
     }
     return wrap;
