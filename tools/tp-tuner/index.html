@@ -320,7 +320,7 @@
 </details>
 
 <details id="logbox">
-  <summary>シリアルログ</summary>
+  <summary>シリアルログ <button id="btnStats" type="button" title="左右の計測値(syswq 遅れ・フレーム処理時間・I2C エラー・接続パラメータ)を読み取ってログに出す。読み取るとリセットされる">統計</button></summary>
   <pre id="log"></pre>
 </details>
 </div>
@@ -798,6 +798,20 @@
   function sendTo(sideKey, cmd, timeoutMs) {
     if (transport && transport.kind === 'ble') return send(cmd, { side: sideKey, timeoutMs });
     return send(cmd, { timeoutMs });
+  }
+
+  async function readStats() {
+    const sides = activeSides();
+    if (!sides.length) { setStatus('未接続です', true); return; }
+    $('logbox').open = true;
+    for (const side of sides) {
+      try {
+        const lines = await sendTo(side, 'tp stats');
+        log(`[${side}] ` + lines.join('\n'));
+      } catch (e) {
+        log(`[${side}] ` + errText(e));
+      }
+    }
   }
 
   async function runSimpleOnSide(sideKey, cmd) {
@@ -2401,6 +2415,7 @@
   $('btnReload').onclick = () => { reloadAll(); };
   $('btnResetAll').onclick = () => { resetAll(); };
   $('btnExport').onclick = () => { exportConfNow(); };
+  $('btnStats').onclick = (e) => { e.preventDefault(); e.stopPropagation(); readStats(); };
   $('chkDetail').onchange = () => { detailMode = $('chkDetail').checked; renderParams(); };
   $('chkLive').onchange = () => {
     liveEnabled = $('chkLive').checked;
