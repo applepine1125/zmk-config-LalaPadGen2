@@ -8,6 +8,7 @@
 #include <zephyr/spinlock.h>
 
 #include <stdio.h>
+#include <string.h>
 
 #include <zmk/event_manager.h>
 #include <zmk/events/position_state_changed.h>
@@ -21,6 +22,121 @@ LOG_MODULE_REGISTER(lalapad_diag, CONFIG_ZMK_LOG_LEVEL);
 static struct lalapad_diag_stats counters;
 static struct k_spinlock counters_lock;
 
+/*
+ * ワークキューの遅れが閾値を超えたとき、直前の 10ms でどのスレッドが CPU を使っていたかを記録する。
+ * どのスレッドにも時間が付かず idle も増えていなければ、フラッシュ消去などで CPU 自体が止まっていたと分かる
+ */
+#if defined(CONFIG_THREAD_RUNTIME_STATS) && defined(CONFIG_THREAD_MONITOR)
+#define DIAG_THREAD_MAX 24
+#define DIAG_NAME_MAX 24
+
+struct thread_snap {
+    k_tid_t tid;
+    uint64_t cycles;
+};
+
+static struct thread_snap snap_prev[DIAG_THREAD_MAX];
+static struct thread_snap snap_cur[DIAG_THREAD_MAX];
+static int snap_prev_n;
+static int snap_cur_n;
+static char late_top_name[DIAG_NAME_MAX];
+static uint32_t late_top_us;
+static uint32_t late_idle_us;
+static uint32_t late_event_us;
+
+static void snap_cb(const struct k_thread *thread, void *user_data) {
+    int *n = user_data;
+    k_thread_runtime_stats_t rt;
+
+    if (*n >= DIAG_THREAD_MAX || k_thread_runtime_stats_get((k_tid_t)thread, &rt) != 0) {
+        return;
+    }
+    snap_cur[*n].tid = (k_tid_t)thread;
+    snap_cur[*n].cycles = rt.execution_cycles;
+    (*n)++;
+}
+
+static bool prev_cycles_of(k_tid_t tid, uint64_t *cycles) {
+    for (int i = 0; i < snap_prev_n; i++) {
+        if (snap_prev[i].tid == tid) {
+            *cycles = snap_prev[i].cycles;
+            return true;
+        }
+    }
+    return false;
+}
+
+static void attribute_late(uint32_t late_us) {
+    k_tid_t top = NULL;
+    uint64_t top_delta = 0;
+    uint64_t idle_delta = 0;
+
+    for (int i = 0; i < snap_cur_n; i++) {
+        uint64_t prev;
+        uint64_t delta;
+        const char *name;
+
+        if (!prev_cycles_of(snap_cur[i].tid, &prev) || snap_cur[i].cycles < prev) {
+            continue;
+        }
+        delta = snap_cur[i].cycles - prev;
+        name = k_thread_name_get(snap_cur[i].tid);
+        if (name != NULL && strncmp(name, "idle", 4) == 0) {
+            idle_delta += delta;
+            continue;
+        }
+        if (delta > top_delta) {
+            top_delta = delta;
+            top = snap_cur[i].tid;
+        }
+    }
+    if (late_us <= late_event_us) {
+        return;
+    }
+    late_event_us = late_us;
+    late_top_us = k_cyc_to_us_floor32((uint32_t)MIN(top_delta, UINT32_MAX));
+    late_idle_us = k_cyc_to_us_floor32((uint32_t)MIN(idle_delta, UINT32_MAX));
+    if (top != NULL && k_thread_name_get(top) != NULL) {
+        strncpy(late_top_name, k_thread_name_get(top), sizeof(late_top_name) - 1);
+        late_top_name[sizeof(late_top_name) - 1] = 0;
+    } else {
+        strcpy(late_top_name, "?");
+    }
+}
+
+static void snapshot_threads(uint32_t late_us) {
+    snap_cur_n = 0;
+    k_thread_foreach_unlocked(snap_cb, &snap_cur_n);
+    if (late_us > DIAG_LATE_THRESHOLD_US) {
+        attribute_late(late_us);
+    }
+    memcpy(snap_prev, snap_cur, sizeof(struct thread_snap) * snap_cur_n);
+    snap_prev_n = snap_cur_n;
+}
+
+static void format_late_attribution(iqs9151_cmd_out_t out, void *ctx, bool reset) {
+    char line[DIAG_LINE_MAX];
+
+    snprintf(line, sizeof(line), "late_event_us=%u late_top=%s:%u late_idle_us=%u",
+             (unsigned)late_event_us, late_top_name[0] ? late_top_name : "-", (unsigned)late_top_us,
+             (unsigned)late_idle_us);
+    out(ctx, line);
+    if (reset) {
+        late_event_us = 0;
+        late_top_us = 0;
+        late_idle_us = 0;
+        late_top_name[0] = 0;
+    }
+}
+#else
+static void snapshot_threads(uint32_t late_us) { ARG_UNUSED(late_us); }
+static void format_late_attribution(iqs9151_cmd_out_t out, void *ctx, bool reset) {
+    ARG_UNUSED(out);
+    ARG_UNUSED(ctx);
+    ARG_UNUSED(reset);
+}
+#endif
+
 static int64_t probe_due_ticks;
 
 static void probe_cb(struct k_work *work) {
@@ -28,10 +144,12 @@ static void probe_cb(struct k_work *work) {
     int64_t late = now - probe_due_ticks;
     k_spinlock_key_t key;
 
+    uint32_t late_us = late > 0 ? k_ticks_to_us_floor32((uint32_t)MIN(late, UINT32_MAX)) : 0U;
+
     ARG_UNUSED(work);
 
+    snapshot_threads(late_us);
     if (late > 0) {
-        uint32_t late_us = k_ticks_to_us_floor32((uint32_t)MIN(late, UINT32_MAX));
 
         key = k_spin_lock(&counters_lock);
         if (late_us > counters.wq_late_max_us) {
@@ -155,6 +273,7 @@ void lalapad_diag_format(iqs9151_cmd_out_t out, void *ctx, bool reset) {
              (unsigned)s.wq_late_max_us, (unsigned)s.wq_late_over3, (unsigned)s.pos_local,
              (unsigned)s.pos_remote, (unsigned)s.notify_fail);
     out(ctx, line);
+    format_late_attribution(out, ctx, reset);
     bt_conn_foreach(BT_CONN_TYPE_LE, link_cb, &walk);
 }
 
