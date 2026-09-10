@@ -101,6 +101,8 @@
   details#logbox { margin-top: 14px; }
   details#logbox summary { cursor: pointer; color: var(--muted); padding: 4px 0; }
   #log {
+    user-select: text;
+    -webkit-user-select: text;
     margin: 6px 0 0; max-height: 160px; overflow: auto; padding: 8px 10px;
     background: #0b1120; color: #d7dde8; font: 11px/1.4 var(--mono);
     white-space: pre-wrap; word-break: break-all; border-radius: var(--radius-sm);
@@ -320,7 +322,7 @@
 </details>
 
 <details id="logbox">
-  <summary>シリアルログ <button id="btnStats" type="button" title="左右の計測値(syswq 遅れ・フレーム処理時間・I2C エラー・接続パラメータ)を読み取ってログに出す。読み取るとリセットされる">統計</button></summary>
+  <summary>シリアルログ <button id="btnStats" type="button" title="左右の計測値(syswq 遅れ・フレーム処理時間・I2C エラー・接続パラメータ)を読み取ってログに出す。読み取るとリセットされる">統計</button> <button id="btnLogCopy" type="button" title="ログ全体をクリップボードにコピー">コピー</button></summary>
   <pre id="log"></pre>
 </details>
 </div>
@@ -808,6 +810,7 @@
       try {
         const lines = await sendTo(side, 'tp stats');
         log(`[${side}] ` + lines.join('\n'));
+        console.log(`stats[${side}] ` + lines.join(' | '));
       } catch (e) {
         log(`[${side}] ` + errText(e));
       }
@@ -2416,6 +2419,11 @@
   $('btnResetAll').onclick = () => { resetAll(); };
   $('btnExport').onclick = () => { exportConfNow(); };
   $('btnStats').onclick = (e) => { e.preventDefault(); e.stopPropagation(); readStats(); };
+  $('btnLogCopy').onclick = async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    try { await navigator.clipboard.writeText(logLines.join('\n')); setStatus('ログをコピーしました'); }
+    catch (err) { setStatus('クリップボードに書き込めません: ' + errText(err), true); }
+  };
   $('chkDetail').onchange = () => { detailMode = $('chkDetail').checked; renderParams(); };
   $('chkLive').onchange = () => {
     liveEnabled = $('chkLive').checked;
