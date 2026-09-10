@@ -215,6 +215,13 @@
     border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-alt); color: var(--text);
   }
   .legend { color: var(--muted); font-size: 11px; }
+  #captureOverlay {
+    position: fixed; inset: 0; z-index: 1000; cursor: crosshair;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: rgba(11, 17, 32, .72); color: #f4f6fb; text-align: center;
+  }
+  #captureOverlay[hidden] { display: none; }
+  #captureMsg { max-width: 420px; font-size: 14px; line-height: 1.7; }
 </style>
 </head>
 <body>
@@ -237,6 +244,11 @@
 
 <div class="row" id="liveRow">
   <label><input type="checkbox" id="chkLive" checked>ライブ表示</label>
+  <button id="btnCapture">確認モード</button>
+</div>
+
+<div id="captureOverlay" hidden>
+  <div id="captureMsg"></div>
 </div>
 
 <div id="workspace">
@@ -1354,6 +1366,59 @@
     document.addEventListener(type, (e) => recordPointer(type, e));
   }
   document.addEventListener('wheel', (e) => recordWheel(e), { passive: true });
+
+  const captureOverlay = $('captureOverlay');
+  const captureMsg = $('captureMsg');
+  const CAPTURE_MSG = '確認モード: クリック・スクロールはこの画面が受け取ります。Esc で終了';
+  const CAPTURE_MSG_FALLBACK = CAPTURE_MSG + '(この環境ではカーソルは動きます)';
+  let captureMode = false;
+
+  function blockOverlayDefault(e) { e.preventDefault(); }
+
+  function startCapture() {
+    if (captureMode) return;
+    captureMode = true;
+    captureMsg.textContent = CAPTURE_MSG;
+    captureOverlay.hidden = false;
+    captureOverlay.addEventListener('mousedown', blockOverlayDefault);
+    captureOverlay.addEventListener('contextmenu', blockOverlayDefault);
+    captureOverlay.addEventListener('wheel', blockOverlayDefault, { passive: false });
+    captureOverlay.addEventListener('auxclick', blockOverlayDefault);
+    if (typeof captureOverlay.requestPointerLock !== 'function') {
+      captureMsg.textContent = CAPTURE_MSG_FALLBACK;
+      return;
+    }
+    try {
+      const r = captureOverlay.requestPointerLock();
+      if (r && typeof r.catch === 'function') {
+        r.catch(() => { if (captureMode) captureMsg.textContent = CAPTURE_MSG_FALLBACK; });
+      }
+    } catch (e) {
+      captureMsg.textContent = CAPTURE_MSG_FALLBACK;
+    }
+  }
+
+  function stopCapture() {
+    if (!captureMode) return;
+    captureMode = false;
+    captureOverlay.hidden = true;
+    captureOverlay.removeEventListener('mousedown', blockOverlayDefault);
+    captureOverlay.removeEventListener('contextmenu', blockOverlayDefault);
+    captureOverlay.removeEventListener('wheel', blockOverlayDefault);
+    captureOverlay.removeEventListener('auxclick', blockOverlayDefault);
+    if (document.pointerLockElement === captureOverlay) document.exitPointerLock();
+  }
+
+  document.addEventListener('pointerlockchange', () => {
+    if (captureMode && document.pointerLockElement !== captureOverlay) stopCapture();
+  });
+  document.addEventListener('pointerlockerror', () => {
+    if (captureMode) captureMsg.textContent = CAPTURE_MSG_FALLBACK;
+  });
+  document.addEventListener('keydown', (e) => {
+    if (captureMode && e.key === 'Escape') stopCapture();
+  });
+  $('btnCapture').onclick = () => { startCapture(); };
 
   function prune() {
     const cut = performance.now() - KEEP_MS;
