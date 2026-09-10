@@ -316,3 +316,18 @@ test('キーコード表は N1/NUMBER_1 のような別名を 1 つの項目に�
   assert.ok(n1.aliases.includes('NUMBER_1'));
   assert.ok(!K.KEYS.some((k) => k.name === 'NUMBER_1'));
 });
+
+test('値 0 のフィールドが省略された物理レイアウト応答を復号すると、activeLayoutIndex とキーの x/y が 0 で補われる', () => {
+  // Response{request_response{request_id=2, keymap{get_physical_layouts{layouts[{name:"D", keys[{width:100,height:100}]}]}}}}
+  const keys = [0x08, 0xc8, 0x01, 0x10, 0xc8, 0x01];
+  const layout = [0x0a, 0x01, 0x44, 0x12, keys.length, ...keys];
+  const layouts = [0x12, layout.length, ...layout];
+  const keymap = [0x32, layouts.length, ...layouts];
+  const rr = [0x08, 0x02, 0x2a, keymap.length, ...keymap];
+  const resp = Uint8Array.from([0x0a, rr.length, ...rr]);
+  const d = T.decodeResponse(resp).requestResponse.keymap.getPhysicalLayouts;
+  assert.equal(d.activeLayoutIndex, 0);
+  assert.equal(d.layouts[0].keys[0].x, 0);
+  assert.equal(d.layouts[0].keys[0].y, 0);
+  assert.equal(d.layouts[0].keys[0].width, 100);
+});

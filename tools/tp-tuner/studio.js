@@ -410,7 +410,41 @@
       }
       throw new Error('未対応の wire type です: ' + wireType);
     }
+    if (PLAIN_MESSAGES.has(ref)) fillDefaults(schema, obj);
     return obj;
+  }
+
+  /*
+   * proto3 は既定値(0 / false / 空)のフィールドを送らないので、oneof を持たないメッセージでは
+   * 欠けたフィールドを既定値で補う(activeLayoutIndex=0、キーの x=0、レイヤー id=0 など)。
+   * oneof を持つメッセージは「どのキーが存在するか」で分岐を判定するので補わない
+   */
+  const PLAIN_MESSAGES = new Set([
+    'zmk.core.GetDeviceInfoResponse',
+    'zmk.behaviors.ListAllBehaviorsResponse',
+    'zmk.behaviors.GetBehaviorDetailsResponse',
+    'zmk.behaviors.BehaviorBindingParametersSet',
+    'zmk.behaviors.BehaviorParameterValueDescriptionRange',
+    'zmk.behaviors.BehaviorParameterHidUsage',
+    'zmk.keymap.Keymap',
+    'zmk.keymap.Layer',
+    'zmk.keymap.BehaviorBinding',
+    'zmk.keymap.PhysicalLayouts',
+    'zmk.keymap.PhysicalLayout',
+    'zmk.keymap.KeyPhysicalAttrs',
+    'zmk.keymap.AddLayerResponseDetails',
+  ]);
+
+  function fillDefaults(schema, obj) {
+    for (const field of schema) {
+      if (obj[field.name] !== undefined) continue;
+      if (field.repeated) obj[field.name] = [];
+      else if (field.type === 'message') continue;
+      else if (field.type === 'string') obj[field.name] = '';
+      else if (field.type === 'bytes') obj[field.name] = new Uint8Array(0);
+      else if (field.type === 'bool') obj[field.name] = false;
+      else obj[field.name] = 0;
+    }
   }
 
   function encodeRequest(obj) {
