@@ -76,6 +76,34 @@
 4. リンクの interval/latency を記録する(Mac リンクは macOS が決めるため、ここで初めて分かる)。
 5. ライブ表示 ON で同じことを繰り返し、差分を見る(H4)。
 
+## 実機の計測結果(2026-09-10、第 1 段ファーム)
+
+アプリを BT 接続し、ライブ表示 ON で数分使ったあとの `stats`(右手 = central、左手 = peripheral)。
+
+| 項目 | 右 | 左 |
+| --- | --- | --- |
+| frame_avg_us | 5181 | 4236 |
+| frame_max_us | 302551 | 8087 |
+| frame_gap_max_ms | 302 | 9 |
+| i2c_err | 0 | 0 |
+| wq_late_max_us | 3629211 | 244 |
+| wq_late_over3 | 9 | 0 |
+| notify_fail | 1430 | 0 |
+| リンク | Mac 向け 2 本(int 15ms, lat 0)+ 左手向け 1 本(int 7.5ms) | 右手向け 1 本(int 7.5ms) |
+
+読み取り:
+
+- 左手は健全。専用ワークキュー化後、キースキャンを載せた syswq の遅れは最大 0.24ms。
+- 右手の syswq は最大 3.6 秒止まっていた。原因は ZMK Studio の GATT 転送で、indicate が送信バッファ不足で失敗すると syswq 上で `k_sleep(200ms)` を繰り返す(zmk `app/src/studio/gatt_rpc_transport.c:162-168`)。送信バッファ不足を起こしていたのは tp-tuner の stream 通知(`notify_fail` 1430 回 = syswq からの K_NO_WAIT 失敗)。
+- 「アプリを開くとトラックパッドが重い」の経路: Mac リンクは LL データ長 27 バイトのまま(ZMK は `BT_USER_DATA_LEN_UPDATE` を select しつつ更新要求を出さない。Studio の indicate が 27 バイト刻みだったことと一致)。244 バイトの stream 通知は LL パケット 10 個に分かれ、同じ接続の送信キューで HID レポートがその後ろに並ぶ。ライブ表示 ON では通知が連続するため、カーソルとキーの両方が遅れる。
+- 右の frame_max/gap 302ms は Studio の sleep 中にドライバスレッドが待たされた時間(プリエンプト)で、I2C や処理時間ではない。frame_avg 4〜5ms は 400kHz でも変わらず、I2C 以外(ジェスチャ処理とコールバック)が主。要再計測: I2C 読み出し単体の時間。
+
+対処(652fbd3 で実装):
+
+- ホスト接続確立時に LE データ長の更新を要求する(e868da9 の再適用。以前の revert 理由だった右手の再起動は、外しても再発したため無関係と判断)。
+- stream 通知は 1 件ずつ 8ms 間隔で送り、DLE 未交渉(tx_max_len < 100)のときは 20 バイト(LL 1 パケット)に収める。ライブ行は未送信 512 バイトを超えたら捨てる。
+- `stats` の link 行に tx_len / rx_len を追加。Mac が DLE を受け入れたかはここで確認する。
+
 ## 第 2 段(計測後の候補)
 
 - Mac リンク: `CONFIG_BT_PERIPHERAL_PREF_*`(要求値のみ。採否は macOS)。
