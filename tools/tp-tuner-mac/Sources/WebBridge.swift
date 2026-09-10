@@ -28,6 +28,13 @@ final class WebBridge: NSObject {
     console.log = function () { send('log', arguments); original.log.apply(console, arguments) }
     console.warn = function () { send('warn', arguments); original.warn.apply(console, arguments) }
     console.error = function () { send('error', arguments); original.error.apply(console, arguments) }
+    window.addEventListener('error', function (e) {
+      send('error', ['uncaught: ' + (e.message || e) + ' @' + (e.filename || '') + ':' + (e.lineno || 0)])
+    })
+    window.addEventListener('unhandledrejection', function (e) {
+      var r = e.reason
+      send('error', ['unhandled rejection: ' + (r && r.stack ? r.stack : String(r))])
+    })
   })();
   """
 
