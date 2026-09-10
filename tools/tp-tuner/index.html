@@ -982,7 +982,7 @@
       finalizeConnected(port, false);
       setStatus('接続しました');
       const count = await loadAllParams();
-      setStatus(`パラメータ ${count} 件を読み込みました`);
+      setStatus("");
     } catch (e) {
       setStatus(errText(e), true);
       log('接続失敗: ' + errText(e));
@@ -1012,7 +1012,7 @@
       setStatus('接続しました');
       const count = await loadAllParams();
       await sendLiveCommands();
-      setStatus(`パラメータ ${count} 件を読み込みました`);
+      setStatus("");
     } catch (e) {
       setStatus(errText(e), true);
       log('接続失敗: ' + errText(e));
@@ -1059,7 +1059,7 @@
           setStatus(`自動接続しました(${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
           const count = await loadAllParams();
           await sendLiveCommands();
-          setStatus(`パラメータ ${count} 件を読み込みました`);
+          setStatus("");
           return;
         } catch (e) {
           log('自動接続の候補が応答しませんでした: ' + errText(e));
@@ -1172,7 +1172,7 @@
           const pi = port.getInfo ? port.getInfo() : {};
           setStatus(`自動接続しました(vendorId=${pi.usbVendorId ?? '?'} productId=${pi.usbProductId ?? '?'})`);
           const count = await loadAllParams();
-          setStatus(`パラメータ ${count} 件を読み込みました`);
+          setStatus("");
           return;
         } catch (e) {
           log('自動接続の候補ポートが応答しませんでした: ' + errText(e));
