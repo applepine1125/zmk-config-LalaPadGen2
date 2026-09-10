@@ -258,8 +258,8 @@
     <div id="keymapActions" hidden>
       <button id="btnStudioSave" class="primary" disabled>書き込む</button>
       <span id="studioDirtyIndicator" hidden>未保存の変更あり</span>
-      <button id="btnStudioDiscard" disabled>破棄</button>
       <button id="btnStudioReload" disabled>再読み込み</button>
+      <button id="btnStudioReset" disabled>デフォルトに戻す</button>
     </div>
     <span class="sep"></span>
     <span id="status"></span>
@@ -1847,6 +1847,7 @@
   }
 
   async function reloadAll() {
+    if (pendingCount() > 0 && !window.confirm('書き込んでいない変更を捨てて、キーボードに保存されている状態に戻します。よろしいですか?')) return;
     pending = emptyPending();
     try {
       const count = await loadAllParams();
@@ -1909,8 +1910,8 @@
   function renderStudioHeader() {
     const hasData = !!keymapData;
     $('btnStudioSave').disabled = !hasData || !studioDirty;
-    $('btnStudioDiscard').disabled = !hasData || !studioDirty;
     $('btnStudioReload').disabled = !studioClient;
+    $('btnStudioReset').disabled = !hasData;
     $('studioDirtyIndicator').hidden = !studioDirty;
   }
 
@@ -2314,22 +2315,31 @@
       setStatus('書き込みに失敗しました: ' + errText(e), true);
     }
   };
-  $('btnStudioDiscard').onclick = async () => {
-    if (!studioClient) return;
-    if (!window.confirm('未保存の変更を破棄します。よろしいですか?')) return;
-    try {
-      await studioClient.discardChanges();
-      studioDirty = false;
-      await loadKeymapData();
-      setStatus('変更を破棄しました');
-    } catch (e) {
-      setStatus('破棄に失敗しました: ' + errText(e), true);
-    }
-  };
+  // 再読み込み: 書き込み前の変更を捨て、キーボードに保存されている状態を読み直す
   $('btnStudioReload').onclick = async () => {
     if (!studioClient) { updateStudioAvailability(); return; }
-    await loadKeymapData();
-    if (keymapData) setStatus('キー設定を再読み込みしました');
+    try {
+      if (studioDirty && !window.confirm('書き込んでいない変更を捨てて、キーボードに保存されている状態に戻します。よろしいですか?')) return;
+      if (studioDirty) { await studioClient.discardChanges(); studioDirty = false; }
+      await loadKeymapData();
+      if (keymapData) setStatus('キー設定を再読み込みしました');
+    } catch (e) {
+      setStatus('再読み込みに失敗しました: ' + errText(e), true);
+    }
+  };
+  // デフォルトに戻す: 保存済みの変更も消して、ファームに組み込まれたキーマップ(リポジトリの .keymap)に戻す
+  $('btnStudioReset').onclick = async () => {
+    if (!studioClient) return;
+    if (!window.confirm('キー設定をデフォルト(ファームに組み込まれたキーマップ)に戻しますか? 書き込み済みの変更もすべて消えます。')) return;
+    try {
+      const ok = await studioClient.resetSettings();
+      if (!ok) throw new Error('ファームが拒否しました');
+      studioDirty = false;
+      await loadKeymapData();
+      setStatus('キー設定をデフォルトに戻しました');
+    } catch (e) {
+      setStatus('デフォルトに戻せませんでした: ' + errText(e), true);
+    }
   };
   $('btnLayerAdd').onclick = async () => {
     if (!studioClient || keymapData.availableLayers <= 0) return;

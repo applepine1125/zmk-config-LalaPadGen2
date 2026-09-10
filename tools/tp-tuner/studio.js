@@ -708,6 +708,10 @@
       return sendRequest({ keymap: { discardChanges: true } }).then((rr) => rr.keymap.discardChanges);
     };
 
+    client.resetSettings = function () {
+      return sendRequest({ core: { resetSettings: true } }).then((rr) => rr.core.resetSettings);
+    };
+
     client.checkUnsavedChanges = function () {
       return sendRequest({ keymap: { checkUnsavedChanges: true } }).then((rr) => rr.keymap.checkUnsavedChanges);
     };
