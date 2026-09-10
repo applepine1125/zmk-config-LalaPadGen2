@@ -978,6 +978,64 @@ static void local_frame_cb(const struct iqs9151_frame_info *finfo, void *user_da
     stream_put_frame('R', buf, finfo->fingers == 0);
 }
 
+/* ---- ホスト接続の LE データ長 ---- */
+
+/*
+ * ZMK は BT_USER_DATA_LEN_UPDATE を select したまま bt_conn_le_data_len_update を呼ばないため、
+ * tx_max_len が 27 のままになり Studio の indicate と stream の通知が細かく分割される。
+ * ホスト(Mac)向けの接続(自分が peripheral 側)が確立したら work から最大値を要求する
+ */
+static struct bt_conn *data_len_conn;
+static struct k_spinlock data_len_lock;
+
+static void data_len_work_cb(struct k_work *work) {
+    struct bt_conn *conn;
+    k_spinlock_key_t key;
+    int ret;
+
+    ARG_UNUSED(work);
+    key = k_spin_lock(&data_len_lock);
+    conn = data_len_conn;
+    data_len_conn = NULL;
+    k_spin_unlock(&data_len_lock, key);
+    if (conn == NULL) {
+        return;
+    }
+
+    ret = bt_conn_le_data_len_update(conn, BT_LE_DATA_LEN_PARAM_MAX);
+    if (ret < 0 && ret != -EALREADY) {
+        LOG_WRN("LE data length update failed (%d)", ret);
+    }
+    bt_conn_unref(conn);
+}
+
+static K_WORK_DEFINE(data_len_work, data_len_work_cb);
+
+static void host_connected(struct bt_conn *conn, uint8_t err) {
+    struct bt_conn_info info;
+    k_spinlock_key_t key;
+    bool stored = false;
+
+    if (err != 0 || bt_conn_get_info(conn, &info) != 0 || info.type != BT_CONN_TYPE_LE ||
+        info.role != BT_CONN_ROLE_PERIPHERAL) {
+        return;
+    }
+
+    key = k_spin_lock(&data_len_lock);
+    if (data_len_conn == NULL) {
+        data_len_conn = bt_conn_ref(conn);
+        stored = true;
+    }
+    k_spin_unlock(&data_len_lock, key);
+    if (stored) {
+        k_work_submit(&data_len_work);
+    }
+}
+
+BT_CONN_CB_DEFINE(tp_tuner_conn_cb) = {
+    .connected = host_connected,
+};
+
 static int tp_tuner_central_init(void) {
     iqs9151_dev_set_summary_callback(local_summary_cb, NULL);
     iqs9151_dev_set_frame_callback(local_frame_cb, NULL);
