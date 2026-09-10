@@ -232,7 +232,7 @@
 
 <div class="row" id="liveRow">
   <label><input type="checkbox" id="chkLive" checked>ライブ表示</label>
-  <button id="btnCapture">試し操作(Mac に効かせない)</button>
+  <button id="btnCapture">ポインタロック</button>
 </div>
 
 <div id="captureOverlay" hidden>
@@ -1328,8 +1328,8 @@
 
   const captureOverlay = $('captureOverlay');
   const captureMsg = $('captureMsg');
-  const CAPTURE_MSG = '試し操作中: クリック・スクロールは Mac に効きません。Esc で終了';
-  const CAPTURE_MSG_FALLBACK = CAPTURE_MSG + '(この環境ではカーソルは動きます)';
+  const CAPTURE_MSG = 'ポインタロック中: クリック・スクロールは Mac に効きません。Esc で解除';
+  const CAPTURE_MSG_FALLBACK = 'この環境ではポインタロックできません。クリック・スクロールの既定動作だけ止めています(カーソルは動きます)。Esc で解除';
   let captureMode = false;
 
   function blockOverlayDefault(e) { e.preventDefault(); }
