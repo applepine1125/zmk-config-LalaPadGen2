@@ -45,7 +45,7 @@ jobs:
         run: |
           extra=""
           if [ -n "${{ matrix.snippet }}" ]; then extra="-S ${{ matrix.snippet }}"; fi
-          west build -s zmk/app -d build -b seeeduino_xiao_ble $extra -- -DZMK_CONFIG="${GITHUB_WORKSPACE}/config" -DSHIELD="${{ matrix.shield }}"
+          west build -s zmk/app -d build -b seeeduino_xiao_ble $extra -- -DZMK_CONFIG="${GITHUB_WORKSPACE}/config" -DSHIELD="${{ matrix.shield }}" -DZMK_EXTRA_MODULES="${GITHUB_WORKSPACE}"
       - name: Collect symbols
         run: |
           mkdir -p symbols
