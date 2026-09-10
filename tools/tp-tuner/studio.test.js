@@ -325,7 +325,7 @@ test('値 0 のフィールドが省略された物理レイアウト応答を�
   const keymap = [0x32, layouts.length, ...layouts];
   const rr = [0x08, 0x02, 0x2a, keymap.length, ...keymap];
   const resp = Uint8Array.from([0x0a, rr.length, ...rr]);
-  const d = T.decodeResponse(resp).requestResponse.keymap.getPhysicalLayouts;
+  const d = S.decodeResponse(resp).requestResponse.keymap.getPhysicalLayouts;
   assert.equal(d.activeLayoutIndex, 0);
   assert.equal(d.layouts[0].keys[0].x, 0);
   assert.equal(d.layouts[0].keys[0].y, 0);
