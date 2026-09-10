@@ -45,3 +45,12 @@ tp-tuner の Mac アプリで、BT 接続のままキーマップ(各レイヤ�
 | 公式 ZMK Studio の Web アプリを WKWebView で開く | Web Bluetooth / Web Serial に依存し、WKWebView では動かない |
 | 独自のキーマップ転送プロトコルをファームに追加 | Studio が同じ機能を提供済み。二重実装になる |
 | protobuf のライブラリ(protobufjs 等)を同梱 | 外部依存なしの方針に反し、必要なメッセージは少数なので手書きで足りる |
+
+## 実機で確定した挙動と対処(2026-09-10)
+
+- ZMK v0.3.0 の GATT 転送は、応答の終端 EOF(1 バイト)を送り残すことがある(本体は全部届く。取り残した分は次のメッセージ送信時にまとめて流れる)。ページ側は `zmk.studio.Response` が oneof の length-delimited 1 フィールドであることを使い、先頭のタグと長さから全長が揃った時点でフレーム完成とみなす(`studio.js` の `createFrameDecoder`)。遅れて届いた EOF は IDLE で無視される
+- Studio の転送先は HID の出力先(`zmk_endpoints_selected().transport`)に追従する。右手に USB をつなぐと出力先が USB になり、BLE の Studio 要求は無視される(タイムアウトになる)。USB をつないだまま BLE で使うには system layer の `&out OUT_TOG` で出力先を BLE に戻す
+- 応答は LE データ長 27 バイト刻みの indicate で届く(物理レイアウト約 0.9KB で 40 本、キーマップ約 1.6KB で 60 本)。ホスト接続時に `bt_conn_le_data_len_update` を要求する案は、右手の再起動と時期が重なったため取り下げた(原因未特定)
+- キー設定タブを開いている間は、ページが両手へ `live off` と `summary off` を送って tp-tuner の送信を止め、タッチパッドタブに戻すと再開する(BLE リンクの取り合いを避ける)
+- behavior を切り替えるときは新しい behavior の定義(最初のセット)に合う初期値を送る(hidUsage は `A`、layerId は 0、constant は先頭の候補、range は下限)。`param1/param2 = 0` のまま送ると `SET_LAYER_BINDING_RESP_INVALID_PARAMETERS`(3)になる
+- proto3 は既定値のフィールドを省略するため、oneof を持たないメッセージは復号時に既定値(0 / false / 空)を補う(`activeLayoutIndex`、キーの `x`/`y`、レイヤー `id` など)
