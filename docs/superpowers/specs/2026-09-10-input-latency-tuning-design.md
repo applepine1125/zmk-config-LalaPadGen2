@@ -104,6 +104,25 @@
 - stream 通知は 1 件ずつ 8ms 間隔で送り、DLE 未交渉(tx_max_len < 100)のときは 20 バイト(LL 1 パケット)に収める。ライブ行は未送信 512 バイトを超えたら捨てる。
 - `stats` の link 行に tx_len / rx_len を追加。Mac が DLE を受け入れたかはここで確認する。
 
+### 2 回目以降の計測(DLE 適用後)
+
+| 項目 | 右 | 左 |
+| --- | --- | --- |
+| wq_late_max_us / over3 | 81〜87ms / 3〜6 回(3〜10 分) | 0.3〜1.4ms / 0 |
+| late_top(停止直前 10ms の CPU) | `BT RX`:91ms、idle 0 | – |
+| frame_max_us / i2c_max_us | 293ms / 293ms | 277〜309ms / 15〜29ms |
+| cpu_max_us | 0.7ms | 0.6ms |
+| rdy_miss | = frame_n(100%) | = frame_n(100%) |
+| notify_fail | 0〜1 | 0 |
+| Mac リンク tx_len | 251 | – |
+
+読み取り:
+
+- DLE 適用と stream ペーシングで `notify_fail` は 1430 → 0〜1、右の syswq 停止は 3.6 秒 → 87ms になった。体感でも「軽くなった」「キー設定タブで固まらなくなった」。
+- 残る右の 83〜87ms 停止は、直前 10ms の CPU が `BT RX`(Zephyr BT ホストの RX ワークキュー。`K_PRIO_COOP(CONFIG_BT_RX_PRIO)` の協調スレッドなので走っている間は syswq もドライバも動けない。zephyr `subsys/bluetooth/host/hci_core.c:4009-4012`)に付いた。`CONFIG_SOC_FLASH_NRF_PARTIAL_ERASE=y` でも変わらなかったので、NVS のページ消去ではない可能性が高い。BT RX が 90ms 走る処理は未特定(候補: 設定書き込みのフラッシュ待ちを BT RX 実行中として数えている、ECC 計算)。停止の時刻履歴(`late[i]`)で周期性を見る。
+- フレーム処理の 300ms は計算ではなく(cpu_max 0.7ms)I2C の待ち。読み出し開始時に RDY が非アクティブなフレームが 100%(`rdy_miss`)。IQS9150/9151 データシート 12.5/12.8: RDY は通信窓の間 LOW を保ち、Force Comms Method=0(ドライバ既定)では窓の外で通信を始めるとクロックストレッチで次の窓まで待たされる。ドライバの IC 設定は Active 10ms・Idle 系 50ms(`iqs9151_init.h:98-106`)、I2C Timeout 100ms(`:120`)。平均フレーム時間 4〜5ms は「毎回次の窓まで待っている(0〜10ms の一様分布)」と一致し、300ms は LP2 の Auto-Prox Cycles(32 周期)相当と推測。割り込み時点の RDY と ISR→読み出しの遅れを次の計測で分ける。
+- 左のキー 474 件を右が 474 件受信。split 経路のキー欠けは無い。
+
 ## 第 2 段(計測後の候補)
 
 - Mac リンク: `CONFIG_BT_PERIPHERAL_PREF_*`(要求値のみ。採否は macOS)。
