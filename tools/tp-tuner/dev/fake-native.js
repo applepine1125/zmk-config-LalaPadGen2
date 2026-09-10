@@ -139,7 +139,7 @@
     if (reqObj.core) {
       rr.core = {};
       if (reqObj.core.getDeviceInfo) rr.core.getDeviceInfo = { name: 'LalapadGen2 (fake)', serialNumber: Uint8Array.from([1, 2, 3, 4]) };
-      if (reqObj.core.getLockState !== undefined) rr.core.getLockState = fakeStudioLocked ? 1 : 0;
+      if (reqObj.core.getLockState !== undefined) rr.core.getLockState = fakeStudioLocked ? 0 : 1;
     }
     if (reqObj.behaviors) {
       rr.behaviors = {};

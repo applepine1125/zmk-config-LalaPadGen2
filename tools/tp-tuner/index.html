@@ -1946,7 +1946,7 @@
     setStudioNotice('キー設定を読み込んでいます...');
     try {
       const lockState = await studioClient.getLockState();
-      studioLocked = lockState !== 0;
+      studioLocked = lockState !== 1;
       if (studioLocked) { setStudioNotice('Studio がロックされています'); keymapData = null; renderKeymapWorkspace(); return; }
       physicalLayout = await studioClient.getPhysicalLayouts();
       const ids = await studioClient.listBehaviors();
