@@ -848,6 +848,7 @@
     $('btnResetAll').disabled = !isConn;
     if (!isConn) {
       connInfo.R = null; connInfo.L = null;
+      trackpadQuiet = false;
       usbSide = null;
       bleLeftAvailable = false;
       pending = emptyPending();
@@ -1126,11 +1127,33 @@
   }
 
   async function sendLiveCommands() {
-    if (!isConnected() || transport.kind !== 'ble') return;
+    if (!isConnected() || transport.kind !== 'ble' || trackpadQuiet) return;
     const sides = activeSides();
     if (!sides.length) return;
     for (const c of T.liveCommands(sides, LIVE_RATE, liveEnabled)) {
       await runSimpleOnSide(c.side, c.cmd);
+    }
+  }
+
+  /*
+   * キー設定タブでは Studio の応答(数 KB の indicate)と tp-tuner の送信(ライブ・要約)が
+   * 同じ BLE リンクを取り合って応答が途切れるため、タブの間は tp-tuner 側を黙らせる
+   */
+  let trackpadQuiet = false;
+  async function setTrackpadQuiet(quiet) {
+    if (trackpadQuiet === quiet) return;
+    trackpadQuiet = quiet;
+    if (!isConnected() || transport.kind !== 'ble') return;
+    const sides = activeSides();
+    if (quiet) {
+      for (const s of sides) {
+        await runSimpleOnSide(s, 'tp live off');
+        await runSimpleOnSide(s, 'tp summary off');
+      }
+      await new Promise((r) => setTimeout(r, 300));
+    } else {
+      for (const s of sides) await runSimpleOnSide(s, 'tp summary on');
+      await sendLiveCommands();
     }
   }
 
@@ -1861,6 +1884,7 @@
     $('tabBtnTrackpad').classList.toggle('active', tab === 'trackpad');
     $('tabBtnKeymap').classList.toggle('active', tab === 'keymap');
     if (tab === 'keymap') updateStudioAvailability();
+    else setTrackpadQuiet(false);
   }
 
   function setStudioNotice(text) {
@@ -1945,6 +1969,7 @@
     studioBusy = true;
     setStudioNotice('キー設定を読み込んでいます...');
     try {
+      await setTrackpadQuiet(true);
       const lockState = await studioClient.getLockState();
       studioLocked = lockState !== 1;
       if (studioLocked) { setStudioNotice('Studio がロックされています'); keymapData = null; renderKeymapWorkspace(); return; }
@@ -1961,9 +1986,10 @@
       renderKeymapWorkspace();
       renderStudioHeader();
     } catch (e) {
-      setStudioNotice('キー設定の読み込みに失敗しました: ' + errText(e));
+      setStudioNotice('キー設定の読み込みに失敗しました: ' + errText(e) + '(「再読み込み」でやり直せます)');
     } finally {
       studioBusy = false;
+      renderStudioHeader();
     }
   }
 
@@ -2288,9 +2314,9 @@
     }
   };
   $('btnStudioReload').onclick = async () => {
-    if (!studioClient) return;
+    if (!studioClient) { updateStudioAvailability(); return; }
     await loadKeymapData();
-    setStatus('キー設定を再読み込みしました');
+    if (keymapData) setStatus('キー設定を再読み込みしました');
   };
   $('btnLayerAdd').onclick = async () => {
     if (!studioClient || keymapData.availableLayers <= 0) return;
