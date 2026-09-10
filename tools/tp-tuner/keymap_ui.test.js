@@ -192,3 +192,14 @@ test('modsFromFlags と flagsFromMods は往復できる', () => {
   assert.equal(mods, K.MODS.LC | K.MODS.LA | K.MODS.RG);
   assert.deepEqual(U.flagsFromMods(mods), flags);
 });
+
+test('behavior を切り替えたとき、defaultBindingFor は定義に合う初期値(キーコード・定数の先頭・range の下限・nil は 0)を返す', () => {
+  const kp = { id: 8, metadata: [{ param1: [{ name: 'Key', hidUsage: { keyboardMax: 0xff, consumerMax: 0xfff } }], param2: [] }] };
+  assert.deepEqual(U.defaultBindingFor(kp, 0x70004), { behaviorId: 8, param1: 0x70004, param2: 0 });
+  const out = { id: 26, metadata: [{ param1: [{ name: 'Toggle', constant: 5 }, { name: 'USB', constant: 1 }], param2: [] }] };
+  assert.deepEqual(U.defaultBindingFor(out, 0x70004), { behaviorId: 26, param1: 5, param2: 0 });
+  const rng = { id: 3, metadata: [{ param1: [{ name: 'n', range: { min: 2, max: 9 } }], param2: [{ name: 'x', nil: true }] }] };
+  assert.deepEqual(U.defaultBindingFor(rng, 0), { behaviorId: 3, param1: 2, param2: 0 });
+  assert.deepEqual(U.defaultBindingFor({ id: 1 }, 0), { behaviorId: 1, param1: 0, param2: 0 });
+  assert.equal(U.setBindingErrorText(3), 'パラメータが不正です(この behavior が受け付けない値)');
+});

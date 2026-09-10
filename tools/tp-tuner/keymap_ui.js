@@ -58,6 +58,29 @@
     return null;
   }
 
+  // behavior を切り替えたとき、その定義(最初のセット)に合う初期値の binding を作る
+  function defaultBindingFor(behavior, hidDefault) {
+    const set = (behavior && behavior.metadata && behavior.metadata[0]) || {};
+    const pick = (arr) => {
+      const slot = describeParamSlot(arr);
+      if (slot.kind === 'hidUsage') return hidDefault;
+      if (slot.kind === 'range') return Math.max(0, slot.range.min || 0);
+      if (slot.kind === 'constant') return slot.options[0].value;
+      return 0;
+    };
+    return { behaviorId: behavior.id, param1: pick(set.param1), param2: pick(set.param2) };
+  }
+
+  const SET_BINDING_ERRORS = {
+    1: 'キー位置が不正です',
+    2: 'behavior が不正です',
+    3: 'パラメータが不正です(この behavior が受け付けない値)',
+  };
+
+  function setBindingErrorText(code) {
+    return SET_BINDING_ERRORS[code] || `コード ${code}`;
+  }
+
   function describeParamSlot(arr) {
     const list = arr || [];
     if (list.length === 0) return { kind: 'none' };
@@ -219,7 +242,7 @@
   const api = {
     MOD_ORDER, HID_USAGE_PAGE,
     layoutBounds, keyRect,
-    paramDescKind, describeParamSlot, valueFitsSlot, findMatchingSetIndex,
+    paramDescKind, describeParamSlot, valueFitsSlot, findMatchingSetIndex, defaultBindingFor, setBindingErrorText,
     layerIndexById, modLabelPrefix, formatHidUsageLabel, bindingLabel,
     filterKeycodes, groupKeycodes, keycodeWithinHidUsage, modsFromFlags, flagsFromMods,
   };

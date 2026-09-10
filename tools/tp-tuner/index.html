@@ -2051,7 +2051,7 @@
         targetLayer.bindings[pos] = prevBinding;
         renderKeymapSvg();
         if (isStillSelected()) renderKeyEditor();
-        setStatus('キーの設定に失敗しました(コード ' + code + ')', true);
+        setStatus('キーの設定に失敗しました: ' + TpKeymapUi.setBindingErrorText(code), true);
       } else {
         studioDirty = true;
         renderStudioHeader();
@@ -2226,7 +2226,11 @@
       if (b.id === binding.behaviorId) o.selected = true;
       behSelect.appendChild(o);
     }
-    behSelect.onchange = () => commitBinding({ behaviorId: Number(behSelect.value), param1: 0, param2: 0 });
+    behSelect.onchange = () => {
+      const next = behaviors.find((b) => b.id === Number(behSelect.value));
+      const keyA = TpKeycodes.KEYS.find((k) => k.name === 'A');
+      commitBinding(TpKeymapUi.defaultBindingFor(next, keyA ? keyA.value : 0));
+    };
     body.appendChild(renderField('behavior', behSelect));
 
     const behavior = behaviors.find((b) => b.id === binding.behaviorId);
