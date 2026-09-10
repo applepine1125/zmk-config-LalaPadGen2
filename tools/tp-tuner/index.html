@@ -1180,6 +1180,8 @@
   }
 
   function processAttemptsForSide(sideKey) {
+    // BLE のライブフレームは間引き・受信時刻基準なので試行の組み立てには使わず、要約だけで判定する
+    if (transport && transport.kind === 'ble') return;
     const now = nowMs();
     const attempts = T.segmentAttempts(rec[sideKey].frames, { idleMs: ATTEMPT_IDLE_MS, now });
     for (let i = 0; i < attempts.length; i++) {
@@ -1263,6 +1265,8 @@
   function currentActionText(sideKey) {
     if (!isSideActive(sideKey)) return isConnected() ? 'USB では接続側のみ' : '未接続';
     if (hasLiveFrame(sideKey)) return T.describeState(lastFrame[sideKey]);
+    // ライブフレームが途絶えたら指は離れている(離したフレームが落ちても要約の操作名に戻さない)
+    if (lastFrame[sideKey]) return '待機';
     if (lastObs[sideKey]) return T.kindLabel(lastKind[sideKey]);
     return '待機';
   }
