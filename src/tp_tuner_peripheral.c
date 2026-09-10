@@ -107,6 +107,16 @@ static bool live_take(struct tp_tuner_live_event *out) {
     return valid;
 }
 
+static void live_restore(const struct tp_tuner_live_event *ev) {
+    k_spinlock_key_t key = k_spin_lock(&live_lock);
+
+    if (!live_slot.valid) {
+        live_slot.ev = *ev;
+        live_slot.valid = true;
+    }
+    k_spin_unlock(&live_lock, key);
+}
+
 static int report_input(uint8_t type, uint16_t code, uint32_t value) {
     struct zmk_split_transport_peripheral_event ev = {
         .type = ZMK_SPLIT_TRANSPORT_PERIPHERAL_EVENT_TYPE_INPUT_EVENT,
@@ -265,9 +275,19 @@ static void send_work_cb(struct k_work *work) {
             ret = send_live(&live);
             if (ret == 0) {
                 sent++;
-            } else {
-                LOG_DBG("live frame dropped (%d)", ret);
+                continue;
             }
+            /*
+             * 「離した」フレームはドライバが 1 回しか呼ばず、落ちると画面が指ありのまま残るので、
+             * 一時的な失敗ならスロットへ戻して次の周期で再送する(新しいフレームが来れば上書きされる)
+             */
+            if (live.type == TP_TUNER_EV_LIVE_0F &&
+                (ret == -ENOMEM || ret == -EAGAIN || ret == -ENOBUFS)) {
+                live_restore(&live);
+                (void)k_work_reschedule(&send_work, K_MSEC(TP_TUNER_PACE_MS));
+                return;
+            }
+            LOG_DBG("live frame dropped (%d)", ret);
             continue;
         }
 

@@ -141,9 +141,12 @@ static void stream_put_line(char side, const char *text) {
     stream_put(side, text, false);
 }
 
-/* ライブフレーム用。次のフレームで追いつくので、余裕が無ければ黙って捨てる */
-static void stream_put_line_lossy(char side, const char *text) {
-    stream_put(side, text, true);
+/*
+ * ライブフレーム用。指ありのフレームは次のフレームで追いつくので余裕が無ければ黙って捨てるが、
+ * 「離した」フレームはドライバが 1 回しか出さず、落ちると画面が指ありのまま残るので通常行として入れる
+ */
+static void stream_put_frame(char side, const char *text, bool released) {
+    stream_put(side, text, !released);
 }
 
 static void find_subscribed_conn(struct bt_conn *conn, void *data) {
@@ -836,7 +839,7 @@ static void handle_live(uint8_t type, uint16_t code, uint32_t value) {
     f.hold = live.hold;
     f.mode2f = live.mode2f;
     (void)iqs9151_frame_format(&f, buf, sizeof(buf));
-    stream_put_line_lossy('L', buf);
+    stream_put_frame('L', buf, live.fingers == 0);
 }
 
 static void left_event_handler(struct input_event *evt) {
@@ -893,7 +896,7 @@ static void local_frame_cb(const struct iqs9151_frame_info *finfo, void *user_da
         return;
     }
     (void)iqs9151_frame_format(finfo, buf, sizeof(buf));
-    stream_put_line_lossy('R', buf);
+    stream_put_frame('R', buf, finfo->fingers == 0);
 }
 
 static int tp_tuner_central_init(void) {
