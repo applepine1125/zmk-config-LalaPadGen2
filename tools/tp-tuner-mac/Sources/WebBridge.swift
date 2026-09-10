@@ -91,6 +91,18 @@ final class WebBridge: NSObject {
       } else if connectedKind == "ble" {
         ble.write(text)
       }
+    case "studioWrite":
+      guard let b64 = json["b64"] as? String, let data = Data(base64Encoded: b64) else { return }
+      if connectedKind == "usb" {
+        serial.studioWrite(data)
+      } else if connectedKind == "ble" {
+        ble.studioWrite(data)
+      }
+    case "studioOpen":
+      guard let id = json["id"] as? String else { return }
+      serial.studioOpen(id: id)
+    case "studioClose":
+      serial.studioClose()
     default:
       break
     }
@@ -137,6 +149,18 @@ extension WebBridge: BleTransportDelegate {
   func bleTransportDidUpdateStatus(_ text: String) {
     send(type: "status", payload: ["text": text])
   }
+
+  func bleTransportStudioReady(available: Bool) {
+    send(type: "studioReady", payload: ["available": available])
+  }
+
+  func bleTransportStudioData(_ data: Data) {
+    send(type: "studioData", payload: ["b64": data.base64EncodedString()])
+  }
+
+  func bleTransportStudioClosed(reason: String) {
+    send(type: "studioClosed", payload: ["reason": reason])
+  }
 }
 
 extension WebBridge: SerialTransportDelegate {
@@ -154,6 +178,22 @@ extension WebBridge: SerialTransportDelegate {
 
   func serialTransportDidReceiveText(_ text: String) {
     send(type: "data", payload: ["text": text])
+  }
+
+  func serialTransportDidUpdateStatus(_ text: String) {
+    send(type: "status", payload: ["text": text])
+  }
+
+  func serialTransportStudioReady(available: Bool) {
+    send(type: "studioReady", payload: ["available": available])
+  }
+
+  func serialTransportStudioData(_ data: Data) {
+    send(type: "studioData", payload: ["b64": data.base64EncodedString()])
+  }
+
+  func serialTransportStudioClosed(reason: String) {
+    send(type: "studioClosed", payload: ["reason": reason])
   }
 }
 
