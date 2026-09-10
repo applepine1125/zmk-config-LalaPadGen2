@@ -12,3 +12,11 @@ include:
   - board: seeeduino_xiao_ble
     shield: lalapadgen2_right rgbled_adapter
     artifact-name: lalapadgen2_right_debug
+  # 切り分け用: 電池駆動で Studio 応答中に落ちる(USB 給電では落ちない)ため、送信出力 +8dBm の
+  # 電流によるブラウンアウトを疑い、0dBm にした通常構成の右手。cmake-args の -DCONFIG_ は conf より後に
+  # マージされるので conf の PLUS_8=y に勝つ
+  - board: seeeduino_xiao_ble
+    shield: lalapadgen2_right rgbled_adapter
+    snippet: studio-rpc-usb-uart
+    artifact-name: lalapadgen2_right_txpwr0
+    cmake-args: -DCONFIG_BT_CTLR_TX_PWR_PLUS_8=n -DCONFIG_BT_CTLR_TX_PWR_0=y
