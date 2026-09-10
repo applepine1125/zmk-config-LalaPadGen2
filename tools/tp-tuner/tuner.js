@@ -132,12 +132,6 @@
     return out;
   }
 
-  function detectDrops(fwEvents) {
-    return fwEvents
-      .filter((e) => e.type === 'E' && e.ret !== 0)
-      .map((e) => ({ t: e.t, code: e.code, kind: e.kind }));
-  }
-
   function hostButtonsAt(samples, t) {
     let buttons = 0;
     for (const s of samples) {
@@ -181,71 +175,6 @@
     const hostAtEnd = hostButtonsAt(hostBtn, windowEnd);
     const stuckBits = buttonsReleased.map(hostBitForCode).filter((bit) => bit && (hostAtEnd & bit));
     return { down, up, moveCount, wheelCount, stuckBits };
-  }
-
-  function detectStuckButton(fwEvents, hostButtonSamples, opts) {
-    const holdMs = (opts && opts.holdMs) || 300;
-    const now = opts && typeof opts.now === 'number' ? opts.now : null;
-    const out = [];
-    const keys = fwEvents.filter((e) => e.type === 'E' && e.kind === 'K');
-    for (let i = 0; i < keys.length; i++) {
-      const e = keys[i];
-      if (e.value !== 0) continue;
-      const bit = hostBitForCode(e.code);
-      if (!bit) continue;
-      const nextPress = keys.slice(i + 1).find((k) => k.code === e.code && k.value === 1);
-      const checkT = e.t + holdMs;
-      if (now !== null && checkT > now) continue;
-      if (nextPress && nextPress.t <= checkT) continue;
-      if (hostButtonsAt(hostButtonSamples, checkT) & bit) {
-        out.push({ t: e.t, code: e.code });
-      }
-    }
-    return out;
-  }
-
-  function detectMissingWheel(fwEvents, hostWheelEvents, opts) {
-    const windowMs = (opts && opts.windowMs) || 200;
-    const out = [];
-    const wheels = fwEvents.filter(
-      (e) => e.type === 'E' && e.kind === 'R' && (e.code === REL.WHEEL || e.code === REL.HWHEEL));
-    let lastFlagged = -Infinity;
-    for (const w of wheels) {
-      const received = hostWheelEvents.some((h) => h.t >= w.t && h.t <= w.t + windowMs);
-      if (!received && w.t - lastFlagged > windowMs) {
-        out.push({ t: w.t });
-        lastFlagged = w.t;
-      }
-    }
-    return out;
-  }
-
-  function detectTwoFingerNoScroll(frames, fwEvents, opts) {
-    const minMove = (opts && opts.minMove) || 30;
-    const windowMs = (opts && opts.windowMs) || 200;
-    const out = [];
-    const wheels = fwEvents.filter(
-      (e) => e.type === 'E' && e.kind === 'R' && (e.code === REL.WHEEL || e.code === REL.HWHEEL));
-    let start = null;
-    let move = 0;
-    const flush = (endT) => {
-      if (start === null) return;
-      const hadWheel = wheels.some((w) => w.t >= start && w.t <= endT);
-      if (move >= minMove && endT - start >= windowMs && !hadWheel) out.push({ t: start });
-      start = null;
-      move = 0;
-    };
-    for (const f of frames) {
-      if (f.type !== 'F') continue;
-      if (f.fingers === 2) {
-        if (start === null) start = f.t;
-        move += Math.abs(f.relX) + Math.abs(f.relY);
-      } else {
-        flush(f.t);
-      }
-    }
-    if (frames.length) flush(frames[frames.length - 1].t);
-    return out;
   }
 
   const BTN_NAMES = { [BTN[0]]: '左', [BTN[1]]: '右', [BTN[2]]: '中', [BTN[7]]: 'ピンチ' };
@@ -376,7 +305,6 @@
       gapMs: second ? second.start - first.end : null,
       moveSum2, distDelta, mode2fSeen, keys, buttonsPressed, buttonsReleased, wheel, relCount, drops,
       host: hostObs,
-      cursor: cursorMetrics(attempt, fwEvents, host, { tailMs }),
     };
   }
 
@@ -448,34 +376,6 @@
     const tailMs = Math.max(0, Math.min(tail, cap));
     const ready = (Number.isFinite(cap) && cap <= tail) || now >= end + tail;
     return { ready, tailMs };
-  }
-
-  function cursorMetrics(attempt, fwEvents, host, opts) {
-    const tailMs = (opts && opts.tailMs) || 500;
-    const start = attempt.start;
-    const end = attempt.end;
-    const windowEnd = end + tailMs;
-    const touching = attempt.frames.filter((f) => f.fingers > 0);
-    const mag = (f) => Math.abs(f.relX || 0) + Math.abs(f.relY || 0);
-    const firstMove = touching.find((f) => mag(f) > 0);
-    let gapSum = 0;
-    for (let i = 1; i < touching.length; i++) gapSum += touching[i].t - touching[i - 1].t;
-    const tiny = touching.filter((f) => mag(f) > 0 && mag(f) <= 2).length;
-    const rels = (fwEvents || []).filter((e) => e.type === 'E' && e.t >= start && e.t <= windowEnd);
-    const inertia = rels.filter((e) => e.t > end + INERTIA_MARGIN_MS);
-    const inertiaCount = relTimes(inertia);
-    const moves = ((host && host.move) || []).filter((m) => m.t >= start && m.t <= windowEnd);
-    return {
-      touchMs: end - start,
-      startDelayMs: firstMove ? firstMove.t - start : null,
-      fwMove: touching.reduce((s, f) => s + mag(f), 0),
-      hostMove: moves.reduce((s, m) => s + Math.abs(m.dx || 0) + Math.abs(m.dy || 0), 0),
-      frameGapMs: touching.length > 1 ? Math.round((gapSum / (touching.length - 1)) * 10) / 10 : 0,
-      tinyRatio: touching.length ? Math.round((tiny / touching.length) * 100) : 0,
-      relCount: relTimes(rels) - inertiaCount,
-      inertiaCount,
-      inertiaMs: inertiaCount ? inertia[inertia.length - 1].t - end : 0,
-    };
   }
 
   function inferKind(o, params) {
@@ -868,9 +768,8 @@
     BTN, REL, BTN_NAMES, DEFAULT_PARAMS,
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
     splitSidePrefix, bleCommand, isEndMarker, orderDevices,
-    clockOffset, pickPortOrder, toConfName, exportConf, detectDrops, detectStuckButton,
-    detectMissingWheel, detectTwoFingerNoScroll,
-    paramValue, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, cursorMetrics, inferKind, whyNot, describeState,
+    clockOffset, pickPortOrder, toConfName, exportConf,
+    paramValue, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, inferKind, whyNot, describeState,
     observationText, hostText, sentText, recognitionText, kindLabel,
     mergeParams, pendingCommands, liveCommands, padStateFromFrame, frameToPadPoints,
   };

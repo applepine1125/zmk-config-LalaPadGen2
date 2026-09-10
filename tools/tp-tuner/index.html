@@ -191,19 +191,6 @@
   .pendingmark { color: var(--warn); font-size: 11px; font-weight: 600; white-space: nowrap; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
   .row .spacer { flex: 1; }
-  .timelinewrap { display: flex; gap: 0; align-items: stretch; }
-  #timelineLanes { display: flex; flex-direction: column; flex: none; width: 108px; border-radius: var(--radius-sm) 0 0 var(--radius-sm); overflow: hidden; }
-  #timelineLanes div {
-    display: flex; align-items: center; padding: 0 8px; font-size: 11px; color: var(--muted);
-    background: var(--surface-alt); border-bottom: 1px solid var(--border);
-  }
-  #timelineLanes div:nth-child(even) { background: var(--surface); }
-  #timeline { flex: 1 1 auto; width: 100%; display: block; border-radius: 0 var(--radius-sm) var(--radius-sm) 0; min-width: 0; }
-  #timelineLegend { margin: 8px 0 0; padding-left: 0; list-style: none; color: var(--muted); font-size: 11px; }
-  #timelineLegend li { margin: 3px 0; }
-  #diag { margin: 0; padding-left: 18px; max-height: 140px; overflow-y: auto; }
-  #diag li { color: var(--danger); }
-  #diag li.none { color: var(--muted); list-style: none; margin-left: -18px; }
   #conf {
     width: 100%; height: 120px; font: 11px/1.4 var(--mono); resize: vertical;
     border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-alt); color: var(--text);
@@ -227,7 +214,12 @@
   <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
   <span id="connStatus">未接続</span>
   <span class="sep"></span>
+  <button id="btnWrite" class="primary" disabled>書き込む</button>
   <span id="dirtyIndicator" hidden>未書き込みの変更 0 件</span>
+  <button id="btnReload" disabled>再読み込み</button>
+  <button id="btnResetAll" disabled>デフォルトに戻す</button>
+  <button id="btnExport">.conf をエクスポート</button>
+  <span class="sep"></span>
   <span id="status"></span>
 </div>
 <div id="devicePanel" hidden>
@@ -238,7 +230,7 @@
 
 <div class="row" id="liveRow">
   <label><input type="checkbox" id="chkLive" checked>ライブ表示</label>
-  <button id="btnCapture">確認モード</button>
+  <button id="btnCapture">試し操作(Mac に効かせない)</button>
 </div>
 
 <div id="captureOverlay" hidden>
@@ -274,37 +266,10 @@
   <summary>パラメータ</summary>
   <div class="body">
     <div class="toolbar">
-      <button id="btnWrite" class="primary" disabled>書き込む</button>
-      <button id="btnReload" disabled>再読み込み</button>
-      <button id="btnResetAll" disabled>全て既定に</button>
-      <button id="btnExport">.conf をエクスポート</button>
-      <span class="spacer"></span>
       <label><input type="checkbox" id="chkDetail">詳細: 左右別に設定</label>
     </div>
     <div id="params"><span class="legend">接続すると tp list の内容がここに表示されます</span></div>
     <textarea id="conf" readonly spellcheck="false" hidden></textarea>
-  </div>
-</details>
-
-<details class="section" id="secTimeline">
-  <summary>タイムライン・診断</summary>
-  <div class="body">
-    <div class="row">
-      <span class="legend">表示幅 10 秒固定</span>
-      <span class="spacer"></span>
-      <button id="btnPause">一時停止</button>
-    </div>
-    <div class="timelinewrap">
-      <div id="timelineLanes"></div>
-      <canvas id="timeline"></canvas>
-    </div>
-    <ul id="timelineLegend">
-      <li><b>指の本数</b>: ドライバが検出した指の本数(0〜3 を高さで表す)。両手から来るときは R / L を添える</li>
-      <li><b>ファームが送った操作</b>: ドライバが送ったクリック(青=左、緑=右、橙=中)の押下区間・移動(黒)・wheel(赤)の報告。赤い × は input_report がイベントを捨てたこと</li>
-      <li><b>Mac が受けた操作</b>: アプリのウィンドウ上でブラウザが受け取った pointerdown/up/move(黒)・wheel(赤)。ポインタロックは使わないため、ウィンドウの上でのみ検出できる</li>
-    </ul>
-    <h2 style="margin-top:10px">診断(直近 60 秒)</h2>
-    <ul id="diag"></ul>
   </div>
 </details>
 
@@ -345,10 +310,6 @@
   // 右手は Mac への BLE、左手は split リンク経由なので控えめにする
   const LIVE_RATE = { R: 60, L: 15 };
   const DISCONNECTED_MSG = '切断されました。再接続を待っています';
-  const LANE_H = 40;
-  const LANES = ['指の本数', 'ファームが送った操作', 'Mac が受けた操作'];
-  const BTN_COLOR = { [T.BTN[0]]: '#3b82f6', [T.BTN[1]]: '#22c55e', [T.BTN[2]]: '#f97316', [T.BTN[7]]: '#a855f7' };
-  const HOST_BITS = [[1, T.BTN[0]], [2, T.BTN[1]], [4, T.BTN[2]]];
   function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
@@ -444,11 +405,9 @@
   let lastDevices = [];
   let lastFailedDeviceSetKey = null;
   const clock = { offset: { R: 0, L: 0 } };
-  const view = { ms: 10000, frozenNow: null };
   const rec = {
     R: { frames: [], fw: [] }, L: { frames: [], fw: [] },
     host: { btn: [], move: [], wheel: [] },
-    paused: false,
   };
   const processedStarts = { R: new Set(), L: new Set() };
   const pendingSummaries = { R: [], L: [] };
@@ -456,7 +415,6 @@
   const connInfo = { R: null, L: null };
   let pending = { common: {}, R: {}, L: {} };
   let detailMode = false;
-  let diag = [];
   let busyConnecting = false;
   let autoConnectEnabled = true;
   let liveEnabled = true;
@@ -485,10 +443,6 @@
 
   function isSideActive(sideKey) {
     return activeSides().includes(sideKey);
-  }
-
-  function nowMs() {
-    return rec.paused && view.frozenNow !== null ? view.frozenNow : performance.now();
   }
 
   function errText(e) {
@@ -842,6 +796,16 @@
     params[sideKey] = lines.map(T.parseListLine).filter(Boolean);
   }
 
+  async function refreshInfoForSide(sideKey) {
+    try {
+      const lines = await sendTo(sideKey, 'tp info');
+      const info = lines.map(T.parseInfoLine).find(Boolean);
+      if (info) connInfo[sideKey] = info;
+    } catch (e) {
+      log(`[${sideKey}] ` + errText(e));
+    }
+  }
+
   async function loadAllParams() {
     let count = 0;
     for (const s of activeSides()) {
@@ -1180,7 +1144,7 @@
   function processAttemptsForSide(sideKey) {
     // BLE のライブフレームは間引き・受信時刻基準なので試行の組み立てには使わず、要約だけで判定する
     if (transport && transport.kind === 'ble') return;
-    const now = nowMs();
+    const now = performance.now();
     const attempts = T.segmentAttempts(rec[sideKey].frames, { idleMs: ATTEMPT_IDLE_MS, now });
     for (let i = 0; i < attempts.length; i++) {
       const a = attempts[i];
@@ -1196,7 +1160,7 @@
 
   function nextKnownStartAfter(sideKey, afterT) {
     let best = null;
-    const attempts = T.segmentAttempts(rec[sideKey].frames, { idleMs: ATTEMPT_IDLE_MS, now: nowMs() });
+    const attempts = T.segmentAttempts(rec[sideKey].frames, { idleMs: ATTEMPT_IDLE_MS, now: performance.now() });
     for (const a of attempts) {
       if (a.start > afterT && (best === null || a.start < best)) best = a.start;
     }
@@ -1214,7 +1178,7 @@
   }
 
   function processPendingSummariesForSide(sideKey) {
-    const now = nowMs();
+    const now = performance.now();
     const queue = pendingSummaries[sideKey];
     for (let i = queue.length - 1; i >= 0; i--) {
       const p = queue[i];
@@ -1232,7 +1196,7 @@
   }
 
   link.onTrace = (tr, sideKey) => {
-    if (!sideKey || rec.paused) return;
+    if (!sideKey) return;
     if (tr.type === 'S') { handleSummary(sideKey, tr); return; }
     const isBleFrame = tr.type === 'F' && transport && transport.kind === 'ble';
     const t = isBleFrame ? performance.now() : tr.ms + (clock.offset[sideKey] || 0);
@@ -1333,7 +1297,6 @@
   }
 
   function recordPointer(type, e) {
-    if (rec.paused) return;
     const t = performance.now();
     if (type === 'pointermove') {
       if (e.movementX === 0 && e.movementY === 0) return;
@@ -1344,7 +1307,6 @@
   }
 
   function recordWheel(e) {
-    if (rec.paused) return;
     rec.host.wheel.push({ t: performance.now(), deltaX: e.deltaX, deltaY: e.deltaY });
   }
 
@@ -1355,7 +1317,7 @@
 
   const captureOverlay = $('captureOverlay');
   const captureMsg = $('captureMsg');
-  const CAPTURE_MSG = '確認モード: クリック・スクロールはこの画面が受け取ります。Esc で終了';
+  const CAPTURE_MSG = '試し操作中: クリック・スクロールは Mac に効きません。Esc で終了';
   const CAPTURE_MSG_FALLBACK = CAPTURE_MSG + '(この環境ではカーソルは動きます)';
   let captureMode = false;
 
@@ -1432,189 +1394,22 @@
     if (i) rec.host.btn.splice(0, i);
   }
 
-  function runDiagnostics() {
-    const items = [];
-    for (const s of ['R', 'L']) {
-      if (!rec[s].frames.length && !rec[s].fw.length) continue;
-      const label = SIDE_LABEL[s];
-      for (const d of T.detectDrops(rec[s].fw)) items.push({ t: d.t, msg: `[${label}] input_report が ${d.kind} ${d.code} を捨てた` });
-      for (const d of T.detectStuckButton(rec[s].fw, rec.host.btn, { holdMs: 300, now: performance.now() })) items.push({ t: d.t, msg: `[${label}] ドライバは離したがホストのボタン(${d.code})が押されたまま` });
-      for (const d of T.detectMissingWheel(rec[s].fw, rec.host.wheel, { windowMs: 200 })) items.push({ t: d.t, msg: `[${label}] ドライバは wheel を送ったがホストに届いていない` });
-      for (const d of T.detectTwoFingerNoScroll(rec[s].frames, rec[s].fw, { minMove: 30, windowMs: 200 })) items.push({ t: d.t, msg: `[${label}] 2本指で動いているがドライバが wheel を出していない` });
-    }
-    return items.sort((a, b) => a.t - b.t);
-  }
-
-  function refreshDiagnostics() {
-    diag = runDiagnostics();
-    const ul = $('diag');
-    ul.innerHTML = '';
-    if (diag.length === 0) {
-      const li = document.createElement('li');
-      li.className = 'none';
-      li.textContent = '問題は検出されていません';
-      ul.appendChild(li);
-    }
-    for (const d of diag.slice(-20)) {
-      const li = document.createElement('li');
-      li.textContent = `${(d.t / 1000).toFixed(2)}s ${d.msg}`;
-      ul.appendChild(li);
-    }
-  }
-
-  function buildTimelineLanes() {
-    const wrap = $('timelineLanes');
-    wrap.innerHTML = '';
-    for (const name of LANES) {
-      const div = document.createElement('div');
-      div.style.height = LANE_H + 'px';
-      div.textContent = name;
-      wrap.appendChild(div);
-    }
-  }
-
-  function drawTimeline() {
-    const cv = $('timeline');
-    const ctx = cv.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
-    const W = Math.max(1, cv.clientWidth);
-    const H = LANES.length * LANE_H;
-    if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) {
-      cv.width = Math.round(W * dpr);
-      cv.height = Math.round(H * dpr);
-      cv.style.height = H + 'px';
-    }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const now = nowMs();
-    const t0 = now - view.ms;
-    const x = (t) => ((t - t0) / view.ms) * W;
-    const laneY = (i) => i * LANE_H;
-    const laneBg = [cssVar('--surface-alt'), cssVar('--surface')];
-    const gridColor = cssVar('--border-strong');
-    const labelColor = cssVar('--muted');
-    const textColor = cssVar('--text');
-    const dangerColor = cssVar('--danger');
-    ctx.clearRect(0, 0, W, H);
-    ctx.font = '11px sans-serif';
-    ctx.textBaseline = 'alphabetic';
-    for (let i = 0; i < LANES.length; i++) {
-      ctx.fillStyle = laneBg[i % 2];
-      ctx.fillRect(0, laneY(i), W, LANE_H);
-    }
-    ctx.strokeStyle = gridColor;
-    for (let s = Math.ceil(t0 / 1000) * 1000; s <= now; s += 1000) {
-      ctx.beginPath(); ctx.moveTo(x(s), 0); ctx.lineTo(x(s), H); ctx.stroke();
-    }
-
-    const bothSides = rec.R.frames.length > 0 && rec.L.frames.length > 0;
-    const FINGER_STROKE = { R: textColor, L: '#2563eb' };
-    for (const s of ['R', 'L']) {
-      if (!rec[s].frames.length) continue;
-      ctx.strokeStyle = FINGER_STROKE[s];
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      let prev = null;
-      for (const f of rec[s].frames) {
-        if (f.t < t0) continue;
-        const y = laneY(0) + 36 - Math.min(3, f.fingers) * 8;
-        if (prev) ctx.lineTo(x(f.t), y); else ctx.moveTo(x(f.t), y);
-        prev = f;
-      }
-      ctx.stroke();
-      if (bothSides && prev) { ctx.fillStyle = FINGER_STROKE[s]; ctx.fillText(s, Math.max(2, x(prev.t) - 6), laneY(0) + 10); }
-    }
-    ctx.lineWidth = 1;
-
-    for (const s of ['R', 'L']) {
-      const open = {};
-      for (const e of rec[s].fw) {
-        if (e.kind === 'K') {
-          if (e.value) {
-            open[e.code] = e.t;
-          } else if (open[e.code] !== undefined) {
-            ctx.fillStyle = BTN_COLOR[e.code] || labelColor;
-            const x0 = Math.max(0, x(open[e.code]));
-            ctx.fillRect(x0, laneY(1) + 14, Math.max(2, x(e.t) - x0), 20);
-            delete open[e.code];
-          }
-          if (e.ret !== 0 && e.t >= t0) {
-            ctx.fillStyle = dangerColor;
-            ctx.fillText('×', x(e.t) - 3, laneY(1) + 12);
-          }
-        } else if (e.t >= t0) {
-          const isWheel = e.code === T.REL.WHEEL || e.code === T.REL.HWHEEL;
-          ctx.fillStyle = isWheel ? dangerColor : textColor;
-          const h = Math.min(16, Math.abs(e.value));
-          ctx.fillRect(x(e.t), laneY(1) + 30 - h, 2, 2 + h);
-          if (e.ret !== 0) ctx.fillText('×', x(e.t) - 3, laneY(1) + 12);
-        }
-        if (bothSides) { ctx.fillStyle = labelColor; ctx.fillText(s, x(e.t) - 3, laneY(1) + 38); }
-      }
-      for (const code of Object.keys(open)) {
-        ctx.fillStyle = BTN_COLOR[code] || labelColor;
-        const x0 = Math.max(0, x(open[code]));
-        ctx.fillRect(x0, laneY(1) + 14, Math.max(2, W - x0), 20);
-      }
-    }
-
-    let last = { t: t0, buttons: 0 };
-    for (const s of rec.host.btn) {
-      if (s.t >= t0) break;
-      last = { t: t0, buttons: s.buttons };
-    }
-    const samples = rec.host.btn.filter((s) => s.t >= t0).concat([{ t: now, buttons: null }]);
-    for (const s of samples) {
-      HOST_BITS.forEach(([bit, code], i) => {
-        if (last.buttons & bit) {
-          ctx.fillStyle = BTN_COLOR[code];
-          ctx.fillRect(x(last.t), laneY(2) + 12 + i * 8, Math.max(1, x(s.t) - x(last.t)), 7);
-        }
-      });
-      if (s.buttons !== null) last = s;
-    }
-    ctx.fillStyle = textColor;
-    for (const m of rec.host.move) if (m.t >= t0) ctx.fillRect(x(m.t), laneY(2) + 30, 2, 4);
-    ctx.fillStyle = dangerColor;
-    for (const w of rec.host.wheel) {
-      if (w.t < t0) continue;
-      const h = Math.min(16, Math.abs(w.deltaY) + Math.abs(w.deltaX));
-      ctx.fillRect(x(w.t), laneY(2) + 34 - h, 2, 2 + h);
-    }
-
-    ctx.strokeStyle = dangerColor;
-    for (const d of diag) {
-      if (d.t < t0) continue;
-      ctx.beginPath(); ctx.moveTo(x(d.t), 0); ctx.lineTo(x(d.t), H); ctx.stroke();
-    }
-  }
-
-  function setPaused(paused) {
-    rec.paused = paused;
-    view.frozenNow = paused ? performance.now() : null;
-    $('btnPause').textContent = paused ? '再開' : '一時停止';
-    $('btnPause').classList.toggle('active', paused);
-    if (paused) refreshDiagnostics();
-  }
-
   setInterval(() => {
-    if (rec.paused) return;
     prune();
     for (const s of ['R', 'L']) {
       processPendingSummariesForSide(s);
       processAttemptsForSide(s);
     }
-    refreshDiagnostics();
   }, PROCESS_INTERVAL_MS);
 
   (function loop() {
     try {
-      drawTimeline();
       for (const s of ['R', 'L']) { drawPad(s); renderNow(s); renderPadStatus(s); }
     } catch (e) { /* keep the loop alive */ }
     requestAnimationFrame(loop);
   })();
 
-  function updateRowMark(nameKey, bucket) {
+  function updateRowMark(nameKey, bucket, originalValue) {
     const row = document.querySelector(`.param[data-name="${CSS.escape(nameKey)}"]`);
     if (!row) return;
     const cell = bucket === 'common' ? row.querySelector('.cell') : row.querySelector(`.cell[data-side="${bucket}"]`);
@@ -1625,7 +1420,7 @@
     if (value !== undefined) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
-      m.textContent = `→ ${value}`;
+      m.textContent = `元 ${originalValue}`;
       cell.appendChild(m);
     }
     const rowHasPending = pending.common[nameKey] !== undefined || pending.R[nameKey] !== undefined || pending.L[nameKey] !== undefined;
@@ -1634,14 +1429,14 @@
 
   function setPendingCommon(p, value) {
     if (value === p.value) delete pending.common[p.name]; else pending.common[p.name] = value;
-    updateRowMark(p.name, 'common');
+    updateRowMark(p.name, 'common', p.value);
     renderHeader();
   }
 
   function setPendingSide(p, sideKey, value) {
     const current = sideKey === 'R' ? p.valueR : p.valueL;
     if (value === current) delete pending[sideKey][p.name]; else pending[sideKey][p.name] = value;
-    updateRowMark(p.name, sideKey);
+    updateRowMark(p.name, sideKey, current);
     renderHeader();
   }
 
@@ -1675,7 +1470,7 @@
     if (Object.prototype.hasOwnProperty.call(pending.common, p.name)) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
-      m.textContent = `→ ${pending.common[p.name]}`;
+      m.textContent = `元 ${p.value}`;
       wrap.appendChild(m);
     }
     return wrap;
@@ -1695,7 +1490,7 @@
     if (Object.prototype.hasOwnProperty.call(bucket, p.name)) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
-      m.textContent = `→ ${bucket[p.name]}`;
+      m.textContent = `元 ${current}`;
       wrap.appendChild(m);
     }
     return wrap;
@@ -1809,7 +1604,10 @@
     }
     for (const s of sides) await runSimpleOnSide(s, 'tp save');
     pending = rebuildPendingFromFailures(failed);
-    for (const s of sides) await loadParamsForSide(s);
+    for (const s of sides) {
+      await loadParamsForSide(s);
+      await refreshInfoForSide(s);
+    }
     renderHeader();
     renderParams();
     setStatus(failed.length
@@ -1821,6 +1619,7 @@
     pending = emptyPending();
     try {
       const count = await loadAllParams();
+      for (const s of activeSides()) await refreshInfoForSide(s);
       renderHeader();
       setStatus(`パラメータ ${count} 件を再読み込みしました`);
     } catch (e) {
@@ -1831,14 +1630,17 @@
   async function resetAll() {
     const sides = activeSides();
     if (!sides.length) { setStatus('未接続です', true); return; }
-    if (!window.confirm('すべてのパラメータをファームの既定値に戻します。保存済みの値も削除されます。よろしいですか?')) return;
+    if (!window.confirm('すべてのパラメータをファームのデフォルト値に戻します。保存済みの値も削除されます。よろしいですか?')) return;
     let allOk = true;
     for (const s of sides) allOk = (await runSimpleOnSide(s, 'tp reset')) && allOk;
     pending = emptyPending();
-    for (const s of sides) await loadParamsForSide(s);
+    for (const s of sides) {
+      await loadParamsForSide(s);
+      await refreshInfoForSide(s);
+    }
     renderHeader();
     renderParams();
-    setStatus(allOk ? 'すべて既定に戻しました' : '一部の側で失敗しました', !allOk);
+    setStatus(allOk ? 'すべてデフォルトに戻しました' : '一部の側で失敗しました', !allOk);
   }
 
   $('btnConnect').onclick = () => { connect(); };
@@ -1847,7 +1649,6 @@
   $('btnReload').onclick = () => { reloadAll(); };
   $('btnResetAll').onclick = () => { resetAll(); };
   $('btnExport').onclick = () => { exportConfNow(); };
-  $('btnPause').onclick = () => setPaused(!rec.paused);
   $('chkDetail').onchange = () => { detailMode = $('chkDetail').checked; renderParams(); };
   $('chkLive').onchange = () => {
     liveEnabled = $('chkLive').checked;
@@ -1862,8 +1663,6 @@
   window.addEventListener('beforeunload', () => { if (isConnected()) disconnect(null, true); });
 
   renderOpsLog();
-  buildTimelineLanes();
-  refreshDiagnostics();
   setConnectedUi(false);
   liveEnabled = readLiveEnabledPref();
   $('chkLive').checked = liveEnabled;

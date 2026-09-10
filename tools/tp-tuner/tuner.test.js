@@ -175,60 +175,6 @@ test('差分だけを .conf 行にすると bool は y/n になり変更のな�
   assert.equal(T.exportConf(params, { diffOnly: false }).split('\n').filter(Boolean).length, 3);
 });
 
-test('戻り値が 0 でない報告をドロップとして検出できる', () => {
-  const ev = [
-    { t: 10, type: 'E', kind: 'K', code: 272, value: 1, ret: 0 },
-    { t: 20, type: 'E', kind: 'K', code: 272, value: 0, ret: -12 },
-  ];
-  assert.deepEqual(T.detectDrops(ev), [{ t: 20, code: 272, kind: 'K' }]);
-});
-
-test('ドライバが離した後にホストのボタンが押されたままなら stuck として検出できる', () => {
-  const fw = [
-    { t: 100, type: 'E', kind: 'K', code: 272, value: 1, ret: 0 },
-    { t: 300, type: 'E', kind: 'K', code: 272, value: 0, ret: 0 },
-  ];
-  const host = [{ t: 105, buttons: 1 }, { t: 700, buttons: 1 }];
-  assert.deepEqual(T.detectStuckButton(fw, host, { holdMs: 300 }), [{ t: 300, code: 272 }]);
-});
-
-test('ドライバが離した後にホストも離していれば stuck にならない', () => {
-  const fw = [
-    { t: 100, type: 'E', kind: 'K', code: 272, value: 1, ret: 0 },
-    { t: 300, type: 'E', kind: 'K', code: 272, value: 0, ret: 0 },
-  ];
-  const host = [{ t: 105, buttons: 1 }, { t: 310, buttons: 0 }];
-  assert.deepEqual(T.detectStuckButton(fw, host, { holdMs: 300 }), []);
-});
-
-test('離してから holdMs が経っていないときは now を渡すと stuck と判定しない', () => {
-  const fw = [
-    { t: 100, type: 'E', kind: 'K', code: 272, value: 1, ret: 0 },
-    { t: 300, type: 'E', kind: 'K', code: 272, value: 0, ret: 0 },
-  ];
-  const host = [{ t: 105, buttons: 1 }];
-  assert.deepEqual(T.detectStuckButton(fw, host, { holdMs: 300, now: 500 }), []);
-  assert.deepEqual(T.detectStuckButton(fw, host, { holdMs: 300, now: 600 }), [{ t: 300, code: 272 }]);
-  assert.deepEqual(T.detectStuckButton(fw, host, { holdMs: 300 }), [{ t: 300, code: 272 }]);
-});
-
-test('ドライバが wheel を送ったのにホストに wheel が届かなければ検出できる', () => {
-  const fw = [{ t: 100, type: 'E', kind: 'R', code: 8, value: 2, ret: 0 }];
-  assert.deepEqual(T.detectMissingWheel(fw, [], { windowMs: 200 }), [{ t: 100 }]);
-  assert.deepEqual(T.detectMissingWheel(fw, [{ t: 150, deltaY: 4 }], { windowMs: 200 }), []);
-});
-
-test('2本指で動いているのにドライバが wheel を出さなければ検出できる', () => {
-  const frames = [];
-  for (let i = 0; i < 30; i++) {
-    frames.push({ t: i * 10, type: 'F', fingers: 2, relX: 0, relY: 3 });
-  }
-  assert.deepEqual(T.detectTwoFingerNoScroll(frames, [], { minMove: 30, windowMs: 200 }),
-    [{ t: 0 }]);
-  const fw = [{ t: 120, type: 'E', kind: 'R', code: 8, value: 1, ret: 0 }];
-  assert.deepEqual(T.detectTwoFingerNoScroll(frames, fw, { minMove: 30, windowMs: 200 }), []);
-});
-
 const PARAMS = {
   '1f_tap_max_ms': 250, '1f_tap_move': 50, '1f_tapdrag_gap_max_ms': 160,
   '2f_tap_max_ms': 250, '2f_tap_move': 50, '2f_scroll_start_move': 15, '2f_pinch_start_distance': 30,
@@ -502,44 +448,6 @@ test('ピンチの認識文には距離変化とピンチボタンの送信が�
 test('接触のない試行の認識文は指が認識されていないと出る', () => {
   const o = T.observeAttempt({ start: 0, end: 0, frames: [] }, [], HOST0);
   assert.equal(T.recognitionText('tap1', o, PARAMS), '接触なし(指が認識されていません)');
-});
-
-function cursorScenario() {
-  const fr = frames(0, 30, 1).concat(frames(40, 400, 1, { relX: 1, relY: 1 }), frames(410, 600, 1, { relX: 8, relY: 0 }), frames(610, 1200, 0));
-  const fw = [];
-  for (let t = 40; t <= 600; t += 10) fw.push(R(t, 0, t < 410 ? 1 : 8));
-  fw.push(R(620, 0, 4), R(640, 0, 2));
-  const host = { btn: [], move: [], wheel: [] };
-  for (let t = 45; t <= 605; t += 10) host.move.push({ t, dx: t < 415 ? 1 : 8, dy: t < 415 ? 1 : 0 });
-  return { fr, fw, host };
-}
-
-test('カーソル移動の試行から動き出し遅延・移動量・フレーム間隔・微小動き割合・慣性の指標が取れる', () => {
-  const { fr, fw, host } = cursorScenario();
-  const m = T.cursorMetrics(T.segmentAttempts(fr)[0], fw, host, { tailMs: 500 });
-  assert.equal(m.touchMs, 600);
-  assert.equal(m.startDelayMs, 40);
-  assert.equal(m.fwMove, 37 * 2 + 20 * 8);
-  assert.equal(m.hostMove, 37 * 2 + 20 * 8);
-  assert.equal(m.frameGapMs, 10);
-  assert.equal(m.tinyRatio, Math.round((37 / 61) * 100));
-  assert.equal(m.relCount, 57);
-  assert.equal(m.inertiaCount, 2);
-  assert.equal(m.inertiaMs, 40);
-});
-
-test('動きのない接触ではカーソル指標の動き出し遅延が null になり慣性は 0 になる', () => {
-  const m = T.cursorMetrics(T.segmentAttempts(frames(0, 100, 1))[0], [], HOST0, { tailMs: 500 });
-  assert.equal(m.startDelayMs, null);
-  assert.equal(m.fwMove, 0);
-  assert.equal(m.inertiaCount, 0);
-  assert.equal(m.tinyRatio, 0);
-});
-
-test('カーソル移動の認識文には各指標とホストの移動受信回数が入る', () => {
-  const { fr, fw, host } = cursorScenario();
-  assert.equal(T.recognitionText('cursor', observe(fr, fw, host), PARAMS),
-    '指 1 本 / 接触 600ms / 動き出し 40ms / 移動量 ファーム 234・ホスト 234 / フレーム間隔 10ms / 微小動き 61% / 慣性あり(2 回 40ms) → 移動 57 回送信 → ホストで移動 57 回受信');
 });
 
 test('mergeParams は右手の値を基準に左右の差分に印を付ける', () => {
