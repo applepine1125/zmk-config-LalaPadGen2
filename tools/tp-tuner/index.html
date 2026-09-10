@@ -817,8 +817,7 @@
     const label = SIDE_LABEL[sideKey];
     if (unavailable) return `${label} ✗応答なし`;
     if (!info) return `${label} -`;
-    const saved = info.saved === null || info.saved === undefined ? '' : info.saved ? '(保存済み)' : '(未保存)';
-    return `${label} ✓${saved}`;
+    return `${label} ✓`;
   }
 
   function pendingCount() {
@@ -838,6 +837,7 @@
     const n = pendingCount();
     $('dirtyIndicator').hidden = n === 0;
     $('dirtyIndicator').textContent = `未書き込みの変更 ${n} 件`;
+    $('btnWrite').disabled = !isConnected() || n === 0;
   }
 
   function setConnectedUi(isConn) {
