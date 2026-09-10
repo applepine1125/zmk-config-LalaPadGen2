@@ -1093,13 +1093,10 @@
     return params[sideKey] && params[sideKey].length ? params[sideKey] : T.DEFAULT_PARAMS;
   }
 
-  function formatOpTime(ms) {
-    const total = Math.max(0, ms) / 1000;
-    let m = Math.floor(total / 60);
-    let sec = (total - m * 60).toFixed(1);
-    if (Number(sec) >= 60) { m += 1; sec = '0.0'; }
-    const [secInt, secDec] = sec.split('.');
-    return `${String(m).padStart(2, '0')}:${secInt.padStart(2, '0')}.${secDec}`;
+  function formatOpTime(perfMs) {
+    const d = new Date(Date.now() - performance.now() + perfMs);
+    const two = (n) => String(n).padStart(2, '0');
+    return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`;
   }
 
   function pushOp(sideKey, label, text, t) {
