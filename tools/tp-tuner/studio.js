@@ -14,10 +14,42 @@
     return Uint8Array.from(out);
   }
 
+  /*
+   * zmk.studio.Response は oneof の 1 フィールド(request_response=1 / notification=2、どちらも
+   * length-delimited)だけなので、先頭のタグと長さから本体の全長が決まる。
+   * 全長ぶん揃っていれば本体は完成している(0 なら未確定)。
+   */
+  function expectedResponseLength(buf) {
+    if (buf.length < 2) return 0;
+    if (buf[0] !== 0x0a && buf[0] !== 0x12) return 0;
+    let len = 0;
+    let shift = 0;
+    let pos = 1;
+    for (;;) {
+      if (pos >= buf.length || shift > 28) return 0;
+      const b = buf[pos++];
+      len |= (b & 0x7f) << shift;
+      if ((b & 0x80) === 0) break;
+      shift += 7;
+    }
+    return pos + len;
+  }
+
   function createFrameDecoder() {
     const ST = { IDLE: 0, DATA: 1, ESCAPED: 2, ERR: 3 };
     let state = ST.IDLE;
     let buf = [];
+
+    // ZMK v0.3.0 の GATT 転送は終端の EOF 1 バイトを取り残すことがあるので、
+    // 本体が全長ぶん揃った時点で完成とみなす(遅れて来た EOF は IDLE で無視される)
+    function completeIfFull(frames) {
+      const expected = expectedResponseLength(buf);
+      if (expected > 0 && buf.length >= expected) {
+        frames.push(Uint8Array.from(buf.slice(0, expected)));
+        buf = [];
+        state = ST.IDLE;
+      }
+    }
 
     function push(bytes) {
       const frames = [];
@@ -35,13 +67,14 @@
         if (state === ST.ESCAPED) {
           buf.push(b);
           state = ST.DATA;
+          completeIfFull(frames);
           continue;
         }
         // state === ST.DATA
         if (b === FRAMING.SOF) { state = ST.ERR; buf = []; }
         else if (b === FRAMING.ESC) state = ST.ESCAPED;
         else if (b === FRAMING.EOF) { frames.push(Uint8Array.from(buf)); buf = []; state = ST.IDLE; }
-        else buf.push(b);
+        else { buf.push(b); completeIfFull(frames); }
       }
       return frames;
     }

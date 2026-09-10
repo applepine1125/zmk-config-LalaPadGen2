@@ -331,3 +331,16 @@ test('値 0 のフィールドが省略された物理レイアウト応答を�
   assert.equal(d.layouts[0].keys[0].y, 0);
   assert.equal(d.layouts[0].keys[0].width, 100);
 });
+
+test('EOF が届かなくても、応答本体が先頭の長さぶん揃えばフレームとして完成する(遅れて来た EOF は無視)', () => {
+  const body = [0x0a, 0x06, 0x08, 0x01, 0x1a, 0x02, 0x10, 0x01];
+  const dec = S.createFrameDecoder();
+  const first = dec.push(Uint8Array.from([0xab, ...body.slice(0, 5)]));
+  assert.equal(first.length, 0);
+  const rest = dec.push(Uint8Array.from(body.slice(5)));
+  assert.equal(rest.length, 1);
+  assert.deepEqual(Array.from(rest[0]), body);
+  assert.equal(dec.push(Uint8Array.from([0xad])).length, 0);
+  const next = dec.push(Uint8Array.from([0xab, ...body, 0xad]));
+  assert.equal(next.length, 1);
+});
