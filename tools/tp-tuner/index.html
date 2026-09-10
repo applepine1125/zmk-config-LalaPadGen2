@@ -224,7 +224,7 @@
   .keycap { fill: var(--surface-alt); stroke: var(--border-strong); stroke-width: 1.5; cursor: pointer; }
   .keycap:hover { stroke: var(--accent); }
   .keycap.selected { fill: var(--accent-weak); stroke: var(--accent); stroke-width: 2.5; }
-  .keycap-label { fill: var(--text); font: 11px -apple-system, sans-serif; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  .keycap-label { fill: var(--text); font: 600 15px -apple-system, sans-serif; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
   .keycap-label.placeholder { fill: var(--muted); }
   .keyeditor .field { margin-bottom: 10px; }
   .keyeditor label.fieldlabel { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
@@ -266,7 +266,7 @@
   </div>
   <div id="topbarRow2">
     <div id="tabbar">
-      <button id="tabBtnTrackpad" class="active">タッチパッド</button>
+      <button id="tabBtnTrackpad" class="active">タッチパッド設定</button>
       <button id="tabBtnKeymap">キー設定</button>
     </div>
   </div>
@@ -841,6 +841,7 @@
   }
 
   function setConnectedUi(isConn) {
+    markPadDirty();
     $('btnConnect').disabled = isConn || (!navigator.serial && !hasNativeBridge);
     $('btnDisconnect').disabled = !isConn;
     $('btnWrite').disabled = !isConn;
@@ -1294,6 +1295,7 @@
   }
 
   function onRecognized(sideKey, obs) {
+    markPadDirty();
     const t = performance.now();
     lastObs[sideKey] = obs;
     lastKind[sideKey] = T.inferKind(obs, paramsForSuggest(sideKey));
@@ -1365,11 +1367,13 @@
       const frame = { ...tr, t };
       rec[sideKey].frames.push(frame);
       lastFrame[sideKey] = frame;
+      markPadDirty(STATE_STALE_MS + 400);
       for (const pt of T.frameToPadPoints(frame, PAD_W, PAD_H)) padTrail[sideKey].push({ ...pt, t });
     } else {
       rec[sideKey].fw.push({ ...tr, t });
       if (tr.kind === 'K') {
         if (tr.value !== 0) padFlash[sideKey] = performance.now();
+        markPadDirty();
         const label = T.BTN_NAMES[tr.code] || String(tr.code);
         pushOp(sideKey, `${label}ボタン ${tr.value ? '押す' : '離す'}`, '', t);
       } else if (tr.kind === 'R' && (tr.code === T.REL.WHEEL || tr.code === T.REL.HWHEEL)) {
@@ -1563,9 +1567,17 @@
     }
   }, PROCESS_INTERVAL_MS);
 
+  // 常時 60fps で描くと WKWebView の CPU を食い Mac 全体が重くなるので、
+  // 何かが変わった直後(軌跡が消えるまでの間)だけ描き直す
+  let padDirtyUntil = performance.now() + 1000;
+  function markPadDirty(ms) {
+    padDirtyUntil = Math.max(padDirtyUntil, performance.now() + (ms || 600));
+  }
   (function loop() {
     try {
-      for (const s of ['R', 'L']) { drawPad(s); renderNow(s); renderPadStatus(s); }
+      if (activeTab === 'trackpad' && performance.now() < padDirtyUntil) {
+        for (const s of ['R', 'L']) { drawPad(s); renderNow(s); renderPadStatus(s); }
+      }
     } catch (e) { /* keep the loop alive */ }
     requestAnimationFrame(loop);
   })();
@@ -1876,6 +1888,7 @@
   }
 
   function setActiveTab(tab) {
+    markPadDirty();
     activeTab = tab;
     $('tabTrackpad').hidden = tab !== 'trackpad';
     $('tabKeymap').hidden = tab !== 'keymap';
@@ -1977,7 +1990,7 @@
       const ids = await studioClient.listBehaviors();
       const details = [];
       for (const id of ids) details.push(await studioClient.getBehaviorDetails(id));
-      behaviors = details;
+      behaviors = details.sort((a, b) => a.displayName.localeCompare(b.displayName, 'en'));
       keymapData = await studioClient.getKeymap();
       studioDirty = await studioClient.checkUnsavedChanges();
       if (selectedLayerIndex >= keymapData.layers.length) selectedLayerIndex = 0;
