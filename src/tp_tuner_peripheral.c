@@ -169,6 +169,7 @@ static void collect_stats(uint32_t *vals) {
     vals[TP_TUNER_STAT_ISR_RDY_LOW] = drv.isr_rdy_low;
     vals[TP_TUNER_STAT_ISR_TO_READ_MAX_US] = drv.isr_to_read_max_us;
     vals[TP_TUNER_STAT_I2C_AVG_US] = drv.i2c_avg_us;
+    vals[TP_TUNER_STAT_I2C_ALL_MAX_US] = drv.i2c_all_max_us;
     vals[TP_TUNER_STAT_WQ_LATE_MAX_US] = diag.wq_late_max_us;
     vals[TP_TUNER_STAT_WQ_LATE_OVER3] = diag.wq_late_over3;
     vals[TP_TUNER_STAT_POS_LOCAL] = diag.pos_local;

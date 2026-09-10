@@ -1,0 +1,58 @@
+name: Debug symbols
+
+# stats の run[i] が示す PC/LR を関数名に引くための zmk.map / zmk.elf を残す
+on:
+  push:
+    branches: [trackpad-tuner]
+  workflow_dispatch:
+
+jobs:
+  symbols:
+    runs-on: ubuntu-latest
+    container:
+      image: zmkfirmware/zmk-build-arm:3.5
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shield: lalapadgen2_right rgbled_adapter
+            snippet: studio-rpc-usb-uart
+            name: right
+          - shield: lalapadgen2_left rgbled_adapter
+            snippet: ""
+            name: left
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Cache west modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            modules/
+            tools/
+            zephyr/
+            bootloader/
+            zmk/
+          key: symbols-${{ runner.os }}-${{ hashFiles('config/west.yml') }}
+      - name: West init
+        run: west init -l config
+      - name: West update
+        run: west update --fetch-opt=--filter=tree:0
+      - name: West zephyr export
+        run: west zephyr-export
+      - name: West build
+        shell: bash
+        run: |
+          extra=""
+          if [ -n "${{ matrix.snippet }}" ]; then extra="-S ${{ matrix.snippet }}"; fi
+          west build -s zmk/app -d build -b seeeduino_xiao_ble $extra -- -DZMK_CONFIG="${GITHUB_WORKSPACE}/config" -DSHIELD="${{ matrix.shield }}"
+      - name: Collect symbols
+        run: |
+          mkdir -p symbols
+          cp build/zephyr/zmk.map symbols/zmk-${{ matrix.name }}.map
+          cp build/zephyr/zmk.elf symbols/zmk-${{ matrix.name }}.elf
+      - name: Upload symbols
+        uses: actions/upload-artifact@v4
+        with:
+          name: symbols-${{ matrix.name }}
+          path: symbols

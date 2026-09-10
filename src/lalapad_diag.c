@@ -6,6 +6,9 @@
 #include <zephyr/kernel.h>
 #include <zephyr/logging/log.h>
 #include <zephyr/spinlock.h>
+#if defined(CONFIG_CPU_CORTEX_M)
+#include <cmsis_core.h>
+#endif
 
 #include <stdio.h>
 #include <string.h>
@@ -167,6 +170,185 @@ static void format_late_attribution(iqs9151_cmd_out_t out, void *ctx, bool reset
 }
 #endif
 
+/*
+ * 1ms のタイマ割り込みから見た停止の切り分け。
+ * - 割り込み自体が遅れていれば CPU が止まっていた(フラッシュ消去など)
+ * - 協調スレッドが長く走っていれば、そのスレッド名と割り込まれた地点(PC/LR)を残す
+ *   (PC は GitHub Actions の debug-symbols で得る zmk.map で関数名に引ける)
+ */
+#define DIAG_ISR_PERIOD_US 1000
+#define DIAG_RUN_RING 8
+#define DIAG_RUN_MIN_MS 3
+
+struct run_entry {
+    uint32_t uptime_s;
+    uint32_t run_ms;
+    uint32_t pc;
+    uint32_t lr;
+    char name[DIAG_NAME_MAX];
+};
+
+static uint32_t isr_expected_cycles;
+static uint32_t isr_late_max_us;
+static uint32_t isr_late_over3;
+static k_tid_t run_tid;
+static uint32_t run_ms;
+static struct run_entry run_ring[DIAG_RUN_RING];
+static uint32_t run_ring_n;
+static uint32_t run_longest_ms;
+static char run_longest_name[DIAG_NAME_MAX];
+
+static void capture_run(k_tid_t tid, uint32_t ms, uint32_t pc, uint32_t lr) {
+    struct run_entry *e = &run_ring[run_ring_n % DIAG_RUN_RING];
+    const char *name = k_thread_name_get(tid);
+
+    e->uptime_s = (uint32_t)(k_uptime_get() / 1000);
+    e->run_ms = ms;
+    e->pc = pc;
+    e->lr = lr;
+    strncpy(e->name, name != NULL ? name : "?", sizeof(e->name) - 1);
+    e->name[sizeof(e->name) - 1] = 0;
+    run_ring_n++;
+}
+
+static void sample_timer_cb(struct k_timer *timer) {
+    uint32_t now = k_cycle_get_32();
+    int32_t late_cycles = (int32_t)(now - isr_expected_cycles);
+    k_tid_t cur = k_current_get();
+    const char *name;
+
+    ARG_UNUSED(timer);
+
+    if (late_cycles > 0) {
+        uint32_t late_us = k_cyc_to_us_floor32((uint32_t)late_cycles);
+
+        if (late_us > isr_late_max_us) {
+            isr_late_max_us = late_us;
+        }
+        if (late_us > DIAG_LATE_THRESHOLD_US) {
+            isr_late_over3++;
+        }
+    }
+    isr_expected_cycles = now + k_us_to_cyc_ceil32(DIAG_ISR_PERIOD_US);
+
+    name = k_thread_name_get(cur);
+    if (name != NULL && strncmp(name, "idle", 4) == 0) {
+        run_tid = NULL;
+        run_ms = 0;
+        return;
+    }
+    if (cur == run_tid) {
+        run_ms++;
+    } else {
+        run_tid = cur;
+        run_ms = 1;
+    }
+    if (run_ms > run_longest_ms) {
+        run_longest_ms = run_ms;
+        strncpy(run_longest_name, name != NULL ? name : "?", sizeof(run_longest_name) - 1);
+        run_longest_name[sizeof(run_longest_name) - 1] = 0;
+    }
+    if (run_ms == DIAG_RUN_MIN_MS) {
+        uint32_t pc = 0;
+        uint32_t lr = 0;
+#if defined(CONFIG_CPU_CORTEX_M)
+        /* RETTOBASE が立っていれば割り込まれたのはスレッド。その例外フレームは PSP 上 */
+        if (SCB->ICSR & SCB_ICSR_RETTOBASE_Msk) {
+            const uint32_t *frame = (const uint32_t *)__get_PSP();
+
+            lr = frame[5];
+            pc = frame[6];
+        }
+#endif
+        capture_run(cur, run_ms, pc, lr);
+    }
+}
+
+static K_TIMER_DEFINE(sample_timer, sample_timer_cb, NULL);
+
+/* ---- BLE 接続の切断履歴 ---- */
+#define DIAG_CONN_RING 4
+
+struct conn_entry {
+    uint32_t uptime_s;
+    uint8_t role;
+    uint8_t reason;
+    bool connected;
+};
+
+static struct conn_entry conn_ring[DIAG_CONN_RING];
+static uint32_t conn_ring_n;
+static uint32_t conn_connected_n;
+static uint32_t conn_disconnected_n;
+
+static void conn_record(struct bt_conn *conn, bool connected, uint8_t reason) {
+    struct bt_conn_info info;
+    struct conn_entry *e = &conn_ring[conn_ring_n % DIAG_CONN_RING];
+
+    e->uptime_s = (uint32_t)(k_uptime_get() / 1000);
+    e->role = bt_conn_get_info(conn, &info) == 0 ? info.role : 0xFF;
+    e->reason = reason;
+    e->connected = connected;
+    conn_ring_n++;
+    if (connected) {
+        conn_connected_n++;
+    } else {
+        conn_disconnected_n++;
+    }
+}
+
+static void diag_connected(struct bt_conn *conn, uint8_t err) {
+    if (err == 0) {
+        conn_record(conn, true, 0);
+    }
+}
+
+static void diag_disconnected(struct bt_conn *conn, uint8_t reason) {
+    conn_record(conn, false, reason);
+}
+
+BT_CONN_CB_DEFINE(lalapad_diag_conn_cb) = {
+    .connected = diag_connected,
+    .disconnected = diag_disconnected,
+};
+
+static void format_isr_and_conn(iqs9151_cmd_out_t out, void *ctx, bool reset) {
+    char line[DIAG_LINE_MAX];
+
+    snprintf(line, sizeof(line), "isr_late_max_us=%u isr_late_over3=%u run_longest=%s:%ums",
+             (unsigned)isr_late_max_us, (unsigned)isr_late_over3,
+             run_longest_name[0] ? run_longest_name : "-", (unsigned)run_longest_ms);
+    out(ctx, line);
+    for (uint32_t i = run_ring_n > DIAG_RUN_RING ? run_ring_n - DIAG_RUN_RING : 0; i < run_ring_n; i++) {
+        const struct run_entry *e = &run_ring[i % DIAG_RUN_RING];
+
+        snprintf(line, sizeof(line), "run[%u] t=%us %s pc=0x%08x lr=0x%08x", (unsigned)i,
+                 (unsigned)e->uptime_s, e->name, (unsigned)e->pc, (unsigned)e->lr);
+        out(ctx, line);
+    }
+    snprintf(line, sizeof(line), "conn_n=%u disc_n=%u", (unsigned)conn_connected_n,
+             (unsigned)conn_disconnected_n);
+    out(ctx, line);
+    for (uint32_t i = conn_ring_n > DIAG_CONN_RING ? conn_ring_n - DIAG_CONN_RING : 0; i < conn_ring_n; i++) {
+        const struct conn_entry *e = &conn_ring[i % DIAG_CONN_RING];
+
+        snprintf(line, sizeof(line), "conn[%u] t=%us %s role=%s reason=0x%02x", (unsigned)i,
+                 (unsigned)e->uptime_s, e->connected ? "connected" : "disconnected",
+                 e->role == BT_CONN_ROLE_CENTRAL ? "central" : "peripheral", (unsigned)e->reason);
+        out(ctx, line);
+    }
+    if (reset) {
+        isr_late_max_us = 0;
+        isr_late_over3 = 0;
+        run_ring_n = 0;
+        run_longest_ms = 0;
+        run_longest_name[0] = 0;
+        conn_ring_n = 0;
+        conn_connected_n = 0;
+        conn_disconnected_n = 0;
+    }
+}
+
 static int64_t probe_due_ticks;
 
 static void probe_cb(struct k_work *work) {
@@ -304,12 +486,15 @@ void lalapad_diag_format(iqs9151_cmd_out_t out, void *ctx, bool reset) {
              (unsigned)s.pos_remote, (unsigned)s.notify_fail);
     out(ctx, line);
     format_late_attribution(out, ctx, reset);
+    format_isr_and_conn(out, ctx, reset);
     bt_conn_foreach(BT_CONN_TYPE_LE, link_cb, &walk);
 }
 
 static int lalapad_diag_init(void) {
     iqs9151_cmd_set_stats_hook(lalapad_diag_format);
     probe_due_ticks = k_uptime_ticks() + k_ms_to_ticks_ceil64(DIAG_PROBE_PERIOD_MS);
+    isr_expected_cycles = k_cycle_get_32() + k_us_to_cyc_ceil32(DIAG_ISR_PERIOD_US);
+    k_timer_start(&sample_timer, K_USEC(DIAG_ISR_PERIOD_US), K_USEC(DIAG_ISR_PERIOD_US));
     (void)k_work_schedule(&probe_work, K_TIMEOUT_ABS_TICKS(probe_due_ticks));
     return 0;
 }
