@@ -189,6 +189,8 @@
   .param.changed { background: var(--warn-weak); }
   .param.error { background: var(--danger-weak); }
   .pendingmark { color: var(--warn); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .param.inactive { opacity: .45; }
+  .param .cell.inactive { opacity: .45; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
   .row .spacer { flex: 1; }
   #conf {
@@ -415,6 +417,15 @@
   const connInfo = { R: null, L: null };
   let pending = { common: {}, R: {}, L: {} };
   let detailMode = false;
+  let mergedByName = {};
+  const DEPENDENT_ON = (() => {
+    const map = {};
+    for (const [name, dep] of Object.entries(T.PARAM_DEPENDS)) {
+      const names = Array.isArray(dep) ? dep : (dep.any || dep.all);
+      for (const req of names) (map[req] || (map[req] = [])).push(name);
+    }
+    return map;
+  })();
   let busyConnecting = false;
   let autoConnectEnabled = true;
   let liveEnabled = true;
@@ -1409,6 +1420,56 @@
     requestAnimationFrame(loop);
   })();
 
+  function commonGetValue(name) {
+    if (Object.prototype.hasOwnProperty.call(pending.common, name)) return pending.common[name];
+    const p = mergedByName[name];
+    return p ? p.value : undefined;
+  }
+
+  function sideGetValue(sideKey, name) {
+    const bucket = pending[sideKey];
+    if (Object.prototype.hasOwnProperty.call(bucket, name)) return bucket[name];
+    if (Object.prototype.hasOwnProperty.call(pending.common, name)) return pending.common[name];
+    const p = mergedByName[name];
+    if (!p) return undefined;
+    return sideKey === 'R' ? p.valueR : p.valueL;
+  }
+
+  function isRowActiveCommon(name) {
+    return T.isParamActive(name, commonGetValue);
+  }
+
+  function isRowActiveSide(name, sideKey) {
+    return T.isParamActive(name, (n) => sideGetValue(sideKey, n));
+  }
+
+  function setInputsDisabled(cell, disabled) {
+    for (const el of cell.querySelectorAll('input')) el.disabled = disabled;
+  }
+
+  function refreshDependentRows(changedName) {
+    const deps = DEPENDENT_ON[changedName];
+    if (!deps) return;
+    for (const depName of deps) {
+      const row = document.querySelector(`.param[data-name="${CSS.escape(depName)}"]`);
+      if (!row) continue;
+      if (detailMode) {
+        for (const sideKey of ['R', 'L']) {
+          const cell = row.querySelector(`.cell[data-side="${sideKey}"]`);
+          if (!cell) continue;
+          const active = isRowActiveSide(depName, sideKey);
+          cell.classList.toggle('inactive', !active);
+          setInputsDisabled(cell, !active);
+        }
+      } else {
+        const cell = row.querySelector('.cell');
+        const active = isRowActiveCommon(depName);
+        row.classList.toggle('inactive', !active);
+        if (cell) setInputsDisabled(cell, !active);
+      }
+    }
+  }
+
   function updateRowMark(nameKey, bucket, originalValue) {
     const row = document.querySelector(`.param[data-name="${CSS.escape(nameKey)}"]`);
     if (!row) return;
@@ -1430,6 +1491,7 @@
   function setPendingCommon(p, value) {
     if (value === p.value) delete pending.common[p.name]; else pending.common[p.name] = value;
     updateRowMark(p.name, 'common', p.value);
+    refreshDependentRows(p.name);
     renderHeader();
   }
 
@@ -1437,6 +1499,7 @@
     const current = sideKey === 'R' ? p.valueR : p.valueL;
     if (value === current) delete pending[sideKey][p.name]; else pending[sideKey][p.name] = value;
     updateRowMark(p.name, sideKey, current);
+    refreshDependentRows(p.name);
     renderHeader();
   }
 
@@ -1464,9 +1527,10 @@
     return wrap;
   }
 
-  function renderCommonCell(p) {
+  function renderCommonCell(p, active) {
     const displayValue = Object.prototype.hasOwnProperty.call(pending.common, p.name) ? pending.common[p.name] : p.value;
     const wrap = buildEditor(p.kind, p.min, p.max, displayValue, (v) => setPendingCommon(p, v));
+    if (!active) setInputsDisabled(wrap, true);
     if (Object.prototype.hasOwnProperty.call(pending.common, p.name)) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
@@ -1476,7 +1540,7 @@
     return wrap;
   }
 
-  function renderSideCell(p, sideKey) {
+  function renderSideCell(p, sideKey, active) {
     const has = sideKey === 'R' ? p.valueR !== null : p.valueL !== null;
     const wrap = document.createElement('span');
     wrap.className = 'cell';
@@ -1487,6 +1551,7 @@
     const displayValue = Object.prototype.hasOwnProperty.call(bucket, p.name) ? bucket[p.name] : current;
     const editor = buildEditor(p.kind, p.min, p.max, displayValue, (v) => setPendingSide(p, sideKey, v));
     wrap.append(...editor.childNodes);
+    if (!active) { setInputsDisabled(wrap, true); wrap.classList.add('inactive'); }
     if (Object.prototype.hasOwnProperty.call(bucket, p.name)) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
@@ -1505,10 +1570,12 @@
     label.title = `[${p.kind}] 範囲 ${p.min}..${p.max} 既定 ${p.def}`;
     row.appendChild(label);
     if (detailMode) {
-      row.appendChild(renderSideCell(p, 'R'));
-      row.appendChild(renderSideCell(p, 'L'));
+      row.appendChild(renderSideCell(p, 'R', isRowActiveSide(p.name, 'R')));
+      row.appendChild(renderSideCell(p, 'L', isRowActiveSide(p.name, 'L')));
     } else {
-      row.appendChild(renderCommonCell(p));
+      const active = isRowActiveCommon(p.name);
+      row.classList.toggle('inactive', !active);
+      row.appendChild(renderCommonCell(p, active));
     }
     const help = helpText(p.name);
     if (help || (p.differs && !detailMode)) {
@@ -1526,13 +1593,15 @@
     root.innerHTML = '';
     const merged = T.mergeParams(params.R, params.L);
     if (merged.length === 0) {
+      mergedByName = {};
       root.innerHTML = '<span class="legend">接続すると tp list の内容がここに表示されます</span>';
       return;
     }
     const seen = new Set();
     const known = new Set(GROUPS.flatMap((g) => g.names));
     const groups = GROUPS.concat([{ title: 'その他', names: merged.map((p) => p.name).filter((n) => !known.has(n)) }]);
-    const byName = Object.fromEntries(merged.map((p) => [p.name, p]));
+    mergedByName = Object.fromEntries(merged.map((p) => [p.name, p]));
+    const byName = mergedByName;
     for (const g of groups) {
       const box = document.createElement('fieldset');
       const legend = document.createElement('legend');

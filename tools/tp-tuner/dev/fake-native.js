@@ -11,8 +11,11 @@
     : [{ id: 'fake-ble-1', kind: 'ble', name: 'LalapadGen2' }];
   function makeParams(tapMaxMs) {
     return [
+      { name: '1f_tap_enable', value: 1, min: 0, max: 1, kind: 'driver_bool', def: 1 },
       { name: '1f_tap_max_ms', value: tapMaxMs, min: 1, max: 1000, kind: 'driver', def: 250 },
       { name: '1f_tap_move', value: 50, min: 0, max: 500, kind: 'driver', def: 50 },
+      { name: 'scroll_x_enable', value: 1, min: 0, max: 1, kind: 'driver_bool', def: 1 },
+      { name: 'scroll_y_enable', value: 1, min: 0, max: 1, kind: 'driver_bool', def: 1 },
       { name: '2f_scroll_start_move', value: 15, min: 0, max: 200, kind: 'driver', def: 15 },
       { name: 'touch_set_threshold', value: 20, min: 1, max: 255, kind: 'ic_u8', def: 20 },
       { name: 'cursor_inertia_enable', value: 0, min: 0, max: 1, kind: 'driver_bool', def: 0 },

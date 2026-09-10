@@ -175,6 +175,74 @@ test('差分だけを .conf 行にすると bool は y/n になり変更のな�
   assert.equal(T.exportConf(params, { diffOnly: false }).split('\n').filter(Boolean).length, 3);
 });
 
+test('PARAM_DEPENDS はブリーフどおりの従属関係を持つ', () => {
+  const D = T.PARAM_DEPENDS;
+  assert.deepEqual(D['1f_tap_max_ms'], ['1f_tap_enable']);
+  assert.deepEqual(D['1f_tap_move'], ['1f_tap_enable']);
+  assert.deepEqual(D['1f_presshold_enable'], ['1f_tap_enable']);
+  assert.deepEqual(D['1f_tapdrag_gap_max_ms'], ['1f_tap_enable', '1f_presshold_enable']);
+  assert.deepEqual(D['2f_tap_max_ms'], ['2f_tap_enable']);
+  assert.deepEqual(D['2f_tap_move'], ['2f_tap_enable']);
+  assert.deepEqual(D['2f_presshold_enable'], ['2f_tap_enable']);
+  assert.deepEqual(D['2f_tapdrag_gap_max_ms'], ['2f_tap_enable', '2f_presshold_enable']);
+  assert.deepEqual(D['3f_tap_max_ms'], ['3f_tap_enable']);
+  assert.deepEqual(D['3f_tap_move'], ['3f_tap_enable']);
+  assert.deepEqual(D['3f_presshold_enable'], ['3f_tap_enable']);
+  assert.deepEqual(D['3f_tapdrag_gap_max_ms'], ['3f_tap_enable', '3f_presshold_enable']);
+  assert.deepEqual(D['2f_pinch_start_distance'], ['2f_pinch_enable']);
+  assert.deepEqual(D['2f_pinch_wheel_gain_x10'], ['2f_pinch_enable']);
+  assert.deepEqual(D['2f_pinch_ratio_x10'], ['2f_pinch_enable']);
+  assert.deepEqual(D.cursor_inertia_decay, ['cursor_inertia_enable']);
+  assert.deepEqual(D.cursor_inertia_recent_window_ms, ['cursor_inertia_enable']);
+  assert.deepEqual(D.cursor_inertia_stale_gap_ms, ['cursor_inertia_enable']);
+  assert.deepEqual(D.cursor_inertia_min_samples, ['cursor_inertia_enable']);
+  assert.deepEqual(D.cursor_inertia_min_avg_speed, ['cursor_inertia_enable']);
+  assert.deepEqual(D.scroll_inertia_decay, ['scroll_inertia_enable']);
+  assert.deepEqual(D.scroll_inertia_recent_window_ms, ['scroll_inertia_enable']);
+  assert.deepEqual(D.scroll_inertia_stale_gap_ms, ['scroll_inertia_enable']);
+  assert.deepEqual(D.scroll_inertia_min_samples, ['scroll_inertia_enable']);
+  assert.deepEqual(D.scroll_inertia_min_avg_speed, ['scroll_inertia_enable']);
+  assert.deepEqual(D['2f_scroll_start_move'], { any: ['scroll_x_enable', 'scroll_y_enable'] });
+  assert.deepEqual(D.scroll_report_interval_ms, { any: ['scroll_x_enable', 'scroll_y_enable'] });
+  assert.deepEqual(D.scroll_inertia_enable, { any: ['scroll_x_enable', 'scroll_y_enable'] });
+});
+
+test('isParamActive は従属関係が未定義のパラメータを常に有効と判定する', () => {
+  assert.equal(T.isParamActive('1f_tap_enable', () => 0), true);
+  assert.equal(T.isParamActive('unknown_param', () => 0), true);
+});
+
+test('isParamActive は単一の enable が OFF なら無効、ON なら有効と判定する', () => {
+  assert.equal(T.isParamActive('1f_tap_max_ms', (name) => (name === '1f_tap_enable' ? 0 : 1)), false);
+  assert.equal(T.isParamActive('1f_tap_max_ms', (name) => (name === '1f_tap_enable' ? 1 : 0)), true);
+});
+
+test('isParamActive は all 従属で 1 つでも OFF なら無効、すべて ON で有効になる', () => {
+  const values = { '1f_tap_enable': 1, '1f_presshold_enable': 0 };
+  const getValue = (n) => values[n];
+  assert.equal(T.isParamActive('1f_tapdrag_gap_max_ms', getValue), false);
+  values['1f_presshold_enable'] = 1;
+  assert.equal(T.isParamActive('1f_tapdrag_gap_max_ms', getValue), true);
+  values['1f_tap_enable'] = 0;
+  assert.equal(T.isParamActive('1f_tapdrag_gap_max_ms', getValue), false);
+});
+
+test('isParamActive は any 従属でどちらか一方が ON なら有効、両方 OFF なら無効になる', () => {
+  const values = { scroll_x_enable: 0, scroll_y_enable: 0 };
+  const getValue = (n) => values[n];
+  assert.equal(T.isParamActive('2f_scroll_start_move', getValue), false);
+  values.scroll_x_enable = 1;
+  assert.equal(T.isParamActive('2f_scroll_start_move', getValue), true);
+  values.scroll_x_enable = 0;
+  values.scroll_y_enable = 1;
+  assert.equal(T.isParamActive('scroll_report_interval_ms', getValue), true);
+  assert.equal(T.isParamActive('scroll_inertia_enable', getValue), true);
+});
+
+test('isParamActive は getValue が undefined を返す場合 OFF 扱いにする', () => {
+  assert.equal(T.isParamActive('1f_tap_max_ms', () => undefined), false);
+});
+
 const PARAMS = {
   '1f_tap_max_ms': 250, '1f_tap_move': 50, '1f_tapdrag_gap_max_ms': 160,
   '2f_tap_max_ms': 250, '2f_tap_move': 50, '2f_scroll_start_move': 15, '2f_pinch_start_distance': 30,

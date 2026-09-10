@@ -195,6 +195,47 @@
   };
   const INERTIA_MARGIN_MS = 15;
 
+  // 従属パラメータ名 → 必要な enable 名。配列(または { all: [...] })はすべて ON、
+  // { any: [...] } はいずれか 1 つでも ON で有効。未掲載のパラメータは常に有効
+  const PARAM_DEPENDS = {
+    '1f_tap_max_ms': ['1f_tap_enable'],
+    '1f_tap_move': ['1f_tap_enable'],
+    '1f_presshold_enable': ['1f_tap_enable'],
+    '1f_tapdrag_gap_max_ms': ['1f_tap_enable', '1f_presshold_enable'],
+    '2f_tap_max_ms': ['2f_tap_enable'],
+    '2f_tap_move': ['2f_tap_enable'],
+    '2f_presshold_enable': ['2f_tap_enable'],
+    '2f_tapdrag_gap_max_ms': ['2f_tap_enable', '2f_presshold_enable'],
+    '3f_tap_max_ms': ['3f_tap_enable'],
+    '3f_tap_move': ['3f_tap_enable'],
+    '3f_presshold_enable': ['3f_tap_enable'],
+    '3f_tapdrag_gap_max_ms': ['3f_tap_enable', '3f_presshold_enable'],
+    '2f_pinch_start_distance': ['2f_pinch_enable'],
+    '2f_pinch_wheel_gain_x10': ['2f_pinch_enable'],
+    '2f_pinch_ratio_x10': ['2f_pinch_enable'],
+    cursor_inertia_decay: ['cursor_inertia_enable'],
+    cursor_inertia_recent_window_ms: ['cursor_inertia_enable'],
+    cursor_inertia_stale_gap_ms: ['cursor_inertia_enable'],
+    cursor_inertia_min_samples: ['cursor_inertia_enable'],
+    cursor_inertia_min_avg_speed: ['cursor_inertia_enable'],
+    scroll_inertia_decay: ['scroll_inertia_enable'],
+    scroll_inertia_recent_window_ms: ['scroll_inertia_enable'],
+    scroll_inertia_stale_gap_ms: ['scroll_inertia_enable'],
+    scroll_inertia_min_samples: ['scroll_inertia_enable'],
+    scroll_inertia_min_avg_speed: ['scroll_inertia_enable'],
+    '2f_scroll_start_move': { any: ['scroll_x_enable', 'scroll_y_enable'] },
+    scroll_report_interval_ms: { any: ['scroll_x_enable', 'scroll_y_enable'] },
+    scroll_inertia_enable: { any: ['scroll_x_enable', 'scroll_y_enable'] },
+  };
+
+  function isParamActive(name, getValue) {
+    const dep = PARAM_DEPENDS[name];
+    if (!dep) return true;
+    if (Array.isArray(dep)) return dep.every((n) => !!getValue(n));
+    if (dep.any) return dep.any.some((n) => !!getValue(n));
+    return dep.all.every((n) => !!getValue(n));
+  }
+
   function paramValue(params, name) {
     let v;
     if (Array.isArray(params)) {
@@ -765,11 +806,11 @@
   }
 
   const api = {
-    BTN, REL, BTN_NAMES, DEFAULT_PARAMS,
+    BTN, REL, BTN_NAMES, DEFAULT_PARAMS, PARAM_DEPENDS,
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
     splitSidePrefix, bleCommand, isEndMarker, orderDevices,
     clockOffset, pickPortOrder, toConfName, exportConf,
-    paramValue, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, inferKind, whyNot, describeState,
+    paramValue, isParamActive, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, inferKind, whyNot, describeState,
     observationText, hostText, sentText, recognitionText, kindLabel,
     mergeParams, pendingCommands, liveCommands, padStateFromFrame, frameToPadPoints,
   };
