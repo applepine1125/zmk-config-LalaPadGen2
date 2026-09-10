@@ -92,11 +92,11 @@
   }
 
   function utf8Encode(str) {
-    return Array.from(Buffer.from(str, 'utf8'));
+    return Array.from(new TextEncoder().encode(str));
   }
 
   function utf8Decode(bytes) {
-    return Buffer.from(bytes).toString('utf8');
+    return new TextDecoder().decode(Uint8Array.from(bytes));
   }
 
   const WT = { VARINT: 0, LEN: 2 };
