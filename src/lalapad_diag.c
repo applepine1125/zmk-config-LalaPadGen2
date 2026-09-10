@@ -44,6 +44,17 @@ static uint32_t late_top_us;
 static uint32_t late_idle_us;
 static uint32_t late_event_us;
 
+/* 直近の遅れイベント(閾値超え)の履歴。時刻・遅れ・CPU を使っていたスレッド */
+#define DIAG_LATE_RING 8
+struct late_entry {
+    uint32_t uptime_s;
+    uint32_t late_us;
+    uint32_t top_us;
+    char top_name[DIAG_NAME_MAX];
+};
+static struct late_entry late_ring[DIAG_LATE_RING];
+static uint32_t late_ring_n;
+
 static void snap_cb(const struct k_thread *thread, void *user_data) {
     int *n = user_data;
     k_thread_runtime_stats_t rt;
@@ -90,6 +101,17 @@ static void attribute_late(uint32_t late_us) {
             top = snap_cur[i].tid;
         }
     }
+    {
+        struct late_entry *e = &late_ring[late_ring_n % DIAG_LATE_RING];
+        const char *top_name = top != NULL ? k_thread_name_get(top) : NULL;
+
+        e->uptime_s = (uint32_t)(k_uptime_get() / 1000);
+        e->late_us = late_us;
+        e->top_us = k_cyc_to_us_floor32((uint32_t)MIN(top_delta, UINT32_MAX));
+        strncpy(e->top_name, top_name != NULL ? top_name : "?", sizeof(e->top_name) - 1);
+        e->top_name[sizeof(e->top_name) - 1] = 0;
+        late_ring_n++;
+    }
     if (late_us <= late_event_us) {
         return;
     }
@@ -121,11 +143,19 @@ static void format_late_attribution(iqs9151_cmd_out_t out, void *ctx, bool reset
              (unsigned)late_event_us, late_top_name[0] ? late_top_name : "-", (unsigned)late_top_us,
              (unsigned)late_idle_us);
     out(ctx, line);
+    for (uint32_t i = late_ring_n > DIAG_LATE_RING ? late_ring_n - DIAG_LATE_RING : 0; i < late_ring_n; i++) {
+        const struct late_entry *e = &late_ring[i % DIAG_LATE_RING];
+
+        snprintf(line, sizeof(line), "late[%u] t=%us late_us=%u top=%s:%u", (unsigned)i,
+                 (unsigned)e->uptime_s, (unsigned)e->late_us, e->top_name, (unsigned)e->top_us);
+        out(ctx, line);
+    }
     if (reset) {
         late_event_us = 0;
         late_top_us = 0;
         late_idle_us = 0;
         late_top_name[0] = 0;
+        late_ring_n = 0;
     }
 }
 #else
