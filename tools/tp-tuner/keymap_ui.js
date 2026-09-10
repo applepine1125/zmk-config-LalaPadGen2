@@ -189,6 +189,15 @@
     });
   }
 
+  const HID_USAGE_PAGE = { KEYBOARD: 7, CONSUMER: 12 };
+
+  function keycodeWithinHidUsage(k, hidUsage) {
+    if (!hidUsage) return true;
+    if (k.page === HID_USAGE_PAGE.KEYBOARD) return (hidUsage.keyboardMax || 0) >= k.id;
+    if (k.page === HID_USAGE_PAGE.CONSUMER) return (hidUsage.consumerMax || 0) >= k.id;
+    return false;
+  }
+
   function groupKeycodes(keys) {
     const out = {};
     for (const k of keys) (out[k.group] || (out[k.group] = [])).push(k);
@@ -208,11 +217,11 @@
   }
 
   const api = {
-    MOD_ORDER,
+    MOD_ORDER, HID_USAGE_PAGE,
     layoutBounds, keyRect,
     paramDescKind, describeParamSlot, valueFitsSlot, findMatchingSetIndex,
     layerIndexById, modLabelPrefix, formatHidUsageLabel, bindingLabel,
-    filterKeycodes, groupKeycodes, modsFromFlags, flagsFromMods,
+    filterKeycodes, groupKeycodes, keycodeWithinHidUsage, modsFromFlags, flagsFromMods,
   };
   root.TpKeymapUi = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

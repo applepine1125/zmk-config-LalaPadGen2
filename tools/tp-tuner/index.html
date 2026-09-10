@@ -79,9 +79,11 @@
   input[type=number] { text-align: right; }
   #topbar {
     position: sticky; top: 0; z-index: 10;
-    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    display: flex; flex-direction: column; gap: 8px;
     margin: 0 -16px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
   }
+  #topbarRow1 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  #topbarRow2 { display: flex; align-items: center; }
   #topbar .sep { width: 1px; height: 18px; background: var(--border-strong); }
   #connStatus { color: var(--muted); }
   #devicePanel:not([hidden]) {
@@ -239,32 +241,35 @@
 <body>
 
 <div id="topbar">
-  <h1>tp-tuner</h1>
-  <button id="btnConnect" class="primary">接続</button>
-  <button id="btnDisconnect" disabled>切断</button>
-  <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
-  <span id="connStatus">未接続</span>
-  <span class="sep"></span>
-  <div id="tabbar">
-    <button id="tabBtnTrackpad" class="active">タッチパッド</button>
-    <button id="tabBtnKeymap">キー設定</button>
+  <div id="topbarRow1">
+    <h1>tp-tuner</h1>
+    <button id="btnConnect" class="primary">接続</button>
+    <button id="btnDisconnect" disabled>切断</button>
+    <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
+    <span id="connStatus">未接続</span>
+    <span class="sep"></span>
+    <div id="trackpadActions">
+      <button id="btnWrite" class="primary" disabled>書き込む</button>
+      <span id="dirtyIndicator" hidden>未書き込みの変更 0 件</span>
+      <button id="btnReload" disabled>再読み込み</button>
+      <button id="btnResetAll" disabled>デフォルトに戻す</button>
+      <button id="btnExport">.conf をエクスポート</button>
+    </div>
+    <div id="keymapActions" hidden>
+      <button id="btnStudioSave" class="primary" disabled>書き込む</button>
+      <span id="studioDirtyIndicator" hidden>未保存の変更あり</span>
+      <button id="btnStudioDiscard" disabled>破棄</button>
+      <button id="btnStudioReload" disabled>再読み込み</button>
+    </div>
+    <span class="sep"></span>
+    <span id="status"></span>
   </div>
-  <span class="sep"></span>
-  <div id="trackpadActions">
-    <button id="btnWrite" class="primary" disabled>書き込む</button>
-    <span id="dirtyIndicator" hidden>未書き込みの変更 0 件</span>
-    <button id="btnReload" disabled>再読み込み</button>
-    <button id="btnResetAll" disabled>デフォルトに戻す</button>
-    <button id="btnExport">.conf をエクスポート</button>
+  <div id="topbarRow2">
+    <div id="tabbar">
+      <button id="tabBtnTrackpad" class="active">タッチパッド</button>
+      <button id="tabBtnKeymap">キー設定</button>
+    </div>
   </div>
-  <div id="keymapActions" hidden>
-    <button id="btnStudioSave" class="primary" disabled>書き込む</button>
-    <span id="studioDirtyIndicator" hidden>未保存の変更あり</span>
-    <button id="btnStudioDiscard" disabled>破棄</button>
-    <button id="btnStudioReload" disabled>再読み込み</button>
-  </div>
-  <span class="sep"></span>
-  <span id="status"></span>
 </div>
 <div id="devicePanel" hidden>
   <select id="selDevice"></select>
@@ -849,6 +854,9 @@
       params.R = []; params.L = [];
       hideDevicePanel();
       lastFailedDeviceSetKey = null;
+      if (studioUsbOpenTried && transport && transport.kind === 'usb' && typeof transport.studioClose === 'function') {
+        transport.studioClose();
+      }
       connectedDeviceId = null;
       studioAvailable = false;
       studioUsbOpenTried = false;
@@ -2029,26 +2037,29 @@
 
   async function commitBinding(newBinding) {
     if (!studioClient || selectedKeyPos === null) return;
-    const layer = keymapData.layers[selectedLayerIndex];
-    const prevBinding = layer.bindings[selectedKeyPos];
-    layer.bindings[selectedKeyPos] = newBinding;
+    const targetLayer = keymapData.layers[selectedLayerIndex];
+    const pos = selectedKeyPos;
+    const prevBinding = targetLayer.bindings[pos];
+    const isStillSelected = () => selectedKeyPos === pos
+      && !!keymapData && keymapData.layers[selectedLayerIndex] === targetLayer;
+    targetLayer.bindings[pos] = newBinding;
     renderKeymapSvg();
     renderKeyEditor();
     try {
-      const code = await studioClient.setLayerBinding(layer.id, selectedKeyPos, newBinding);
+      const code = await studioClient.setLayerBinding(targetLayer.id, pos, newBinding);
       if (code) {
-        layer.bindings[selectedKeyPos] = prevBinding;
+        targetLayer.bindings[pos] = prevBinding;
         renderKeymapSvg();
-        renderKeyEditor();
+        if (isStillSelected()) renderKeyEditor();
         setStatus('キーの設定に失敗しました(コード ' + code + ')', true);
       } else {
         studioDirty = true;
         renderStudioHeader();
       }
     } catch (e) {
-      layer.bindings[selectedKeyPos] = prevBinding;
+      targetLayer.bindings[pos] = prevBinding;
       renderKeymapSvg();
-      renderKeyEditor();
+      if (isStillSelected()) renderKeyEditor();
       setStatus('キーの設定に失敗しました: ' + errText(e), true);
     }
   }
@@ -2077,10 +2088,11 @@
     return field;
   }
 
-  function renderKeycodePicker(value, onCommit) {
+  function renderKeycodePicker(value, hidUsageLimits, onCommit) {
     const wrap = document.createElement('div');
     const decoded = TpKeycodes.decodeUsage(value >>> 0);
     let current = { page: decoded.page, id: decoded.id };
+    const baseKeys = TpKeycodes.KEYS.filter((k) => TpKeymapUi.keycodeWithinHidUsage(k, hidUsageLimits));
     const modRow = document.createElement('div');
     modRow.className = 'modrow';
     const MOD_UI = [
@@ -2128,7 +2140,7 @@
     function renderList() {
       groupsWrap.innerHTML = '';
       const curValue = TpKeycodes.encodeUsage(current.page, current.id, currentMods()) >>> 0;
-      const filtered = TpKeymapUi.filterKeycodes(TpKeycodes.KEYS, search.value);
+      const filtered = TpKeymapUi.filterKeycodes(baseKeys, search.value);
       const groups = TpKeymapUi.groupKeycodes(filtered);
       for (const groupName of Object.keys(groups)) {
         const title = document.createElement('div');
@@ -2182,7 +2194,7 @@
       sel.onchange = () => onCommit(Number(sel.value));
       return renderField(labelText, sel);
     }
-    if (slot.kind === 'hidUsage') return renderField(labelText, renderKeycodePicker(value, onCommit));
+    if (slot.kind === 'hidUsage') return renderField(labelText, renderKeycodePicker(value, slot.hidUsage, onCommit));
     return renderField(labelText, renderNumberInput(value, 0, 0xffffffff, onCommit));
   }
 

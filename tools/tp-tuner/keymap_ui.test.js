@@ -155,6 +155,25 @@ test('filterKeycodes は名前・ラベル・別名の部分一致で絞り込�
   assert.deepEqual(U.filterKeycodes(keys, 'a'), [keys[1]]);
 });
 
+test('keycodeWithinHidUsage は keyboardMax/consumerMax の範囲でキーボード/コンシューマページを絞り込む', () => {
+  const a = K.KEYS.find((k) => k.name === 'A');
+  const power = K.KEYS.find((k) => k.name === 'C_POWER');
+  assert.equal(U.keycodeWithinHidUsage(a, undefined), true);
+  assert.equal(U.keycodeWithinHidUsage(a, { keyboardMax: 65535, consumerMax: 65535 }), true);
+  assert.equal(U.keycodeWithinHidUsage(a, { keyboardMax: 0, consumerMax: 65535 }), false);
+  assert.equal(U.keycodeWithinHidUsage(a, { keyboardMax: a.id - 1, consumerMax: 0 }), false);
+  assert.ok(power);
+  assert.equal(U.keycodeWithinHidUsage(power, { keyboardMax: 65535, consumerMax: 0 }), false);
+  assert.equal(U.keycodeWithinHidUsage(power, { keyboardMax: 0, consumerMax: power.id }), true);
+});
+
+test('keycodeWithinHidUsage はキーボード/コンシューマ以外のページを常に除外する', () => {
+  const other = K.KEYS.find((k) => k.name === 'SYSTEM_POWER');
+  assert.ok(other);
+  assert.equal(other.page, 1);
+  assert.equal(U.keycodeWithinHidUsage(other, { keyboardMax: 65535, consumerMax: 65535 }), false);
+});
+
 test('groupKeycodes はグループ名ごとに配列へまとめる', () => {
   const keys = [
     { name: 'A', group: '文字' },
