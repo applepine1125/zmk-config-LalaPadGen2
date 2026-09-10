@@ -21,7 +21,9 @@ swiftc -O -swift-version 5 -sdk "$(xcrun --show-sdk-path)" \
 cp Info.plist "$CONTENTS_DIR/Info.plist"
 
 cp ../tp-tuner/index.html "$WEB_DIR/index.html"
-for f in ../tp-tuner/*.js; do case "" in *.test.js) ;; *) cp "" "/";; esac; done
+for f in ../tp-tuner/*.js; do
+  case "$f" in *.test.js) ;; *) cp "$f" "$WEB_DIR/";; esac
+done
 if [ -d ../tp-tuner/dev ]; then
   cp -R ../tp-tuner/dev "$WEB_DIR/dev"
 fi
