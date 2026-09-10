@@ -205,6 +205,35 @@
   }
   #captureOverlay[hidden] { display: none; }
   #captureMsg { max-width: 420px; font-size: 14px; line-height: 1.7; }
+  #tabbar { display: flex; gap: 6px; }
+  #tabbar button.active { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  #trackpadActions:not([hidden]), #keymapActions:not([hidden]) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #studioDirtyIndicator { color: var(--warn); font-weight: 600; white-space: nowrap; }
+  #studioNotice:not([hidden]) {
+    margin-top: 12px; padding: 10px 12px; border-radius: var(--radius);
+    background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+  }
+  #keymapWorkspace:not([hidden]) { display: grid; grid-template-columns: 1fr 340px; gap: 14px; margin-top: 12px; align-items: start; }
+  @media (max-width: 980px) { #keymapWorkspace { grid-template-columns: 1fr; } }
+  .layerlist-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .layer-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 700; }
+  .keymap-svg-wrap { overflow-x: auto; }
+  .keymap-svg-wrap svg { width: 100%; max-width: 1200px; display: block; margin: 0 auto; }
+  .keycap { fill: var(--surface-alt); stroke: var(--border-strong); stroke-width: 1.5; cursor: pointer; }
+  .keycap:hover { stroke: var(--accent); }
+  .keycap.selected { fill: var(--accent-weak); stroke: var(--accent); stroke-width: 2.5; }
+  .keycap-label { fill: var(--text); font: 11px -apple-system, sans-serif; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  .keycap-label.placeholder { fill: var(--muted); }
+  .keyeditor .field { margin-bottom: 10px; }
+  .keyeditor label.fieldlabel { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .modrow { display: flex; gap: 10px; margin: 6px 0 10px; flex-wrap: wrap; }
+  .modrow label { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; white-space: nowrap; }
+  .kcsearch { width: 100%; margin-bottom: 8px; box-sizing: border-box; }
+  .kcgroups { max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; }
+  .kcgroup-title { font-size: 10px; color: var(--muted); font-weight: 700; margin: 6px 0 2px; text-transform: uppercase; }
+  .kcgrid { display: flex; flex-wrap: wrap; gap: 4px; }
+  .kcbtn { padding: 3px 8px; font-size: 12px; }
+  .kcbtn.selected { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
 </style>
 </head>
 <body>
@@ -216,11 +245,24 @@
   <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
   <span id="connStatus">未接続</span>
   <span class="sep"></span>
-  <button id="btnWrite" class="primary" disabled>書き込む</button>
-  <span id="dirtyIndicator" hidden>未書き込みの変更 0 件</span>
-  <button id="btnReload" disabled>再読み込み</button>
-  <button id="btnResetAll" disabled>デフォルトに戻す</button>
-  <button id="btnExport">.conf をエクスポート</button>
+  <div id="tabbar">
+    <button id="tabBtnTrackpad" class="active">タッチパッド</button>
+    <button id="tabBtnKeymap">キー設定</button>
+  </div>
+  <span class="sep"></span>
+  <div id="trackpadActions">
+    <button id="btnWrite" class="primary" disabled>書き込む</button>
+    <span id="dirtyIndicator" hidden>未書き込みの変更 0 件</span>
+    <button id="btnReload" disabled>再読み込み</button>
+    <button id="btnResetAll" disabled>デフォルトに戻す</button>
+    <button id="btnExport">.conf をエクスポート</button>
+  </div>
+  <div id="keymapActions" hidden>
+    <button id="btnStudioSave" class="primary" disabled>書き込む</button>
+    <span id="studioDirtyIndicator" hidden>未保存の変更あり</span>
+    <button id="btnStudioDiscard" disabled>破棄</button>
+    <button id="btnStudioReload" disabled>再読み込み</button>
+  </div>
   <span class="sep"></span>
   <span id="status"></span>
 </div>
@@ -230,6 +272,7 @@
 </div>
 <div id="notice" hidden></div>
 
+<div id="tabTrackpad">
 <div class="row" id="liveRow">
   <label><input type="checkbox" id="chkLive" checked>ライブ表示</label>
   <button id="btnCapture">ポインタロック</button>
@@ -279,7 +322,37 @@
   <summary>シリアルログ</summary>
   <pre id="log"></pre>
 </details>
+</div>
 
+<div id="tabKeymap" hidden>
+  <div id="studioNotice" class="legend" hidden></div>
+  <div id="keymapWorkspace" hidden>
+    <section class="padscol">
+      <div class="card layerbar">
+        <h2>レイヤー</h2>
+        <div class="layerlist-row" id="layerList"></div>
+        <div class="row">
+          <button id="btnLayerAdd">追加</button>
+          <button id="btnLayerRemove">削除</button>
+        </div>
+      </div>
+      <div class="card keymap-svg-card">
+        <h2>キー配列</h2>
+        <div class="keymap-svg-wrap" id="keymapSvgWrap"></div>
+      </div>
+    </section>
+    <section class="opscol">
+      <div class="card keyeditor" id="keyEditor" hidden>
+        <h2>キーの設定</h2>
+        <div id="keyEditorBody"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script src="keycodes.js"></script>
+<script src="studio.js"></script>
+<script src="keymap_ui.js"></script>
 <script src="tuner.js"></script>
 <script>
   if (/(?:^|[?&])fakeNative=1(?:&|$)/.test(location.search)) {
@@ -437,6 +510,20 @@
   const lastObsAt = { R: 0, L: 0 };
   const lastWheelOpAt = { R: -Infinity, L: -Infinity };
   const opsLog = [];
+  let activeTab = 'trackpad';
+  let connectedDeviceId = null;
+  let studioClient = null;
+  let studioAvailable = false;
+  let studioLocked = false;
+  let studioDirty = false;
+  let studioBusy = false;
+  let studioUsbOpenTried = false;
+  let studioUsbWaitTimer = null;
+  let physicalLayout = null;
+  let behaviors = [];
+  let keymapData = null;
+  let selectedLayerIndex = 0;
+  let selectedKeyPos = null;
 
   function emptyPending() {
     return { common: {}, R: {}, L: {} };
@@ -599,8 +686,15 @@
     const bridge = window.webkit.messageHandlers.tpTuner;
     const t = {
       kind: 'usb', isNative: true, onData: null, onClose: null, onDevices: null, onConnected: null, onStatus: null,
+      onStudioReady: null, onStudioData: null, onStudioClosed: null,
     };
     t.listDevices = () => { bridge.postMessage({ type: 'listDevices' }); };
+    t.studioWrite = (bytes) => {
+      bridge.postMessage({ type: 'studioWrite', b64: bytesToBase64(bytes) });
+      return Promise.resolve();
+    };
+    t.studioOpen = (id) => { bridge.postMessage({ type: 'studioOpen', id }); };
+    t.studioClose = () => { bridge.postMessage({ type: 'studioClose' }); };
     t.connect = (id) => new Promise((resolve, reject) => {
       const savedOnConnected = t.onConnected;
       const savedOnClose = t.onClose;
@@ -632,6 +726,9 @@
         else if (evt.type === 'data') { if (t.onData) t.onData(evt.text); }
         else if (evt.type === 'disconnected') { if (t.onClose) t.onClose(evt.reason); }
         else if (evt.type === 'status') { if (t.onStatus) t.onStatus(evt.text); }
+        else if (evt.type === 'studioReady') { if (t.onStudioReady) t.onStudioReady(!!evt.available); }
+        else if (evt.type === 'studioData') { if (t.onStudioData) t.onStudioData(evt.b64); }
+        else if (evt.type === 'studioClosed') { if (t.onStudioClosed) t.onStudioClosed(evt.reason); }
       },
     };
     return t;
@@ -642,6 +739,23 @@
     t.onClose = (reason) => { if (transport === t) disconnect(reason || DISCONNECTED_MSG, true); };
     if ('onDevices' in t) t.onDevices = handleNativeDevices;
     if ('onStatus' in t) t.onStatus = (text) => setStatus(text);
+    if ('onStudioReady' in t) {
+      t.onStudioReady = (available) => {
+        clearTimeout(studioUsbWaitTimer);
+        studioAvailable = available;
+        updateStudioAvailability();
+      };
+    }
+    if ('onStudioData' in t) t.onStudioData = (b64) => { if (studioClient) studioClient.onData(base64ToBytes(b64)); };
+    if ('onStudioClosed' in t) {
+      t.onStudioClosed = (reason) => {
+        studioAvailable = false;
+        studioUsbOpenTried = false;
+        teardownStudio();
+        updateStudioAvailability();
+        if (reason) log('Studio 接続が終了しました: ' + reason);
+      };
+    }
   }
 
   function pump() {
@@ -735,10 +849,16 @@
       params.R = []; params.L = [];
       hideDevicePanel();
       lastFailedDeviceSetKey = null;
+      connectedDeviceId = null;
+      studioAvailable = false;
+      studioUsbOpenTried = false;
+      clearTimeout(studioUsbWaitTimer);
+      teardownStudio();
     }
     renderHeader();
     renderParams();
     for (const s of ['R', 'L']) renderPadStatus(s);
+    updateStudioAvailability();
   }
 
   async function establishUsb(target) {
@@ -879,6 +999,7 @@
     try {
       setStatus(`接続中... (${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
       if (device.kind === 'ble') await establishBle(device.id); else await establishUsb(device.id);
+      connectedDeviceId = device.id;
       finalizeConnected(device.id, true);
       setStatus('接続しました');
       const count = await loadAllParams();
@@ -925,6 +1046,7 @@
         try {
           setStatus(`自動接続を試しています... (${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
           if (device.kind === 'ble') await establishBle(device.id); else await establishUsb(device.id);
+          connectedDeviceId = device.id;
           finalizeConnected(device.id, true);
           setStatus(`自動接続しました(${device.kind === 'ble' ? 'BT' : 'USB'}: ${device.name})`);
           const count = await loadAllParams();
@@ -1709,6 +1831,483 @@
     setStatus(allOk ? 'すべてデフォルトに戻しました' : '一部の側で失敗しました', !allOk);
   }
 
+  function bytesToBase64(bytes) {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  function base64ToBytes(b64) {
+    const binary = atob(b64);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out;
+  }
+
+  function setActiveTab(tab) {
+    activeTab = tab;
+    $('tabTrackpad').hidden = tab !== 'trackpad';
+    $('tabKeymap').hidden = tab !== 'keymap';
+    $('trackpadActions').hidden = tab !== 'trackpad';
+    $('keymapActions').hidden = tab !== 'keymap';
+    $('tabBtnTrackpad').classList.toggle('active', tab === 'trackpad');
+    $('tabBtnKeymap').classList.toggle('active', tab === 'keymap');
+    if (tab === 'keymap') updateStudioAvailability();
+  }
+
+  function setStudioNotice(text) {
+    const el = $('studioNotice');
+    el.textContent = text;
+    el.hidden = !text;
+  }
+
+  function renderStudioHeader() {
+    const hasData = !!keymapData;
+    $('btnStudioSave').disabled = !hasData || !studioDirty;
+    $('btnStudioDiscard').disabled = !hasData || !studioDirty;
+    $('btnStudioReload').disabled = !studioClient;
+    $('studioDirtyIndicator').hidden = !studioDirty;
+  }
+
+  function teardownStudio() {
+    if (studioClient) { studioClient.dispose(); studioClient = null; }
+    studioLocked = false;
+    studioDirty = false;
+    keymapData = null;
+    physicalLayout = null;
+    behaviors = [];
+    selectedLayerIndex = 0;
+    selectedKeyPos = null;
+    renderKeymapWorkspace();
+    renderStudioHeader();
+  }
+
+  function createStudioClient() {
+    studioClient = TpStudio.createClient({
+      send: (bytes) => transport.studioWrite(bytes),
+      timeoutMs: 5000,
+    });
+    studioClient.onNotification = (n) => {
+      if (n.keymap && n.keymap.unsavedChangesStatusChanged !== undefined) {
+        studioDirty = n.keymap.unsavedChangesStatusChanged;
+        renderStudioHeader();
+      }
+      if (n.core && n.core.lockStateChanged !== undefined) {
+        studioLocked = n.core.lockStateChanged !== 0;
+        if (studioLocked) setStudioNotice('Studio がロックされています');
+        else updateStudioAvailability();
+      }
+    };
+  }
+
+  function requestStudioUsbOpen(otherId) {
+    studioUsbOpenTried = true;
+    transport.studioOpen(otherId);
+    clearTimeout(studioUsbWaitTimer);
+    studioUsbWaitTimer = setTimeout(() => {
+      if (!studioAvailable) setStudioNotice('USB では右手の Studio ポートが要ります');
+    }, 4000);
+  }
+
+  function updateStudioAvailability() {
+    if (activeTab !== 'keymap') return;
+    if (!hasNativeBridge) { setStudioNotice('Studio 機能は Mac アプリでのみ使えます'); return; }
+    if (!isConnected()) { setStudioNotice('接続すると使えます'); return; }
+    if (transport.kind === 'ble') {
+      if (!studioAvailable) { setStudioNotice('Studio 機能を確認しています...'); return; }
+    } else {
+      if (usbSide !== 'R') { setStudioNotice('USB では右手の Studio ポートが要ります'); return; }
+      if (!studioAvailable) {
+        if (!studioUsbOpenTried) {
+          const other = lastDevices.find((d) => d.kind === 'usb' && d.id !== connectedDeviceId);
+          if (!other) { setStudioNotice('USB では右手の Studio ポートが要ります'); return; }
+          requestStudioUsbOpen(other.id);
+        }
+        setStudioNotice('Studio 機能を確認しています...');
+        return;
+      }
+    }
+    setStudioNotice('');
+    if (!studioClient) createStudioClient();
+    if (!keymapData) loadKeymapData(); else renderKeymapWorkspace();
+  }
+
+  async function loadKeymapData() {
+    if (studioBusy || !studioClient) return;
+    studioBusy = true;
+    setStudioNotice('キー設定を読み込んでいます...');
+    try {
+      const lockState = await studioClient.getLockState();
+      studioLocked = lockState !== 0;
+      if (studioLocked) { setStudioNotice('Studio がロックされています'); keymapData = null; renderKeymapWorkspace(); return; }
+      physicalLayout = await studioClient.getPhysicalLayouts();
+      const ids = await studioClient.listBehaviors();
+      const details = [];
+      for (const id of ids) details.push(await studioClient.getBehaviorDetails(id));
+      behaviors = details;
+      keymapData = await studioClient.getKeymap();
+      studioDirty = await studioClient.checkUnsavedChanges();
+      if (selectedLayerIndex >= keymapData.layers.length) selectedLayerIndex = 0;
+      selectedKeyPos = null;
+      setStudioNotice('');
+      renderKeymapWorkspace();
+      renderStudioHeader();
+    } catch (e) {
+      setStudioNotice('キー設定の読み込みに失敗しました: ' + errText(e));
+    } finally {
+      studioBusy = false;
+    }
+  }
+
+  function renderKeymapWorkspace() {
+    const show = !!keymapData && !!physicalLayout;
+    $('keymapWorkspace').hidden = !show;
+    if (!show) return;
+    renderLayerList();
+    renderKeymapSvg();
+    renderKeyEditor();
+  }
+
+  function renderLayerList() {
+    const wrap = $('layerList');
+    wrap.innerHTML = '';
+    keymapData.layers.forEach((layer, i) => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'layer-btn' + (i === selectedLayerIndex ? ' active' : '');
+      b.textContent = layer.name || `Layer ${i}`;
+      b.onclick = () => { selectedLayerIndex = i; selectedKeyPos = null; renderKeymapWorkspace(); };
+      wrap.appendChild(b);
+    });
+    $('btnLayerAdd').disabled = !studioClient || keymapData.availableLayers <= 0;
+    $('btnLayerRemove').disabled = !studioClient || keymapData.layers.length < 2;
+  }
+
+  function renderKeymapSvg() {
+    const wrap = $('keymapSvgWrap');
+    wrap.innerHTML = '';
+    const layout = physicalLayout.layouts[physicalLayout.activeLayoutIndex];
+    if (!layout || !layout.keys.length) return;
+    const bounds = TpKeymapUi.layoutBounds(layout.keys);
+    const scale = bounds.width > 0 ? 1200 / bounds.width : 40;
+    const pad = 10;
+    const svgW = bounds.width * scale + pad * 2;
+    const svgH = bounds.height * scale + pad * 2;
+    const layer = keymapData.layers[selectedLayerIndex];
+    const bindings = (layer && layer.bindings) || [];
+    const svgNS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(svgNS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
+    layout.keys.forEach((key, idx) => {
+      const r = TpKeymapUi.keyRect(key, scale);
+      const x = r.x - bounds.minX * scale + pad;
+      const y = r.y - bounds.minY * scale + pad;
+      const cx = r.cx - bounds.minX * scale + pad;
+      const cy = r.cy - bounds.minY * scale + pad;
+      const g = document.createElementNS(svgNS, 'g');
+      if (r.angle) g.setAttribute('transform', `rotate(${r.angle} ${cx} ${cy})`);
+      g.style.cursor = 'pointer';
+      g.addEventListener('click', () => { selectedKeyPos = idx; renderKeyEditor(); renderKeymapSvg(); });
+      const rect = document.createElementNS(svgNS, 'rect');
+      rect.setAttribute('x', x + 2);
+      rect.setAttribute('y', y + 2);
+      rect.setAttribute('width', Math.max(1, r.width - 4));
+      rect.setAttribute('height', Math.max(1, r.height - 4));
+      rect.setAttribute('rx', 6);
+      rect.setAttribute('class', 'keycap' + (idx === selectedKeyPos ? ' selected' : ''));
+      const text = document.createElementNS(svgNS, 'text');
+      text.setAttribute('x', x + r.width / 2);
+      text.setAttribute('y', y + r.height / 2);
+      const label = bindings[idx] ? TpKeymapUi.bindingLabel(bindings[idx], behaviors, keymapData.layers) : '';
+      text.textContent = label;
+      text.setAttribute('class', 'keycap-label' + ((label === '▽' || label === '×') ? ' placeholder' : ''));
+      g.append(rect, text);
+      svg.appendChild(g);
+    });
+    wrap.appendChild(svg);
+  }
+
+  async function commitBinding(newBinding) {
+    if (!studioClient || selectedKeyPos === null) return;
+    const layer = keymapData.layers[selectedLayerIndex];
+    const prevBinding = layer.bindings[selectedKeyPos];
+    layer.bindings[selectedKeyPos] = newBinding;
+    renderKeymapSvg();
+    renderKeyEditor();
+    try {
+      const code = await studioClient.setLayerBinding(layer.id, selectedKeyPos, newBinding);
+      if (code) {
+        layer.bindings[selectedKeyPos] = prevBinding;
+        renderKeymapSvg();
+        renderKeyEditor();
+        setStatus('キーの設定に失敗しました(コード ' + code + ')', true);
+      } else {
+        studioDirty = true;
+        renderStudioHeader();
+      }
+    } catch (e) {
+      layer.bindings[selectedKeyPos] = prevBinding;
+      renderKeymapSvg();
+      renderKeyEditor();
+      setStatus('キーの設定に失敗しました: ' + errText(e), true);
+    }
+  }
+
+  function renderNumberInput(value, min, max, onCommit) {
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = String(min);
+    input.max = String(max);
+    input.value = String(value);
+    input.onchange = () => {
+      const v = Math.min(max, Math.max(min, Math.round(Number(input.value) || 0)));
+      input.value = String(v);
+      onCommit(v);
+    };
+    return input;
+  }
+
+  function renderField(labelText, contentEl) {
+    const field = document.createElement('div');
+    field.className = 'field';
+    const label = document.createElement('label');
+    label.className = 'fieldlabel';
+    label.textContent = labelText;
+    field.append(label, contentEl);
+    return field;
+  }
+
+  function renderKeycodePicker(value, onCommit) {
+    const wrap = document.createElement('div');
+    const decoded = TpKeycodes.decodeUsage(value >>> 0);
+    let current = { page: decoded.page, id: decoded.id };
+    const modRow = document.createElement('div');
+    modRow.className = 'modrow';
+    const MOD_UI = [
+      ['LC', '⌃左'], ['RC', '⌃右'], ['LS', '⇧左'], ['RS', '⇧右'],
+      ['LA', '⌥左'], ['RA', '⌥右'], ['LG', '⌘左'], ['RG', '⌘右'],
+    ];
+    const checkboxes = {};
+    const initFlags = TpKeymapUi.flagsFromMods(decoded.mods);
+    for (const [key, text] of MOD_UI) {
+      const lab = document.createElement('label');
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!initFlags[key];
+      checkboxes[key] = cb;
+      cb.onchange = () => { commitUsage(); renderList(); };
+      lab.append(cb, document.createTextNode(text));
+      modRow.appendChild(lab);
+    }
+    const search = document.createElement('input');
+    search.type = 'text';
+    search.className = 'kcsearch';
+    search.placeholder = 'キーコード検索';
+    const groupsWrap = document.createElement('div');
+    groupsWrap.className = 'kcgroups';
+
+    function currentMods() {
+      const flags = {};
+      for (const [key] of MOD_UI) flags[key] = checkboxes[key].checked;
+      return TpKeymapUi.modsFromFlags(flags);
+    }
+
+    function commitUsage() {
+      onCommit(TpKeycodes.encodeUsage(current.page, current.id, currentMods()) >>> 0);
+    }
+
+    function selectKey(k) {
+      const d = TpKeycodes.decodeUsage(k.value);
+      current = { page: d.page, id: d.id };
+      const flags = TpKeymapUi.flagsFromMods(d.mods);
+      for (const [key] of MOD_UI) checkboxes[key].checked = !!flags[key];
+      commitUsage();
+      renderList();
+    }
+
+    function renderList() {
+      groupsWrap.innerHTML = '';
+      const curValue = TpKeycodes.encodeUsage(current.page, current.id, currentMods()) >>> 0;
+      const filtered = TpKeymapUi.filterKeycodes(TpKeycodes.KEYS, search.value);
+      const groups = TpKeymapUi.groupKeycodes(filtered);
+      for (const groupName of Object.keys(groups)) {
+        const title = document.createElement('div');
+        title.className = 'kcgroup-title';
+        title.textContent = groupName;
+        groupsWrap.appendChild(title);
+        const grid = document.createElement('div');
+        grid.className = 'kcgrid';
+        for (const k of groups[groupName]) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'kcbtn' + (k.value === curValue ? ' selected' : '');
+          btn.textContent = k.label;
+          btn.title = k.name;
+          btn.onclick = () => selectKey(k);
+          grid.appendChild(btn);
+        }
+        groupsWrap.appendChild(grid);
+      }
+    }
+    search.oninput = renderList;
+    renderList();
+    wrap.append(modRow, search, groupsWrap);
+    return wrap;
+  }
+
+  function renderSlotField(labelText, slot, value, onCommit) {
+    if (slot.kind === 'none' || slot.kind === 'nil') return null;
+    if (slot.kind === 'range') return renderField(labelText, renderNumberInput(value, slot.range.min, slot.range.max, onCommit));
+    if (slot.kind === 'constant') {
+      const sel = document.createElement('select');
+      for (const opt of slot.options) {
+        const o = document.createElement('option');
+        o.value = String(opt.value);
+        o.textContent = opt.name || String(opt.value);
+        if (opt.value === value) o.selected = true;
+        sel.appendChild(o);
+      }
+      sel.onchange = () => onCommit(Number(sel.value));
+      return renderField(labelText, sel);
+    }
+    if (slot.kind === 'layerId') {
+      const sel = document.createElement('select');
+      keymapData.layers.forEach((l, i) => {
+        const o = document.createElement('option');
+        o.value = String(l.id);
+        o.textContent = `L${i}: ${l.name}`;
+        if (l.id === value) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.onchange = () => onCommit(Number(sel.value));
+      return renderField(labelText, sel);
+    }
+    if (slot.kind === 'hidUsage') return renderField(labelText, renderKeycodePicker(value, onCommit));
+    return renderField(labelText, renderNumberInput(value, 0, 0xffffffff, onCommit));
+  }
+
+  function renderParamInputs(set, binding, container) {
+    container.innerHTML = '';
+    const f1 = renderSlotField('param1', TpKeymapUi.describeParamSlot(set.param1), binding.param1,
+      (v) => commitBinding({ ...binding, param1: v }));
+    const f2 = renderSlotField('param2', TpKeymapUi.describeParamSlot(set.param2), binding.param2,
+      (v) => commitBinding({ ...binding, param2: v }));
+    if (f1) container.appendChild(f1);
+    if (f2) container.appendChild(f2);
+  }
+
+  function renderKeyEditor() {
+    const panel = $('keyEditor');
+    const body = $('keyEditorBody');
+    body.innerHTML = '';
+    if (selectedKeyPos === null) { panel.hidden = true; return; }
+    panel.hidden = false;
+    const layer = keymapData.layers[selectedLayerIndex];
+    const fallbackBehaviorId = behaviors.length ? behaviors[0].id : 0;
+    const binding = layer.bindings[selectedKeyPos] || { behaviorId: fallbackBehaviorId, param1: 0, param2: 0 };
+
+    const behSelect = document.createElement('select');
+    for (const b of behaviors) {
+      const o = document.createElement('option');
+      o.value = String(b.id);
+      o.textContent = b.displayName;
+      if (b.id === binding.behaviorId) o.selected = true;
+      behSelect.appendChild(o);
+    }
+    behSelect.onchange = () => commitBinding({ behaviorId: Number(behSelect.value), param1: 0, param2: 0 });
+    body.appendChild(renderField('behavior', behSelect));
+
+    const behavior = behaviors.find((b) => b.id === binding.behaviorId);
+    if (!behavior) return;
+    const sets = behavior.metadata || [];
+    if (sets.length === 0) {
+      body.appendChild(renderField('param1', renderNumberInput(binding.param1, 0, 0xffffffff,
+        (v) => commitBinding({ ...binding, param1: v }))));
+      body.appendChild(renderField('param2', renderNumberInput(binding.param2, 0, 0xffffffff,
+        (v) => commitBinding({ ...binding, param2: v }))));
+      return;
+    }
+    let setIdx = TpKeymapUi.findMatchingSetIndex(behavior, binding, keymapData.layers);
+    if (setIdx < 0) setIdx = 0;
+    const paramsContainer = document.createElement('div');
+    if (sets.length > 1) {
+      const setSelect = document.createElement('select');
+      sets.forEach((s, i) => {
+        const o = document.createElement('option');
+        o.value = String(i);
+        o.textContent = `セット ${i + 1}`;
+        if (i === setIdx) o.selected = true;
+        setSelect.appendChild(o);
+      });
+      setSelect.onchange = () => renderParamInputs(sets[Number(setSelect.value)], binding, paramsContainer);
+      body.appendChild(renderField('パラメータの種類', setSelect));
+    }
+    body.appendChild(paramsContainer);
+    renderParamInputs(sets[setIdx], binding, paramsContainer);
+  }
+
+  $('tabBtnTrackpad').onclick = () => setActiveTab('trackpad');
+  $('tabBtnKeymap').onclick = () => setActiveTab('keymap');
+  $('btnStudioSave').onclick = async () => {
+    if (!studioClient) return;
+    try {
+      await studioClient.saveChanges();
+      studioDirty = false;
+      renderStudioHeader();
+      setStatus('キー設定を書き込みました');
+    } catch (e) {
+      setStatus('書き込みに失敗しました: ' + errText(e), true);
+    }
+  };
+  $('btnStudioDiscard').onclick = async () => {
+    if (!studioClient) return;
+    if (!window.confirm('未保存の変更を破棄します。よろしいですか?')) return;
+    try {
+      await studioClient.discardChanges();
+      studioDirty = false;
+      await loadKeymapData();
+      setStatus('変更を破棄しました');
+    } catch (e) {
+      setStatus('破棄に失敗しました: ' + errText(e), true);
+    }
+  };
+  $('btnStudioReload').onclick = async () => {
+    if (!studioClient) return;
+    await loadKeymapData();
+    setStatus('キー設定を再読み込みしました');
+  };
+  $('btnLayerAdd').onclick = async () => {
+    if (!studioClient || keymapData.availableLayers <= 0) return;
+    try {
+      const res = await studioClient.addLayer();
+      keymapData.layers.push(res.layer);
+      keymapData.availableLayers = Math.max(0, keymapData.availableLayers - 1);
+      selectedLayerIndex = keymapData.layers.length - 1;
+      selectedKeyPos = null;
+      studioDirty = true;
+      renderKeymapWorkspace();
+      renderStudioHeader();
+    } catch (e) {
+      setStatus('レイヤーの追加に失敗しました: ' + errText(e), true);
+    }
+  };
+  $('btnLayerRemove').onclick = async () => {
+    if (!studioClient || keymapData.layers.length < 2) return;
+    if (!window.confirm(`レイヤー「${keymapData.layers[selectedLayerIndex].name}」を削除します。よろしいですか?`)) return;
+    try {
+      await studioClient.removeLayer(selectedLayerIndex);
+      keymapData.layers.splice(selectedLayerIndex, 1);
+      keymapData.availableLayers += 1;
+      selectedLayerIndex = 0;
+      selectedKeyPos = null;
+      studioDirty = true;
+      renderKeymapWorkspace();
+      renderStudioHeader();
+    } catch (e) {
+      setStatus('レイヤーの削除に失敗しました: ' + errText(e), true);
+    }
+  };
+
   $('btnConnect').onclick = () => { connect(); };
   $('btnDisconnect').onclick = () => { disconnect(); };
   $('btnWrite').onclick = () => { writeAll(); };
@@ -1729,6 +2328,7 @@
   window.addEventListener('beforeunload', () => { if (isConnected()) disconnect(null, true); });
 
   renderOpsLog();
+  setActiveTab('trackpad');
   setConnectedUi(false);
   liveEnabled = readLiveEnabledPref();
   $('chkLive').checked = liveEnabled;

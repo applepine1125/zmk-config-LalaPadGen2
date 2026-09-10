@@ -3,6 +3,7 @@
   const badUsbMode = /(?:^|[?&])fakeBadUsb=1(?:&|$)/.test(location.search);
   const fakeLive = /(?:^|[?&])fakeLive=1(?:&|$)/.test(location.search);
   const fakeLeftDown = /(?:^|[?&])fakeLeftDown=1(?:&|$)/.test(location.search);
+  const fakeStudioLocked = /(?:^|[?&])fakeStudioLocked=1(?:&|$)/.test(location.search);
   const DEVICES = badUsbMode
     ? [
       { id: 'usb-bad', kind: 'usb', name: 'usbmodem-bad' },
@@ -28,6 +29,208 @@
   let liveTimer = null;
   let liveOn = false;
   const startReal = Date.now();
+
+  const K = window.TpKeycodes;
+  const KEY_UNIT = 100;
+  const FAKE_LAYOUT_KEYS = [];
+  for (let row = 0; row < 2; row++) {
+    for (let col = 0; col < 3; col++) {
+      FAKE_LAYOUT_KEYS.push({ width: KEY_UNIT, height: KEY_UNIT, x: col * KEY_UNIT, y: row * KEY_UNIT, r: 0, rx: 0, ry: 0 });
+    }
+  }
+  const FAKE_BEHAVIORS = [
+    {
+      id: 1,
+      displayName: 'Key Press',
+      metadata: [{
+        param1: [{ name: 'keycode', hidUsage: { keyboardMax: 65535, consumerMax: 65535 } }],
+        param2: [{ name: 'unused', nil: {} }],
+      }],
+    },
+    {
+      id: 2,
+      displayName: 'Momentary Layer',
+      metadata: [{
+        param1: [{ name: 'layer', layerId: {} }],
+        param2: [{ name: 'unused', nil: {} }],
+      }],
+    },
+    {
+      id: 3,
+      displayName: 'Transparent',
+      metadata: [{
+        param1: [{ name: 'unused', nil: {} }],
+        param2: [{ name: 'unused', nil: {} }],
+      }],
+    },
+  ];
+  const FAKE_MAX_LAYERS = 4;
+  let fakeNextLayerId = 2;
+  let fakeStudioLayers = [
+    {
+      id: 0,
+      name: 'Default',
+      bindings: [
+        { behaviorId: 1, param1: K.encodeUsage(7, 4, 0), param2: 0 },
+        { behaviorId: 1, param1: K.encodeUsage(7, 5, 0), param2: 0 },
+        { behaviorId: 1, param1: K.encodeUsage(7, 6, 0), param2: 0 },
+        { behaviorId: 2, param1: 1, param2: 0 },
+        { behaviorId: 3, param1: 0, param2: 0 },
+        { behaviorId: 3, param1: 0, param2: 0 },
+      ],
+    },
+    {
+      id: 1,
+      name: 'Fn',
+      bindings: [
+        { behaviorId: 1, param1: K.encodeUsage(7, 58, 0), param2: 0 },
+        { behaviorId: 3, param1: 0, param2: 0 },
+        { behaviorId: 3, param1: 0, param2: 0 },
+        { behaviorId: 3, param1: 0, param2: 0 },
+        { behaviorId: 3, param1: 0, param2: 0 },
+        { behaviorId: 3, param1: 0, param2: 0 },
+      ],
+    },
+  ];
+  let fakeStudioDirty = false;
+  let fakeStudioUsbReady = false;
+  const studioDecoder = window.TpStudio ? window.TpStudio.createFrameDecoder() : null;
+
+  function cloneFakeLayers(layers) {
+    return layers.map((l) => ({ id: l.id, name: l.name, bindings: l.bindings.map((b) => ({ ...b })) }));
+  }
+
+  let fakeStudioSavedLayers = cloneFakeLayers(fakeStudioLayers);
+  let fakeStudioSavedNextLayerId = fakeNextLayerId;
+
+  function base64ToBytesLocal(b64) {
+    const binary = atob(b64);
+    const out = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+    return out;
+  }
+
+  function bytesToBase64Local(bytes) {
+    let binary = '';
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+    return btoa(binary);
+  }
+
+  function sendStudioResponse(obj) {
+    const bytes = window.TpStudio._encodeMessage('zmk.studio.Response', obj);
+    const framed = window.TpStudio.frameEncode(bytes);
+    emit({ type: 'studioData', b64: bytesToBase64Local(framed) });
+  }
+
+  function notifyUnsavedChanged() {
+    sendStudioResponse({ notification: { keymap: { unsavedChangesStatusChanged: fakeStudioDirty } } });
+  }
+
+  function currentFakeKeymap() {
+    return {
+      layers: fakeStudioLayers,
+      availableLayers: Math.max(0, FAKE_MAX_LAYERS - fakeStudioLayers.length),
+      maxLayerNameLength: 12,
+    };
+  }
+
+  function studioHandleRequest(reqObj) {
+    const rr = { requestId: reqObj.requestId };
+    if (reqObj.core) {
+      rr.core = {};
+      if (reqObj.core.getDeviceInfo) rr.core.getDeviceInfo = { name: 'LalapadGen2 (fake)', serialNumber: Uint8Array.from([1, 2, 3, 4]) };
+      if (reqObj.core.getLockState !== undefined) rr.core.getLockState = fakeStudioLocked ? 1 : 0;
+    }
+    if (reqObj.behaviors) {
+      rr.behaviors = {};
+      if (reqObj.behaviors.listAllBehaviors) rr.behaviors.listAllBehaviors = { behaviors: FAKE_BEHAVIORS.map((b) => b.id) };
+      if (reqObj.behaviors.getBehaviorDetails) {
+        const id = reqObj.behaviors.getBehaviorDetails.behaviorId;
+        const b = FAKE_BEHAVIORS.find((x) => x.id === id);
+        rr.behaviors.getBehaviorDetails = b
+          ? { id: b.id, displayName: b.displayName, metadata: b.metadata }
+          : { id, displayName: '?', metadata: [] };
+      }
+    }
+    if (reqObj.keymap) {
+      rr.keymap = {};
+      const km = reqObj.keymap;
+      if (km.getKeymap) rr.keymap.getKeymap = currentFakeKeymap();
+      if (km.getPhysicalLayouts) {
+        rr.keymap.getPhysicalLayouts = {
+          activeLayoutIndex: 0,
+          layouts: [{ name: 'Fake Layout', keys: FAKE_LAYOUT_KEYS }],
+        };
+      }
+      if (km.setLayerBinding) {
+        const { layerId, keyPosition, binding } = km.setLayerBinding;
+        const layer = fakeStudioLayers.find((l) => l.id === layerId);
+        if (layer && keyPosition >= 0 && keyPosition < layer.bindings.length) {
+          layer.bindings[keyPosition] = binding;
+          fakeStudioDirty = true;
+          rr.keymap.setLayerBinding = 0;
+        } else {
+          rr.keymap.setLayerBinding = 1;
+        }
+      }
+      if (km.checkUnsavedChanges) rr.keymap.checkUnsavedChanges = fakeStudioDirty;
+      if (km.saveChanges) {
+        fakeStudioDirty = false;
+        fakeStudioSavedLayers = cloneFakeLayers(fakeStudioLayers);
+        fakeStudioSavedNextLayerId = fakeNextLayerId;
+        rr.keymap.saveChanges = { ok: true };
+      }
+      if (km.discardChanges) {
+        fakeStudioLayers = cloneFakeLayers(fakeStudioSavedLayers);
+        fakeNextLayerId = fakeStudioSavedNextLayerId;
+        fakeStudioDirty = false;
+        rr.keymap.discardChanges = true;
+      }
+      if (km.addLayer) {
+        if (fakeStudioLayers.length >= FAKE_MAX_LAYERS) {
+          rr.keymap.addLayer = { err: 2 };
+        } else {
+          const layer = {
+            id: fakeNextLayerId++,
+            name: `Layer ${fakeStudioLayers.length}`,
+            bindings: FAKE_LAYOUT_KEYS.map(() => ({ behaviorId: 3, param1: 0, param2: 0 })),
+          };
+          fakeStudioLayers.push(layer);
+          fakeStudioDirty = true;
+          rr.keymap.addLayer = { ok: { index: fakeStudioLayers.length - 1, layer } };
+        }
+      }
+      if (km.removeLayer) {
+        const idx = km.removeLayer.layerIndex;
+        if (idx < 0 || idx >= fakeStudioLayers.length) {
+          rr.keymap.removeLayer = { err: 2 };
+        } else {
+          fakeStudioLayers.splice(idx, 1);
+          fakeStudioDirty = true;
+          rr.keymap.removeLayer = { ok: {} };
+        }
+      }
+    }
+    return rr;
+  }
+
+  function handleStudioWrite(b64) {
+    if (!window.TpStudio || !studioDecoder) return;
+    const bytes = base64ToBytesLocal(b64);
+    const frames = studioDecoder.push(bytes);
+    for (const frame of frames) {
+      let req;
+      try {
+        req = window.TpStudio._decodeMessage('zmk.studio.Request', frame);
+      } catch (e) {
+        continue;
+      }
+      const hadDirty = fakeStudioDirty;
+      const rr = studioHandleRequest(req);
+      sendStudioResponse({ requestResponse: rr });
+      if (fakeStudioDirty !== hadDirty) notifyUnsavedChanged();
+    }
+  }
 
   function elapsedMs() {
     return Date.now() - startReal;
@@ -160,17 +363,30 @@
         const device = DEVICES.find((d) => d.id === msg.id) || DEVICES[0];
         connectedId = device.id;
         liveOn = false;
+        fakeStudioUsbReady = false;
         emit({ type: 'connected', id: device.id, kind: device.kind, name: device.name });
         startSummaryTimer();
         startLiveTimer();
+        if (device.kind === 'ble') {
+          setTimeout(() => { if (connectedId === device.id) emit({ type: 'studioReady', available: true }); }, 150);
+        }
       } else if (msg.type === 'disconnect') {
         connectedId = null;
         liveOn = false;
+        fakeStudioUsbReady = false;
         stopSummaryTimer();
         stopLiveTimer();
         emit({ type: 'disconnected', reason: '切断されました' });
       } else if (msg.type === 'write') {
         handleWrite(msg.text);
+      } else if (msg.type === 'studioOpen') {
+        const other = DEVICES.find((d) => d.kind === 'usb' && d.id === msg.id);
+        fakeStudioUsbReady = !!other;
+        emit({ type: 'studioReady', available: fakeStudioUsbReady });
+      } else if (msg.type === 'studioClose') {
+        fakeStudioUsbReady = false;
+      } else if (msg.type === 'studioWrite') {
+        handleStudioWrite(msg.b64);
       }
     },
   };

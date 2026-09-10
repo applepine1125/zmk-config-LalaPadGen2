@@ -67,6 +67,15 @@ BT 接続には `tools/tp-tuner-mac` の Mac ネイティブアプリを使う�
   カーソルは動くがクリック・スクロールの既定動作は引き続き止める
 - **シリアルログ**: 画面最下部の折りたたみ(既定は閉じている)
 
+## キー設定タブ
+
+ヘッダの「キー設定」タブで ZMK Studio 経由のキーマップ変更ができる(Mac アプリでの BT 接続、
+または USB で右手に挿した場合のみ。Web Serial 直結や USB の左手側では使えない)。レイヤーを選び、
+図から変えたいキーを選び、右のパネルで behavior と値(キーコード・レイヤー番号など)を選ぶと即座に
+キーボードへ送られる。ヘッダの「書き込む」でキーボードの flash に保存、「破棄」で未保存の変更を
+取り消す。保存すると `config/lalapadgen2.keymap` は初期値の扱いになり、`settings_reset` を書き込むと
+この変更は消える。
+
 ## 使い方の要点
 
 - 変更は「書き込む」を押すまでファームに送られない。ページを開き直したり保留を捨てると変更前の
@@ -90,12 +99,16 @@ BT 接続には `tools/tp-tuner-mac` の Mac ネイティブアプリを使う�
   切り分けられる
 - 実機なしで表示を確認したいときは `?fakeNative=1` を付けて開く。両手を模擬した機器に接続でき、
   `&fakeLive=1` を足すと右手のパッドに 1 本指の円運動→2 本指スクロールを繰り返すダミーのフレームが
-  流れる
+  流れる。キー設定タブは接続すると自動で模擬の物理レイアウト(6 キー)・レイヤー(Default/Fn)・
+  behavior(Key Press/Momentary Layer/Transparent)が読み込まれる。`&fakeStudioLocked=1` を足すと
+  ロック中の表示を確認できる
 
 ## 開発
 
     node --test tools/tp-tuner/
 
-ロジックは `tuner.js`(純粋関数)、UI は `index.html`。`dev/fake-native.js` は実機なしで
-Mac アプリの橋渡し(`window.webkit.messageHandlers.tpTuner`)を模擬する開発用スタブで、
+ロジックは `tuner.js`(パラメータ調整、純粋関数)と `keymap_ui.js`(キー設定タブの表示・判定、
+純粋関数)、ZMK Studio RPC クライアントは `studio.js`、キーコード表は `keycodes.js`。UI は
+`index.html`。`dev/fake-native.js` は実機なしで Mac アプリの橋渡し
+(`window.webkit.messageHandlers.tpTuner`、ZMK Studio RPC 込み)を模擬する開発用スタブで、
 `?fakeNative=1` を付けたときだけ読み込まれる。
