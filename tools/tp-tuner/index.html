@@ -406,7 +406,7 @@
     { title: '慣性', names: ['cursor_inertia_enable', 'cursor_inertia_decay', 'cursor_inertia_recent_window_ms', 'cursor_inertia_stale_gap_ms', 'cursor_inertia_min_samples', 'cursor_inertia_min_avg_speed', 'scroll_inertia_enable', 'scroll_inertia_decay', 'scroll_inertia_recent_window_ms', 'scroll_inertia_stale_gap_ms', 'scroll_inertia_min_samples', 'scroll_inertia_min_avg_speed'] },
     { title: '送信レート(BLE 対策)', names: ['cursor_report_interval_ms', 'scroll_report_interval_ms'] },
     { title: 'IC 感度(変更後にパッドへ一度触れると反映)', ic: true, names: ['touch_set_threshold', 'touch_clear_threshold', 'alp_set_debounce', 'alp_clear_debounce', 'stationary_touch_mov_threshold', 'jitter_filter_delta', 'finger_confidence_threshold'] },
-    { title: 'IC サンプリング周期', ic: true, names: ['active_mode_sampling_period_ms', 'idle_touch_mode_sampling_period_ms', 'idle_mode_sampling_period_ms', 'lp1_mode_sampling_period_ms', 'lp2_mode_sampling_period_ms', 'active_mode_timeout_ms'] },
+    { title: 'IC サンプリング周期', ic: true, names: ['active_mode_sampling_period_ms', 'idle_touch_mode_sampling_period_ms', 'idle_mode_sampling_period_ms', 'lp1_mode_sampling_period_ms', 'lp2_mode_sampling_period_ms', 'active_mode_timeout_ms', 'idle_touch_mode_timeout_s', 'idle_mode_timeout_s', 'lp1_mode_timeout_s'] },
     { title: 'IC フィルタ / ATI(変更後は Re-ATI)', ic: true, names: ['ati_targetcount', 'dynamic_filter_bottom_speed', 'dynamic_filter_top_speed', 'dynamic_filter_bottom_beta'] },
   ];
   const PARAM_HELP = {
@@ -464,6 +464,9 @@
     lp1_mode_sampling_period_ms: { what: '省電力 1 の周期(ms)', up: '電池は持つが初動が遅い', down: '初動が速いが電池を使う' },
     lp2_mode_sampling_period_ms: { what: '省電力 2 の周期(ms)', up: '電池は持つが初動が遅い', down: '初動が速いが電池を使う' },
     active_mode_timeout_ms: { what: 'アクティブモードから省電力へ落ちるまでの時間(ms)', up: '省電力に落ちにくい', down: 'すぐ省電力に落ちる' },
+    idle_touch_mode_timeout_s: { what: '指を置いたまま動かさないときに Idle-Touch から Idle に落ちるまでの時間(秒)', up: '置いたままでも反応が落ちにくいが電池を使う', down: '早く省電力になる' },
+    idle_mode_timeout_s: { what: '触れていないときに Idle から LP1(省電力)に落ちるまでの時間(秒)', up: '手を離した後も反応が速いままだが電池を使う', down: '早く省電力になり、次に触れたときの反応が遅れやすい' },
+    lp1_mode_timeout_s: { what: 'LP1 から LP2(さらに省電力)に落ちるまでの時間(秒)', up: '長い放置後も復帰が速いが電池を使う', down: '早く省電力になる' },
   };
 
   function helpText(name) {

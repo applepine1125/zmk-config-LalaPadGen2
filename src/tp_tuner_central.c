@@ -893,7 +893,8 @@ static void handle_stats(uint16_t code, uint32_t value) {
     if (code != TP_TUNER_STAT_END) {
         snprintf(item, sizeof(item), " %s=%u", tp_tuner_stat_name(code), (unsigned)value);
         used = strlen(left_stats_line);
-        if (used == 0 || used + strlen(item) >= sizeof(left_stats_line)) {
+        /* stream_put は "L " と改行を足すので、その分を残して折り返す */
+        if (used == 0 || used + strlen(item) >= sizeof(left_stats_line) - 4) {
             left_stats_flush();
             strcpy(left_stats_line, "stats");
         }

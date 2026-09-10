@@ -493,8 +493,10 @@ void lalapad_diag_format(iqs9151_cmd_out_t out, void *ctx, bool reset) {
 static int lalapad_diag_init(void) {
     iqs9151_cmd_set_stats_hook(lalapad_diag_format);
     probe_due_ticks = k_uptime_ticks() + k_ms_to_ticks_ceil64(DIAG_PROBE_PERIOD_MS);
-    isr_expected_cycles = k_cycle_get_32() + k_us_to_cyc_ceil32(DIAG_ISR_PERIOD_US);
-    k_timer_start(&sample_timer, K_USEC(DIAG_ISR_PERIOD_US), K_USEC(DIAG_ISR_PERIOD_US));
+    if (IS_ENABLED(CONFIG_LALAPAD_DIAG_ISR_SAMPLER)) {
+        isr_expected_cycles = k_cycle_get_32() + k_us_to_cyc_ceil32(DIAG_ISR_PERIOD_US);
+        k_timer_start(&sample_timer, K_USEC(DIAG_ISR_PERIOD_US), K_USEC(DIAG_ISR_PERIOD_US));
+    }
     (void)k_work_schedule(&probe_work, K_TIMEOUT_ABS_TICKS(probe_due_ticks));
     return 0;
 }
