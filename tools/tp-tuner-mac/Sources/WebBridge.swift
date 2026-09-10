@@ -50,6 +50,7 @@ final class WebBridge: NSObject {
 
     config.userContentController.add(self, name: "tpTuner")
     webView.navigationDelegate = self
+    webView.uiDelegate = self
 
     ble.delegate = self
     serial.delegate = self
@@ -126,6 +127,27 @@ extension WebBridge: WKScriptMessageHandler {
       return
     }
     handlePageMessage(type: type, json: body)
+  }
+}
+
+/* WKWebView は alert / confirm をアプリが実装しないと黙って閉じる(confirm は常に false)ので NSAlert で出す */
+extension WebBridge: WKUIDelegate {
+  func webView(_ webView: WKWebView, runJavaScriptAlertPanelWithMessage message: String,
+               initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping () -> Void) {
+    let alert = NSAlert()
+    alert.messageText = message
+    alert.addButton(withTitle: "OK")
+    alert.runModal()
+    completionHandler()
+  }
+
+  func webView(_ webView: WKWebView, runJavaScriptConfirmPanelWithMessage message: String,
+               initiatedByFrame frame: WKFrameInfo, completionHandler: @escaping (Bool) -> Void) {
+    let alert = NSAlert()
+    alert.messageText = message
+    alert.addButton(withTitle: "OK")
+    alert.addButton(withTitle: "キャンセル")
+    completionHandler(alert.runModal() == .alertFirstButtonReturn)
   }
 }
 
