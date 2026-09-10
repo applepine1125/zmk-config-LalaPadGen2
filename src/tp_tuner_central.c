@@ -30,6 +30,7 @@
 #include <iqs9151_cmd.h>
 #include <iqs9151_params.h>
 
+#include "lalapad_diag.h"
 #include "tp_tuner_proto.h"
 
 LOG_MODULE_REGISTER(tp_tuner, CONFIG_ZMK_LOG_LEVEL);
@@ -221,6 +222,7 @@ static void stream_flush(void) {
             stream_retries = 0;
             continue;
         }
+        lalapad_diag_note_notify_fail();
         if (ret == -ENOTCONN || ret == -EINVAL) {
             LOG_WRN("stream subscriber gone (%d), buffer dropped", ret);
             stream_retries = 0;
@@ -336,6 +338,7 @@ enum left_cmd {
     LEFT_CMD_SAVE,
     LEFT_CMD_SUMMARY,
     LEFT_CMD_LIVE,
+    LEFT_CMD_STATS,
 };
 
 struct left_pending {
@@ -615,6 +618,13 @@ static void run_left(const char *args, bool silent) {
         }
         pending.cmd = LEFT_CMD_LIVE;
         pending.op = TP_TUNER_OP_LIVE;
+    } else if (strcmp(argv[0], "stats") == 0) {
+        if (argc != 1) {
+            left_fail(&pending, "ERR usage: stats");
+            return;
+        }
+        pending.cmd = LEFT_CMD_STATS;
+        pending.op = TP_TUNER_OP_STATS;
     } else if (strcmp(argv[0], "get") == 0 || strcmp(argv[0], "trace") == 0) {
         left_fail(&pending, "ERR unsupported");
         return;
@@ -770,7 +780,8 @@ static void handle_ack(uint16_t code, int32_t ret) {
     struct left_pending p;
     char buf[TP_TUNER_LINE_MAX];
 
-    if (!left_peek(&p) || p.cmd == LEFT_CMD_LIST || p.cmd == LEFT_CMD_INFO || p.op != code) {
+    if (!left_peek(&p) || p.cmd == LEFT_CMD_LIST || p.cmd == LEFT_CMD_INFO || p.cmd == LEFT_CMD_STATS ||
+        p.op != code) {
         LOG_WRN("unexpected ACK op 0x%x ret %d", code, ret);
         return;
     }
@@ -830,6 +841,51 @@ static void handle_ack(uint16_t code, int32_t ret) {
     left_finish(&p);
 }
 
+/* 左手の stats 応答を行にまとめる。left_event_handler(システムワークキュー)からしか触らない */
+static char left_stats_line[TP_TUNER_LINE_MAX];
+static uint32_t left_link_vals[3];
+
+static void left_stats_flush(void) {
+    if (left_stats_line[0] != 0) {
+        stream_put_line('L', left_stats_line);
+        left_stats_line[0] = 0;
+    }
+}
+
+static void handle_stats(uint16_t code, uint32_t value) {
+    struct left_pending p;
+    char item[48];
+    size_t used;
+
+    if (!left_peek(&p) || p.cmd != LEFT_CMD_STATS) {
+        LOG_WRN("unexpected STATS id %u", code);
+        return;
+    }
+    if (code >= TP_TUNER_STAT_LINK_INT_US && code < TP_TUNER_STAT_COUNT) {
+        left_link_vals[code - TP_TUNER_STAT_LINK_INT_US] = value;
+        return;
+    }
+    if (code != TP_TUNER_STAT_END) {
+        snprintf(item, sizeof(item), " %s=%u", tp_tuner_stat_name(code), (unsigned)value);
+        used = strlen(left_stats_line);
+        if (used == 0 || used + strlen(item) >= sizeof(left_stats_line)) {
+            left_stats_flush();
+            strcpy(left_stats_line, "stats");
+        }
+        strcat(left_stats_line, item);
+        return;
+    }
+    if (!left_take(&p)) {
+        return;
+    }
+    (void)k_work_cancel_delayable(&left_timeout_work);
+    left_stats_flush();
+    snprintf(left_stats_line, sizeof(left_stats_line), "link0 role=peripheral int_us=%u lat=%u to_ms=%u",
+             (unsigned)left_link_vals[0], (unsigned)left_link_vals[1], (unsigned)left_link_vals[2]);
+    left_stats_flush();
+    left_finish(&p);
+}
+
 /* 左手が直前に知らせた hold 中のボタン。hold の無いフレームで忘れる */
 static uint16_t left_hold_button;
 
@@ -886,6 +942,9 @@ static void left_event_handler(struct input_event *evt) {
         break;
     case TP_TUNER_EV_STATUS:
         handle_status((uint32_t)evt->value);
+        break;
+    case TP_TUNER_EV_STATS:
+        handle_stats(evt->code, (uint32_t)evt->value);
         break;
     default:
         LOG_WRN("unknown tp_tuner event type %u", evt->type);

@@ -17,6 +17,7 @@
 
 #include <iqs9151_params.h>
 
+#include "lalapad_diag.h"
 #include "tp_tuner_proto.h"
 
 LOG_MODULE_REGISTER(tp_tuner, CONFIG_ZMK_LOG_LEVEL);
@@ -48,6 +49,7 @@ static struct {
     uint32_t words[IQS9151_SUMMARY_WORDS];
     struct tp_tuner_request req;
     int ret;
+    uint32_t stats[TP_TUNER_STAT_COUNT];
     size_t pos;
     size_t total;
     int retries;
@@ -147,6 +149,28 @@ static int send_live(const struct tp_tuner_live_event *live) {
     return report_input(live->type, live->code, live->value);
 }
 
+static void collect_stats(uint32_t *vals) {
+    struct iqs9151_stats drv;
+    struct lalapad_diag_stats diag;
+
+    iqs9151_dev_stats_get(&drv, true);
+    lalapad_diag_snapshot(&diag, true);
+    vals[TP_TUNER_STAT_END] = 0;
+    vals[TP_TUNER_STAT_FRAME_N] = drv.frame_count;
+    vals[TP_TUNER_STAT_FRAME_MAX_US] = drv.frame_max_us;
+    vals[TP_TUNER_STAT_FRAME_AVG_US] = drv.frame_avg_us;
+    vals[TP_TUNER_STAT_FRAME_GAP_MAX_MS] = drv.frame_gap_max_ms;
+    vals[TP_TUNER_STAT_I2C_ERR] = drv.i2c_errors;
+    vals[TP_TUNER_STAT_WQ_LATE_MAX_US] = diag.wq_late_max_us;
+    vals[TP_TUNER_STAT_WQ_LATE_OVER3] = diag.wq_late_over3;
+    vals[TP_TUNER_STAT_POS_LOCAL] = diag.pos_local;
+    vals[TP_TUNER_STAT_POS_REMOTE] = diag.pos_remote;
+    vals[TP_TUNER_STAT_NOTIFY_FAIL] = diag.notify_fail;
+    vals[TP_TUNER_STAT_LINK_INT_US] = diag.link_int_us;
+    vals[TP_TUNER_STAT_LINK_LAT] = diag.link_lat;
+    vals[TP_TUNER_STAT_LINK_TO_MS] = diag.link_to_ms;
+}
+
 static int exec_request(const struct tp_tuner_request *req) {
     if (req->op < TP_TUNER_OP_BASE) {
         const struct iqs9151_param_def *def = iqs9151_param_def_at(req->op);
@@ -184,6 +208,9 @@ static int exec_request(const struct tp_tuner_request *req) {
         live_hold_sent = 0;
         return ret;
     }
+    case TP_TUNER_OP_STATS:
+        collect_stats(job.stats);
+        return 0;
     case TP_TUNER_OP_DUMP:
     case TP_TUNER_OP_INFO:
         return 0;
@@ -204,7 +231,13 @@ static bool start_next_job(void) {
     if (k_msgq_get(&tp_tuner_request_msgq, &job.req, K_NO_WAIT) == 0) {
         job.kind = TP_TUNER_JOB_REQUEST;
         job.ret = exec_request(&job.req);
-        job.total = job.req.op == TP_TUNER_OP_DUMP ? iqs9151_param_count() + 1 : 1;
+        if (job.req.op == TP_TUNER_OP_DUMP) {
+            job.total = iqs9151_param_count() + 1;
+        } else if (job.req.op == TP_TUNER_OP_STATS) {
+            job.total = TP_TUNER_STAT_COUNT;
+        } else {
+            job.total = 1;
+        }
     } else if (k_msgq_get(&tp_tuner_summary_msgq, job.words, K_NO_WAIT) == 0) {
         job.kind = TP_TUNER_JOB_SUMMARY;
         job.total = IQS9151_SUMMARY_WORDS;
@@ -232,6 +265,13 @@ static void build_event(struct zmk_split_transport_peripheral_event *ev) {
         type = TP_TUNER_EV_PARAM;
         code = job.pos;
         value = (uint32_t)current;
+    } else if (job.req.op == TP_TUNER_OP_STATS) {
+        /* id 1..COUNT-1 を順に送り、最後に id 0 で終端 */
+        uint16_t id = job.pos + 1 < TP_TUNER_STAT_COUNT ? (uint16_t)(job.pos + 1) : 0;
+
+        type = TP_TUNER_EV_STATS;
+        code = id;
+        value = job.stats[id];
     } else if (job.req.op == TP_TUNER_OP_DUMP || job.req.op == TP_TUNER_OP_INFO) {
         type = TP_TUNER_EV_STATUS;
         value = status_word();
@@ -288,6 +328,7 @@ static void send_work_cb(struct k_work *work) {
                 return;
             }
             LOG_DBG("live frame dropped (%d)", ret);
+            lalapad_diag_note_notify_fail();
             continue;
         }
 
@@ -297,6 +338,7 @@ static void send_work_cb(struct k_work *work) {
             if (++job.retries > TP_TUNER_RETRY_MAX) {
                 LOG_WRN("job %d dropped at %u/%u after %d retries", job.kind, (unsigned)job.pos,
                         (unsigned)job.total, TP_TUNER_RETRY_MAX);
+                lalapad_diag_note_notify_fail();
                 job.kind = TP_TUNER_JOB_NONE;
                 continue;
             }

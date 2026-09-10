@@ -5,7 +5,7 @@ if(CONFIG_ZMK_INPUT_PROCESSOR_SCROLL_ACCEL)
 endif()
 
 if(CONFIG_LALAPAD_TP_TUNER)
-  list(APPEND _lalapad_sources src/behavior_tp_param.c)
+  list(APPEND _lalapad_sources src/behavior_tp_param.c src/lalapad_diag.c)
   if(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
     list(APPEND _lalapad_sources src/tp_tuner_central.c)
   else()

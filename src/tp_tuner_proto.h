@@ -39,6 +39,9 @@
  */
 #define TP_TUNER_EV_LIVE_HOLD 0xFD
 
+/* stats 応答(STATS オペコード)。code = 項目 id(下記)、value = 値。id 0 で終端 */
+#define TP_TUNER_EV_STATS 0xFE
+
 #define TP_TUNER_OP_BASE 0x8000
 #define TP_TUNER_OP_RESET 0x8000
 #define TP_TUNER_OP_REATI 0x8001
@@ -48,6 +51,47 @@
 #define TP_TUNER_OP_INFO 0x8005
 /* param2 = hz、0 で off */
 #define TP_TUNER_OP_LIVE 0x8006
+/* 計測値を STATS イベントで返す */
+#define TP_TUNER_OP_STATS 0x8007
+
+enum tp_tuner_stat_id {
+    TP_TUNER_STAT_END = 0,
+    TP_TUNER_STAT_FRAME_N,
+    TP_TUNER_STAT_FRAME_MAX_US,
+    TP_TUNER_STAT_FRAME_AVG_US,
+    TP_TUNER_STAT_FRAME_GAP_MAX_MS,
+    TP_TUNER_STAT_I2C_ERR,
+    TP_TUNER_STAT_WQ_LATE_MAX_US,
+    TP_TUNER_STAT_WQ_LATE_OVER3,
+    TP_TUNER_STAT_POS_LOCAL,
+    TP_TUNER_STAT_POS_REMOTE,
+    TP_TUNER_STAT_NOTIFY_FAIL,
+    TP_TUNER_STAT_LINK_INT_US,
+    TP_TUNER_STAT_LINK_LAT,
+    TP_TUNER_STAT_LINK_TO_MS,
+    TP_TUNER_STAT_COUNT,
+};
+
+static inline const char *tp_tuner_stat_name(uint16_t id) {
+    static const char *const names[TP_TUNER_STAT_COUNT] = {
+        [TP_TUNER_STAT_END] = "end",
+        [TP_TUNER_STAT_FRAME_N] = "frame_n",
+        [TP_TUNER_STAT_FRAME_MAX_US] = "frame_max_us",
+        [TP_TUNER_STAT_FRAME_AVG_US] = "frame_avg_us",
+        [TP_TUNER_STAT_FRAME_GAP_MAX_MS] = "frame_gap_max_ms",
+        [TP_TUNER_STAT_I2C_ERR] = "i2c_err",
+        [TP_TUNER_STAT_WQ_LATE_MAX_US] = "wq_late_max_us",
+        [TP_TUNER_STAT_WQ_LATE_OVER3] = "wq_late_over3",
+        [TP_TUNER_STAT_POS_LOCAL] = "pos_local",
+        [TP_TUNER_STAT_POS_REMOTE] = "pos_remote",
+        [TP_TUNER_STAT_NOTIFY_FAIL] = "notify_fail",
+        [TP_TUNER_STAT_LINK_INT_US] = "link_int_us",
+        [TP_TUNER_STAT_LINK_LAT] = "link_lat",
+        [TP_TUNER_STAT_LINK_TO_MS] = "link_to_ms",
+    };
+
+    return id < TP_TUNER_STAT_COUNT ? names[id] : "?";
+}
 
 #define TP_TUNER_LIVE_HZ_DEFAULT_LEFT 30
 
