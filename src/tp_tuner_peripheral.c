@@ -161,6 +161,7 @@ static void collect_stats(uint32_t *vals) {
     vals[TP_TUNER_STAT_FRAME_AVG_US] = drv.frame_avg_us;
     vals[TP_TUNER_STAT_FRAME_GAP_MAX_MS] = drv.frame_gap_max_ms;
     vals[TP_TUNER_STAT_I2C_ERR] = drv.i2c_errors;
+    vals[TP_TUNER_STAT_I2C_MAX_US] = drv.i2c_max_us;
     vals[TP_TUNER_STAT_WQ_LATE_MAX_US] = diag.wq_late_max_us;
     vals[TP_TUNER_STAT_WQ_LATE_OVER3] = diag.wq_late_over3;
     vals[TP_TUNER_STAT_POS_LOCAL] = diag.pos_local;
