@@ -111,8 +111,35 @@ final class WebBridge: NSObject {
       serial.studioOpen(id: id)
     case "studioClose":
       serial.studioClose()
+    case "saveFile":
+      guard let name = json["name"] as? String, let text = json["text"] as? String else { return }
+      saveFile(name: name, text: text)
     default:
       break
+    }
+  }
+
+  private func saveFile(name: String, text: String) {
+    let panel = NSSavePanel()
+    panel.nameFieldStringValue = name
+    panel.canCreateDirectories = true
+    panel.allowsOtherFileTypes = true
+    if let dir = UserDefaults.standard.string(forKey: "lastSaveDirectory") {
+      panel.directoryURL = URL(fileURLWithPath: dir, isDirectory: true)
+    }
+    panel.begin { [weak self] response in
+      guard let self = self else { return }
+      guard response == .OK, let url = panel.url else {
+        self.send(type: "fileSaved", payload: ["ok": false, "cancelled": true])
+        return
+      }
+      do {
+        try text.write(to: url, atomically: true, encoding: .utf8)
+        UserDefaults.standard.set(url.deletingLastPathComponent().path, forKey: "lastSaveDirectory")
+        self.send(type: "fileSaved", payload: ["ok": true, "path": url.path])
+      } catch {
+        self.send(type: "fileSaved", payload: ["ok": false, "error": error.localizedDescription])
+      }
     }
   }
 }

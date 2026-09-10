@@ -195,10 +195,6 @@
   .param .cell.inactive { opacity: .45; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
   .row .spacer { flex: 1; }
-  #conf {
-    width: 100%; height: 120px; font: 11px/1.4 var(--mono); resize: vertical;
-    border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-alt); color: var(--text);
-  }
   .legend { color: var(--muted); font-size: 11px; }
   #captureOverlay {
     position: fixed; inset: 0; z-index: 1000; cursor: crosshair;
@@ -260,6 +256,7 @@
       <span id="studioDirtyIndicator" hidden>未保存の変更あり</span>
       <button id="btnStudioReload" disabled>再読み込み</button>
       <button id="btnStudioReset" disabled>デフォルトに戻す</button>
+      <button id="btnKeymapExport" disabled>.keymap をエクスポート</button>
     </div>
     <span class="sep"></span>
     <span id="status"></span>
@@ -319,7 +316,6 @@
       <label><input type="checkbox" id="chkDetail">詳細: 左右別に設定</label>
     </div>
     <div id="params"><span class="legend">接続すると tp list の内容がここに表示されます</span></div>
-    <textarea id="conf" readonly spellcheck="false" hidden></textarea>
   </div>
 </details>
 
@@ -358,6 +354,7 @@
 <script src="keycodes.js"></script>
 <script src="studio.js"></script>
 <script src="keymap_ui.js"></script>
+<script src="keymap_export.js"></script>
 <script src="tuner.js"></script>
 <script>
   if (/(?:^|[?&])fakeNative=1(?:&|$)/.test(location.search)) {
@@ -529,6 +526,7 @@
   let keymapData = null;
   let selectedLayerIndex = 0;
   let selectedKeyPos = null;
+  let pendingSaveFile = null;
 
   function emptyPending() {
     return { common: {}, R: {}, L: {} };
@@ -734,6 +732,7 @@
         else if (evt.type === 'studioReady') { if (t.onStudioReady) t.onStudioReady(!!evt.available); }
         else if (evt.type === 'studioData') { if (t.onStudioData) t.onStudioData(evt.b64); }
         else if (evt.type === 'studioClosed') { if (t.onStudioClosed) t.onStudioClosed(evt.reason); }
+        else if (evt.type === 'fileSaved') { if (pendingSaveFile) { const r = pendingSaveFile; pendingSaveFile = null; r(evt); } }
       },
     };
     return t;
@@ -954,7 +953,6 @@
       count += params[s].length;
     }
     renderParams();
-    updateConfPreview();
     return count;
   }
 
@@ -1791,26 +1789,48 @@
     }
   }
 
-  function updateConfPreview() {
-    const merged = T.mergeParams(params.R, params.L);
-    $('conf').value = merged.length ? T.exportConf(merged, { diffOnly: false }) : '';
+  function saveFile(name, text) {
+    if (hasNativeBridge) {
+      return new Promise((resolve) => {
+        pendingSaveFile = resolve;
+        window.webkit.messageHandlers.tpTuner.postMessage({ type: 'saveFile', name, text });
+      });
+    }
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    return Promise.resolve({ ok: true });
+  }
+
+  async function saveExportedFile(name, text) {
+    try {
+      const res = await saveFile(name, text);
+      if (res.cancelled) return;
+      if (!res.ok) { setStatus('保存に失敗しました: ' + (res.error || ''), true); return; }
+      setStatus((res.path || name) + ' に保存しました');
+    } catch (e) {
+      setStatus('保存に失敗しました: ' + errText(e), true);
+    }
   }
 
   async function exportConfNow() {
     const merged = T.mergeParams(params.R, params.L);
     if (merged.length === 0) { setStatus('パラメータが読み込まれていません', true); return; }
     const text = T.exportConf(merged, { diffOnly: false });
-    $('conf').value = text;
-    $('conf').hidden = false;
-    try {
-      await navigator.clipboard.writeText(text);
-      setStatus(`${text.split('\n').filter(Boolean).length} 行を .conf 形式でコピーしました`);
-    } catch (e) {
-      const ta = $('conf');
-      ta.focus(); ta.select();
-      const ok = document.execCommand && document.execCommand('copy');
-      setStatus(ok ? 'コピーしました' : 'クリップボードに書き込めません。テキストエリアから手動でコピーしてください', !ok);
-    }
+    await saveExportedFile('lalapadgen2.conf', text);
+  }
+
+  async function exportKeymapNow() {
+    if (!keymapData || !physicalLayout) return;
+    const layout = physicalLayout.layouts[physicalLayout.activeLayoutIndex] || { keys: [] };
+    const text = TpKeymapExport.exportKeymap({ keymap: keymapData, behaviors, layout });
+    await saveExportedFile('lalapadgen2.keymap', text);
   }
 
   function rebuildPendingFromFailures(failed) {
@@ -1912,6 +1932,7 @@
     $('btnStudioSave').disabled = !hasData || !studioDirty;
     $('btnStudioReload').disabled = !studioClient;
     $('btnStudioReset').disabled = !hasData;
+    $('btnKeymapExport').disabled = !hasData || !physicalLayout;
     $('studioDirtyIndicator').hidden = !studioDirty;
   }
 
@@ -2341,6 +2362,7 @@
       setStatus('デフォルトに戻せませんでした: ' + errText(e), true);
     }
   };
+  $('btnKeymapExport').onclick = () => { exportKeymapNow(); };
   $('btnLayerAdd').onclick = async () => {
     if (!studioClient || keymapData.availableLayers <= 0) return;
     try {
