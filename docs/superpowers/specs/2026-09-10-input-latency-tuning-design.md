@@ -161,7 +161,13 @@
 - 残る体感「たまにカーソルの反応が遅れる」は、IC の省電力モード遷移(Active→Idle 1.5 秒、Idle→LP1 5 秒、LP1→LP2 40 秒、Idle 系のサンプリング 50ms)が候補。Idle-Touch / Idle / LP1 のタイムアウトをランタイムパラメータに追加し(ドライバ 49182e8)、アプリの「IC サンプリング周期」から調整できるようにした。
 - 1ms タイマのサンプラは `CONFIG_LALAPAD_DIAG_ISR_SAMPLER`(既定 n)に退避。
 
+### タイムアウト調整後(2026-09-11)
+
+右 `active_mode_timeout_ms=5000`・`idle_mode_sampling_period_ms=20`(左も同じ)で「たまにカーソルが遅れる」は体感で解消。stats は rdy_miss 0、end_err 0、I2C 平均 1.2ms、最大 1.5ms、フレーム最大 3ms。右の syswq 停止は起動時 2 回とアプリ接続時の 5.8ms(`iqs9151_settings_set`)のみ。
+
 ## 第 2 段(計測後の候補)
+
+第 1 段の計測で主要因(syswq 直列化、Mac リンクの LL データ長、IC の通信窓)がすべて解消したため、以下は必要になったときに検討する。
 
 - Mac リンク: `CONFIG_BT_PERIPHERAL_PREF_*`(要求値のみ。採否は macOS)。
 - split リンク: `CONFIG_ZMK_SPLIT_BLE_PREF_INT` / `PREF_LATENCY`、DLE(251)の要否。
