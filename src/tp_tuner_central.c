@@ -58,8 +58,11 @@ LOG_MODULE_REGISTER(tp_tuner, CONFIG_ZMK_LOG_LEVEL);
  * HID レポートがメタ待ちになるので、半分以上を常に残す
  */
 #define TP_TUNER_NOTIFY_BURST 4
-/* ライブ行はこの時間まとめてから通知し、1 通知に複数行を載せる */
-#define TP_TUNER_LIVE_BATCH_MS 10
+/*
+ * ライブ行は「最初の未送信行を追記してからこの時間」か「未送信分が 1 通知分(chunk)溜まった」の
+ * 早い方で通知する。60Hz のフレームは 16.7ms 間隔なので短い待ちでは 1 行ずつしか溜まらない
+ */
+#define TP_TUNER_LIVE_BATCH_MS 50
 #define TP_TUNER_LEFT_TIMEOUT_MS 1000
 /* タイムアウト後に遅れて届いた応答を次のコマンドに誤帰属しないよう、次の L コマンドを待たせる時間 */
 #define TP_TUNER_LEFT_COOLDOWN_MS 200
@@ -70,6 +73,10 @@ RING_BUF_DECLARE(stream_rb, TP_TUNER_STREAM_SIZE);
 static struct k_spinlock stream_lock;
 static bool stream_subscribed;
 static int stream_retries;
+/* 直近の flush で使った 1 通知の大きさ(MTU - 3、上限 244)。ライブ行のまとめ判定に使う */
+static uint32_t stream_chunk = TP_TUNER_NOTIFY_MAX;
+/* 前回の flush 以降に追記したライブ行のバイト数(stream_lock 下で更新) */
+static uint32_t stream_lossy_pending;
 
 static void stream_work_cb(struct k_work *work);
 static K_WORK_DELAYABLE_DEFINE(stream_work, stream_work_cb);
@@ -103,6 +110,7 @@ static void stream_put(char side, const char *text, bool lossy) {
     int len;
     uint32_t need;
     bool stored;
+    bool batch_full = false;
     k_spinlock_key_t key;
 
     if (!stream_subscribed) {
@@ -122,6 +130,10 @@ static void stream_put(char side, const char *text, bool lossy) {
     key = k_spin_lock(&stream_lock);
     stored = ring_buf_space_get(&stream_rb) >= need &&
              ring_buf_put(&stream_rb, (const uint8_t *)line, len) == (uint32_t)len;
+    if (stored && lossy) {
+        stream_lossy_pending += (uint32_t)len;
+        batch_full = stream_lossy_pending >= stream_chunk;
+    }
     k_spin_unlock(&stream_lock, key);
 
     if (!stored) {
@@ -130,10 +142,10 @@ static void stream_put(char side, const char *text, bool lossy) {
         }
         return;
     }
-    if (lossy) {
-        (void)k_work_schedule(&stream_work, K_MSEC(TP_TUNER_LIVE_BATCH_MS));
-    } else {
+    if (!lossy || batch_full) {
         (void)k_work_reschedule(&stream_work, K_NO_WAIT);
+    } else {
+        (void)k_work_schedule(&stream_work, K_MSEC(TP_TUNER_LIVE_BATCH_MS));
     }
 }
 
@@ -171,6 +183,13 @@ static void stream_flush(void) {
 
     mtu = bt_gatt_get_mtu(conn);
     chunk = mtu > TP_TUNER_NOTIFY_MIN + 3 ? MIN(mtu - 3, TP_TUNER_NOTIFY_MAX) : TP_TUNER_NOTIFY_MIN;
+    {
+        k_spinlock_key_t key = k_spin_lock(&stream_lock);
+
+        stream_chunk = chunk;
+        stream_lossy_pending = 0;
+        k_spin_unlock(&stream_lock, key);
+    }
 
     for (int sent = 0;; sent++) {
         uint8_t *data;
