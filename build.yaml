@@ -7,4 +7,8 @@ include:
     shield: lalapadgen2_left rgbled_adapter
   - board: seeeduino_xiao_ble
     shield: settings_reset
- 
+  # デバッグ用: studio-rpc-usb-uart を付けないので USB を挿しても ZMK Studio は BLE のまま動き、
+  # USB には tp-tuner のシェルだけが出る。BLE の Studio 応答中に起きる再起動のログを USB で取るための構成
+  - board: seeeduino_xiao_ble
+    shield: lalapadgen2_right rgbled_adapter
+    artifact-name: lalapadgen2_right_debug
