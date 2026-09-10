@@ -20,6 +20,7 @@ struct lalapad_diag_stats {
     uint32_t link_int_us;
     uint32_t link_lat;
     uint32_t link_to_ms;
+    uint32_t link_tx_len;
 };
 
 void lalapad_diag_note_notify_fail(void);

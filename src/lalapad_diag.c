@@ -94,16 +94,26 @@ static void link_cb(struct bt_conn *conn, void *user_data) {
     if (bt_conn_get_info(conn, &info) != 0 || info.type != BT_CONN_TYPE_LE) {
         return;
     }
+    uint32_t tx_len = 0;
+    uint32_t rx_len = 0;
+
+#if defined(CONFIG_BT_USER_DATA_LEN_UPDATE)
+    if (info.le.data_len != NULL) {
+        tx_len = info.le.data_len->tx_max_len;
+        rx_len = info.le.data_len->rx_max_len;
+    }
+#endif
     if (walk->first != NULL && walk->index == 0) {
         walk->first->link_int_us = info.le.interval * 1250U;
         walk->first->link_lat = info.le.latency;
         walk->first->link_to_ms = info.le.timeout * 10U;
+        walk->first->link_tx_len = tx_len;
     }
     if (walk->out != NULL) {
-        snprintf(line, sizeof(line), "link%d role=%s int_us=%u lat=%u to_ms=%u", walk->index,
+        snprintf(line, sizeof(line), "link%d role=%s int_us=%u lat=%u to_ms=%u tx_len=%u rx_len=%u", walk->index,
                  info.role == BT_CONN_ROLE_CENTRAL ? "central" : "peripheral",
                  (unsigned)(info.le.interval * 1250U), (unsigned)info.le.latency,
-                 (unsigned)(info.le.timeout * 10U));
+                 (unsigned)(info.le.timeout * 10U), (unsigned)tx_len, (unsigned)rx_len);
         walk->out(walk->ctx, line);
     }
     walk->index++;
@@ -130,6 +140,7 @@ void lalapad_diag_snapshot(struct lalapad_diag_stats *out, bool reset) {
     out->link_int_us = 0;
     out->link_lat = 0;
     out->link_to_ms = 0;
+    out->link_tx_len = 0;
     bt_conn_foreach(BT_CONN_TYPE_LE, link_cb, &walk);
 }
 

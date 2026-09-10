@@ -58,7 +58,13 @@ LOG_MODULE_REGISTER(tp_tuner, CONFIG_ZMK_LOG_LEVEL);
  * 1 回の flush で送る通知数。ATT の TX メタ(BT_CONN_TX_MAX=10)を使い切ると
  * HID レポートがメタ待ちになるので、半分以上を常に残す
  */
-#define TP_TUNER_NOTIFY_BURST 4
+#define TP_TUNER_NOTIFY_BURST 1
+/* 通知 1 件ごとに空ける時間。HID レポート(hog スレッド)に送信バッファと接続イベントを譲る */
+#define TP_TUNER_NOTIFY_PACE_MS 8
+/* ライブ行を受け付ける未送信バイト数の上限。LL データ長 27 のときに表示が遅れて溜まらないようにする */
+#define TP_TUNER_LOSSY_BACKLOG 512
+/* LL データ長がこれ未満なら DLE 未交渉とみなし、通知を 1 パケットに収める */
+#define TP_TUNER_DLE_MIN_LEN 100
 /*
  * ライブ行は「最初の未送信行を追記してからこの時間」か「未送信分が 1 通知分(chunk)溜まった」の
  * 早い方で通知する。60Hz のフレームは 16.7ms 間隔なので短い待ちでは 1 行ずつしか溜まらない
@@ -106,6 +112,9 @@ static void stream_reset(void) {
     k_spin_unlock(&stream_lock, key);
 }
 
+/* 次に通知してよい時刻(stream_flush が更新) */
+static int64_t stream_paced_until;
+
 static void stream_put(char side, const char *text, bool lossy) {
     char line[TP_TUNER_LINE_MAX];
     int len;
@@ -130,6 +139,7 @@ static void stream_put(char side, const char *text, bool lossy) {
 
     key = k_spin_lock(&stream_lock);
     stored = ring_buf_space_get(&stream_rb) >= need &&
+             (!lossy || ring_buf_size_get(&stream_rb) < TP_TUNER_LOSSY_BACKLOG) &&
              ring_buf_put(&stream_rb, (const uint8_t *)line, len) == (uint32_t)len;
     if (stored && lossy) {
         stream_lossy_pending += (uint32_t)len;
@@ -144,7 +154,10 @@ static void stream_put(char side, const char *text, bool lossy) {
         return;
     }
     if (!lossy || batch_full) {
-        (void)k_work_reschedule(&stream_work, K_NO_WAIT);
+        int64_t wait = stream_paced_until - k_uptime_get();
+
+        /* 直前の通知からの間隔は詰めない(HID に譲るためのペーシング) */
+        (void)k_work_reschedule(&stream_work, wait > 0 ? K_MSEC(wait) : K_NO_WAIT);
     } else {
         (void)k_work_schedule(&stream_work, K_MSEC(TP_TUNER_LIVE_BATCH_MS));
     }
@@ -184,6 +197,17 @@ static void stream_flush(void) {
 
     mtu = bt_gatt_get_mtu(conn);
     chunk = mtu > TP_TUNER_NOTIFY_MIN + 3 ? MIN(mtu - 3, TP_TUNER_NOTIFY_MAX) : TP_TUNER_NOTIFY_MIN;
+#if defined(CONFIG_BT_USER_DATA_LEN_UPDATE)
+    {
+        struct bt_conn_info info;
+
+        /* DLE 前(27 バイト)は 244 バイトの通知が LL パケット 10 個に分かれ、HID レポートがその後ろで待つ */
+        if (bt_conn_get_info(conn, &info) == 0 && info.le.data_len != NULL &&
+            info.le.data_len->tx_max_len < TP_TUNER_DLE_MIN_LEN) {
+            chunk = TP_TUNER_NOTIFY_MIN;
+        }
+    }
+#endif
     {
         k_spinlock_key_t key = k_spin_lock(&stream_lock);
 
@@ -200,7 +224,7 @@ static void stream_flush(void) {
 
         if (sent >= TP_TUNER_NOTIFY_BURST) {
             if (ring_buf_size_get(&stream_rb) > 0) {
-                (void)k_work_reschedule(&stream_work, K_MSEC(TP_TUNER_NOTIFY_RETRY_MS));
+                (void)k_work_reschedule(&stream_work, K_MSEC(TP_TUNER_NOTIFY_PACE_MS));
             }
             break;
         }
@@ -220,6 +244,7 @@ static void stream_flush(void) {
 
         if (ret == 0) {
             stream_retries = 0;
+            stream_paced_until = k_uptime_get() + TP_TUNER_NOTIFY_PACE_MS;
             continue;
         }
         lalapad_diag_note_notify_fail();
@@ -843,7 +868,7 @@ static void handle_ack(uint16_t code, int32_t ret) {
 
 /* 左手の stats 応答を行にまとめる。left_event_handler(システムワークキュー)からしか触らない */
 static char left_stats_line[TP_TUNER_LINE_MAX];
-static uint32_t left_link_vals[3];
+static uint32_t left_link_vals[4];
 
 static void left_stats_flush(void) {
     if (left_stats_line[0] != 0) {
@@ -880,8 +905,9 @@ static void handle_stats(uint16_t code, uint32_t value) {
     }
     (void)k_work_cancel_delayable(&left_timeout_work);
     left_stats_flush();
-    snprintf(left_stats_line, sizeof(left_stats_line), "link0 role=peripheral int_us=%u lat=%u to_ms=%u",
-             (unsigned)left_link_vals[0], (unsigned)left_link_vals[1], (unsigned)left_link_vals[2]);
+    snprintf(left_stats_line, sizeof(left_stats_line), "link0 role=peripheral int_us=%u lat=%u to_ms=%u tx_len=%u",
+             (unsigned)left_link_vals[0], (unsigned)left_link_vals[1], (unsigned)left_link_vals[2],
+             (unsigned)left_link_vals[3]);
     left_stats_flush();
     left_finish(&p);
 }

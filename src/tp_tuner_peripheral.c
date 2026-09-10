@@ -169,6 +169,7 @@ static void collect_stats(uint32_t *vals) {
     vals[TP_TUNER_STAT_LINK_INT_US] = diag.link_int_us;
     vals[TP_TUNER_STAT_LINK_LAT] = diag.link_lat;
     vals[TP_TUNER_STAT_LINK_TO_MS] = diag.link_to_ms;
+    vals[TP_TUNER_STAT_LINK_TX_LEN] = diag.link_tx_len;
 }
 
 static int exec_request(const struct tp_tuner_request *req) {

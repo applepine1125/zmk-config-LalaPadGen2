@@ -69,6 +69,7 @@ enum tp_tuner_stat_id {
     TP_TUNER_STAT_LINK_INT_US,
     TP_TUNER_STAT_LINK_LAT,
     TP_TUNER_STAT_LINK_TO_MS,
+    TP_TUNER_STAT_LINK_TX_LEN,
     TP_TUNER_STAT_COUNT,
 };
 
@@ -88,6 +89,7 @@ static inline const char *tp_tuner_stat_name(uint16_t id) {
         [TP_TUNER_STAT_LINK_INT_US] = "link_int_us",
         [TP_TUNER_STAT_LINK_LAT] = "link_lat",
         [TP_TUNER_STAT_LINK_TO_MS] = "link_to_ms",
+        [TP_TUNER_STAT_LINK_TX_LEN] = "link_tx_len",
     };
 
     return id < TP_TUNER_STAT_COUNT ? names[id] : "?";
