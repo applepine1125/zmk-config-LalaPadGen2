@@ -498,18 +498,26 @@
       const bytes = encodeRequest(Object.assign({ requestId }, fields));
       const framed = frameEncode(bytes);
       return new Promise((resolve, reject) => {
-        const timer = setTimeout(() => {
-          pending.delete(requestId);
-          const err = new Error('タイムアウトしました');
-          err.code = 'TIMEOUT';
-          reject(err);
-        }, timeoutMs);
-        pending.set(requestId, { resolve, reject, timer });
+        const entry = { resolve, reject, timer: null };
+        armTimer(requestId, entry);
+        pending.set(requestId, entry);
         send(framed);
       });
     }
 
+    // 大きな応答は小さな indicate に分かれて届くので、受信が続いている間はタイムアウトを延ばす
+    function armTimer(requestId, entry) {
+      clearTimeout(entry.timer);
+      entry.timer = setTimeout(() => {
+        pending.delete(requestId);
+        const err = new Error('タイムアウトしました');
+        err.code = 'TIMEOUT';
+        entry.reject(err);
+      }, timeoutMs);
+    }
+
     client.onData = function (bytes) {
+      for (const [id, entry] of pending) armTimer(id, entry);
       const frames = decoder.push(bytes);
       for (const frame of frames) {
         let decoded;

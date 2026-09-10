@@ -1893,7 +1893,7 @@
   function createStudioClient() {
     studioClient = TpStudio.createClient({
       send: (bytes) => transport.studioWrite(bytes),
-      timeoutMs: 5000,
+      timeoutMs: 10000,
     });
     studioClient.onNotification = (n) => {
       if (n.keymap && n.keymap.unsavedChangesStatusChanged !== undefined) {
