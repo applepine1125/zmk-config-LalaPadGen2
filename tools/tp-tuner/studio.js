@@ -524,6 +524,7 @@
         try {
           decoded = decodeResponse(frame);
         } catch (e) {
+          console.error("Studio 応答の復号に失敗: " + (e && e.message ? e.message : e) + " len=" + frame.length);
           continue;
         }
         if (decoded.notification) {

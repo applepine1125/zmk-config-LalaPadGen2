@@ -278,7 +278,7 @@ extension BleTransport: CBPeripheralDelegate {
   func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
     if characteristic.uuid == studioRpcUUID {
       guard let data = characteristic.value else { return }
-      studioLog("indicate \(data.count)B")
+      studioLog("indicate \(data.count)B \(data.base64EncodedString())")
       delegate?.bleTransportStudioData(data)
       return
     }
