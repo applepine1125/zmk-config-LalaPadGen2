@@ -408,8 +408,9 @@ static void left_fail(const struct left_pending *p, const char *text) {
     left_reply(p, ".");
 }
 
+/* cmd_work(システムワークキュー)からしか呼ばれないので、スタックを節約するためバッファは static */
 static void left_failf(const struct left_pending *p, const char *fmt, ...) {
-    char buf[TP_TUNER_LINE_MAX];
+    static char buf[TP_TUNER_LINE_MAX];
     va_list ap;
 
     va_start(ap, fmt);
