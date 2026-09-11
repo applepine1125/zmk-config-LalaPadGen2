@@ -107,7 +107,12 @@
     }
     setStudioNotice('');
     if (!studioClient) createStudioClient();
-    if (!keymapData) loadKeymapData(); else renderKeymapWorkspace();
+    if (!keymapData) {
+      loadKeymapData();
+    } else {
+      if (activeTab === 'keymap') Pad.setTrackpadQuiet(true);
+      renderKeymapWorkspace();
+    }
   }
 
   function loadKeymapData() {
@@ -132,7 +137,8 @@
         setStudioNotice('');
         renderKeymapWorkspace();
       } catch (e) {
-        setStudioNotice('キー設定の読み込みに失敗しました: ' + errText(e) + '(「再読み込み」でやり直せます)');
+        const torndown = (e && e.code === 'DISPOSED') || !studioClient;
+        if (!torndown) setStudioNotice('キー設定の読み込みに失敗しました: ' + errText(e) + '(「再読み込み」でやり直せます)');
       } finally {
         if (activeTab !== 'keymap') await Pad.setTrackpadQuiet(false);
         loadPromise = null;
@@ -515,77 +521,106 @@
 
   async function save() {
     if (!studioClient) throw new Error('Studio に接続されていません');
-    await studioClient.saveChanges();
-    studioDirty = false;
-    root.TpAppMain.renderHeader();
+    await Pad.setTrackpadQuiet(true);
+    try {
+      await studioClient.saveChanges();
+      studioDirty = false;
+      root.TpAppMain.renderHeader();
+    } finally {
+      if (activeTab !== 'keymap') await Pad.setTrackpadQuiet(false);
+    }
   }
 
   async function reload() {
     if (!isStudioUsable()) return false;
     if (!studioClient) createStudioClient();
-    if (studioDirty) {
-      try { await studioClient.discardChanges(); studioDirty = false; } catch (e) { /* 続けて読み直す */ }
+    await Pad.setTrackpadQuiet(true);
+    try {
+      if (studioDirty) {
+        try { await studioClient.discardChanges(); studioDirty = false; } catch (e) { /* 続けて読み直す */ }
+      }
+      await loadKeymapData();
+      return isReady();
+    } finally {
+      if (activeTab !== 'keymap') await Pad.setTrackpadQuiet(false);
     }
-    await loadKeymapData();
-    return isReady();
   }
 
   async function resetToDefault() {
     if (!studioClient) throw new Error('Studio に接続されていません');
-    const ok = await studioClient.resetSettings();
-    if (!ok) throw new Error('ファームが拒否しました');
-    studioDirty = false;
-    await loadKeymapData();
+    await Pad.setTrackpadQuiet(true);
+    try {
+      const ok = await studioClient.resetSettings();
+      if (!ok) throw new Error('ファームが拒否しました');
+      studioDirty = false;
+      await loadKeymapData();
+    } finally {
+      if (activeTab !== 'keymap') await Pad.setTrackpadQuiet(false);
+    }
   }
 
   async function applyPresetKeymap(preset) {
     if (!studioClient || !keymapData) return { applied: 0, skipped: 0, layerError: 'キー設定を読み込んでから反映してください' };
-    const adjust = TpPresets.layerCountAdjust(preset, keymapData);
-    let layerError = null;
-    for (let i = 0; i < adjust.add && !layerError; i++) {
-      if (keymapData.availableLayers <= 0) { layerError = 'レイヤーをこれ以上追加できません'; break; }
-      try {
-        const res = await studioClient.addLayer();
-        keymapData.layers.push(res.layer);
-        keymapData.availableLayers = Math.max(0, keymapData.availableLayers - 1);
-      } catch (e) {
-        layerError = 'レイヤーの追加に失敗しました: ' + errText(e);
-      }
-    }
-    for (let i = 0; i < adjust.remove && !layerError && keymapData.layers.length > 1; i++) {
-      const lastIndex = keymapData.layers.length - 1;
-      try {
-        await studioClient.removeLayer(lastIndex);
-        keymapData.layers.splice(lastIndex, 1);
-        keymapData.availableLayers += 1;
-      } catch (e) {
-        layerError = 'レイヤーの削除に失敗しました: ' + errText(e);
-      }
-    }
+    await Pad.setTrackpadQuiet(true);
     try {
-      keymapData = await studioClient.getKeymap();
-    } catch (e) {
-      layerError = layerError || ('キー設定の再取得に失敗しました: ' + errText(e));
-    }
-    let applied = 0;
-    let skipped = 0;
-    const plan = TpPresets.planKeymapBindings(preset, keymapData, behaviors);
-    skipped += plan.skipped.length;
-    for (const op of plan.ops) {
-      try {
-        const code = await studioClient.setLayerBinding(op.layerId, op.pos, op.binding);
-        if (code) { skipped++; continue; }
-        keymapData.layers[op.layerIndex].bindings[op.pos] = op.binding;
-        applied++;
-      } catch (e) {
-        skipped++;
+      const adjust = TpPresets.layerCountAdjust(preset, keymapData);
+      let layerError = null;
+      for (let i = 0; i < adjust.add && !layerError; i++) {
+        if (!keymapData || keymapData.availableLayers <= 0) { layerError = 'レイヤーをこれ以上追加できません'; break; }
+        try {
+          const res = await studioClient.addLayer();
+          keymapData.layers.push(res.layer);
+          keymapData.availableLayers = Math.max(0, keymapData.availableLayers - 1);
+        } catch (e) {
+          layerError = 'レイヤーの追加に失敗しました: ' + errText(e);
+        }
       }
+      for (let i = 0; i < adjust.remove && !layerError && keymapData && keymapData.layers.length > 1; i++) {
+        const lastIndex = keymapData.layers.length - 1;
+        try {
+          await studioClient.removeLayer(lastIndex);
+          keymapData.layers.splice(lastIndex, 1);
+          keymapData.availableLayers += 1;
+        } catch (e) {
+          layerError = 'レイヤーの削除に失敗しました: ' + errText(e);
+        }
+      }
+      if (studioClient && keymapData) {
+        try {
+          keymapData = await studioClient.getKeymap();
+        } catch (e) {
+          layerError = layerError || ('キー設定の再取得に失敗しました: ' + errText(e));
+        }
+      }
+      if (!studioClient || !keymapData) {
+        return { applied: 0, skipped: 0, layerError: layerError || 'キー設定の接続が切れました' };
+      }
+      let applied = 0;
+      let skipped = 0;
+      const plan = TpPresets.planKeymapBindings(preset, keymapData, behaviors);
+      skipped += plan.skipped.length;
+      for (let i = 0; i < plan.ops.length; i++) {
+        if (!studioClient || !keymapData) { skipped += plan.ops.length - i; break; }
+        const op = plan.ops[i];
+        try {
+          const code = await studioClient.setLayerBinding(op.layerId, op.pos, op.binding);
+          if (code) { skipped++; continue; }
+          keymapData.layers[op.layerIndex].bindings[op.pos] = op.binding;
+          applied++;
+        } catch (e) {
+          skipped++;
+        }
+      }
+      if (studioClient) {
+        try { studioDirty = await studioClient.checkUnsavedChanges(); } catch (e) { /* 反映結果は返すので通知は諦める */ }
+      }
+      if (keymapData && selectedLayerIndex >= keymapData.layers.length) selectedLayerIndex = 0;
+      renderKeymapWorkspace();
+      root.TpAppMain.renderHeader();
+      return { applied, skipped, layerError };
+    } finally {
+      if (activeTab !== 'keymap') await Pad.setTrackpadQuiet(false);
     }
-    try { studioDirty = await studioClient.checkUnsavedChanges(); } catch (e) { /* 反映結果は返すので通知は諦める */ }
-    if (selectedLayerIndex >= keymapData.layers.length) selectedLayerIndex = 0;
-    renderKeymapWorkspace();
-    root.TpAppMain.renderHeader();
-    return { applied, skipped, layerError };
   }
 
   function handleStudioReady(available) {
@@ -608,6 +643,7 @@
 
   function setActiveTab(tab) {
     activeTab = tab;
+    if (tab === 'keymap' && isReady()) Pad.setTrackpadQuiet(true);
   }
 
   $('btnLayerAdd').onclick = async () => {
