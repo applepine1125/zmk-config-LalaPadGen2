@@ -3,6 +3,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
   private var window: NSWindow!
   private var bridge: WebBridge!
+  private let updater = Updater()
   private let isCheckMode = CommandLine.arguments.contains("--check")
 
   func applicationDidFinishLaunching(_ notification: Notification) {
@@ -27,6 +28,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
     bridge.start()
 
     NSApplication.shared.activate(ignoringOtherApps: true)
+
+    if !isCheckMode {
+      updater.checkAtLaunch()
+    }
   }
 
   func windowWillClose(_ notification: Notification) {
@@ -52,6 +57,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
     let appMenuItem = NSMenuItem()
     let appMenu = NSMenu()
+    let checkUpdateItem = NSMenuItem(title: "更新を確認…", action: #selector(checkForUpdates), keyEquivalent: "")
+    checkUpdateItem.target = self
+    appMenu.addItem(checkUpdateItem)
+    appMenu.addItem(NSMenuItem.separator())
     appMenu.addItem(withTitle: "Quit tp-tuner", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
     appMenuItem.submenu = appMenu
     mainMenu.addItem(appMenuItem)
@@ -69,6 +78,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate {
 
   @objc private func reloadPage() {
     bridge.reload()
+  }
+
+  @objc private func checkForUpdates() {
+    updater.checkFromMenu()
   }
 }
 

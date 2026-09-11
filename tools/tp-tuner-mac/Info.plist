@@ -18,5 +18,15 @@
   <string>LalaPad のトラックパッド設定を BLE で読み書きするために使います</string>
   <key>NSPrincipalClass</key>
   <string>NSApplication</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.0.0</string>
+  <key>CFBundleVersion</key>
+  <string>0</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.utilities</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>© 2026 applepine1125</string>
 </dict>
 </plist>
