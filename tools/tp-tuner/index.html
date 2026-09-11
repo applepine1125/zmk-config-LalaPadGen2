@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>tp-tuner: トラックパッド調整</title>
+<style>
+  :root {
+    --bg: #eef1f6;
+    --surface: #ffffff;
+    --surface-alt: #f6f7fb;
+    --border: rgba(15, 23, 42, .09);
+    --border-strong: rgba(15, 23, 42, .16);
+    --text: #0f172a;
+    --muted: #667085;
+    --accent: #2563eb;
+    --accent-weak: rgba(37, 99, 235, .12);
+    --accent-text: #ffffff;
+    --danger: #dc2626;
+    --danger-weak: rgba(220, 38, 38, .1);
+    --warn: #b45309;
+    --warn-weak: rgba(217, 119, 6, .12);
+    --radius: 14px;
+    --radius-sm: 9px;
+    --shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 10px 30px -16px rgba(15, 23, 42, .22);
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+    --pad-idle: #7c8aa5;
+    --pad-blue: #38bdf8;
+    --pad-green: #34d399;
+    --pad-orange: #fb923c;
+    --pad-purple: #c084fc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0b1120;
+      --surface: #141c2e;
+      --surface-alt: #101828;
+      --border: rgba(255, 255, 255, .09);
+      --border-strong: rgba(255, 255, 255, .18);
+      --text: #e5e9f2;
+      --muted: #8b96ab;
+      --accent: #5b9bf7;
+      --accent-weak: rgba(91, 155, 247, .18);
+      --accent-text: #06101f;
+      --danger: #f87171;
+      --danger-weak: rgba(248, 113, 113, .14);
+      --warn: #fbbf24;
+      --warn-weak: rgba(251, 191, 36, .14);
+      --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 30px -16px rgba(0, 0, 0, .6);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  body {
+    font: 13px/1.5 -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    font-variant-numeric: tabular-nums;
+    padding: 0 16px 24px;
+    overflow-x: hidden;
+  }
+  h1 { font-size: 15px; margin: 0 12px 0 0; font-weight: 700; white-space: nowrap; }
+  h2 {
+    font-size: 11px; margin: 0 0 8px; color: var(--muted); font-weight: 700;
+    letter-spacing: .04em; text-transform: uppercase;
+  }
+  button {
+    font: inherit; padding: 5px 12px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--text); cursor: pointer;
+    transition: transform .15s ease, box-shadow .15s ease, border-color .15s ease, background .15s ease;
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); box-shadow: var(--shadow); transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.active { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); }
+  select, input[type=number], input[type=text], input[type=search] {
+    font: inherit; padding: 3px 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
+    background: var(--surface); color: var(--text);
+  }
+  input[type=number] { text-align: right; }
+  #topbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; flex-direction: column; gap: 8px;
+    margin: 0 -16px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border);
+  }
+  #topbarRow1 { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  #topbarRow2 { display: flex; align-items: center; }
+  #topbar .sep { width: 1px; height: 18px; background: var(--border-strong); }
+  #connStatus { color: var(--muted); }
+  #devicePanel:not([hidden]) {
+    display: flex; align-items: center; gap: 8px; margin-top: 10px; padding: 8px 12px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+  }
+  #autoConnectLabel { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); cursor: pointer; white-space: nowrap; }
+  #dirtyIndicator { color: var(--warn); font-weight: 600; white-space: nowrap; }
+  #status { flex: 1 1 200px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  #status.error { color: var(--danger); }
+  #notice {
+    margin: 10px 0 0; padding: 10px 12px; border-radius: var(--radius);
+    background: var(--warn-weak); border: 1px solid var(--warn); color: var(--warn);
+  }
+  details#logbox { margin-top: 14px; }
+  details#logbox summary { cursor: pointer; color: var(--muted); padding: 4px 0; }
+  #log {
+    user-select: text;
+    -webkit-user-select: text;
+    margin: 6px 0 0; max-height: 160px; overflow: auto; padding: 8px 10px;
+    background: #0b1120; color: #d7dde8; font: 11px/1.4 var(--mono);
+    white-space: pre-wrap; word-break: break-all; border-radius: var(--radius-sm);
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 12px 14px; min-width: 0;
+  }
+  #liveRow {
+    display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-top: 12px; color: var(--muted);
+  }
+  #liveRow label { display: inline-flex; align-items: center; gap: 6px; }
+  #workspace { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 12px; align-items: start; }
+  @media (max-width: 860px) { #workspace { grid-template-columns: 1fr; } }
+  .padscol, .opscol { min-width: 0; }
+  .padgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 520px) { .padgrid { grid-template-columns: 1fr; } }
+  .padcard {
+    display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 12px;
+    border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .padhead { display: flex; align-items: center; justify-content: center; width: 100%; }
+  .padnow { font-size: 13px; font-weight: 700; text-align: center; height: 2.8em; line-height: 1.4; overflow: hidden; overflow-wrap: anywhere; display: flex; align-items: center; justify-content: center; }
+  .padcard[data-state="blue"] .padnow { color: var(--pad-blue); }
+  .padcard[data-state="green"] .padnow { color: var(--pad-green); }
+  .padcard[data-state="orange"] .padnow { color: var(--pad-orange); }
+  .padcard[data-state="purple"] .padnow { color: var(--pad-purple); }
+  .padcard[data-dragging="1"] .padnow { color: var(--danger); }
+  .sidebadge {
+    font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 999px;
+    background: var(--surface-alt); color: var(--muted); border: 1px solid var(--border);
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .padcard[data-state="blue"] .sidebadge { background: var(--pad-blue); color: #06101f; border-color: transparent; }
+  .padcard[data-state="green"] .sidebadge { background: var(--pad-green); color: #06101f; border-color: transparent; }
+  .padcard[data-state="orange"] .sidebadge { background: var(--pad-orange); color: #06101f; border-color: transparent; }
+  .padcard[data-state="purple"] .sidebadge { background: var(--pad-purple); color: #06101f; border-color: transparent; }
+  .padcard[data-dragging="1"] .sidebadge { background: var(--danger); color: #fff; border-color: transparent; }
+  .padcanvas { border-radius: var(--radius-sm); display: block; max-width: 100%; }
+  .padstatus { color: var(--muted); font-size: 11px; text-align: center; }
+  .oplabel { font-weight: 600; flex: none; }
+  .opslog ol { margin: 0; padding: 0; list-style: none; height: 245px; overflow-y: auto; }
+  .opslog li {
+    display: flex; gap: 8px; align-items: baseline; padding: 6px 2px; border-bottom: 1px solid var(--border);
+    font-size: 12px;
+  }
+  .opslog li:last-child { border-bottom: none; }
+  .opslog li.empty { color: var(--muted); }
+  .optime { color: var(--muted); font-family: var(--mono); font-size: 11px; flex: none; }
+  .opside {
+    flex: none; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 999px;
+    background: var(--surface-alt); color: var(--muted); border: 1px solid var(--border);
+  }
+  .optext { overflow-wrap: anywhere; }
+  details.section {
+    margin-top: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 8px 14px; box-shadow: var(--shadow);
+  }
+  details.section > summary { cursor: pointer; font-weight: 700; color: var(--muted); font-size: 12px; padding: 4px 0; }
+  details.section > .body { padding-top: 10px; }
+  .toolbar { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 10px; }
+  .toolbar label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
+  #paramSearch { box-sizing: border-box; }
+  fieldset {
+    border: 1px solid var(--border); border-radius: var(--radius); margin: 0 0 10px; padding: 8px 10px 6px;
+    background: var(--surface-alt);
+  }
+  legend { font-weight: 700; padding: 0 4px; font-size: 12px; color: var(--muted); }
+  fieldset > button { margin-bottom: 6px; }
+  .param {
+    display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(0, 1fr);
+    gap: 6px; align-items: center; padding: 4px 6px; border-radius: var(--radius-sm);
+  }
+  .param.detail { grid-template-columns: minmax(120px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .param label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; }
+  .param .desc { grid-column: 1 / -1; color: var(--muted); font-size: 11px; margin-top: -2px; }
+  .param .cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  .param input[type=range] {
+    flex: 1 1 auto; min-width: 0; margin: 0; height: 4px; appearance: none; background: var(--border-strong);
+    border-radius: 999px; outline: none;
+  }
+  .param input[type=range]::-webkit-slider-thumb {
+    appearance: none; width: 13px; height: 13px; border-radius: 50%; background: var(--accent); cursor: pointer;
+  }
+  .param input[type=number] { width: 62px; flex: none; }
+  .param.bool input[type=checkbox] { justify-self: start; }
+  .param.changed { background: var(--warn-weak); }
+  .param.error { background: var(--danger-weak); }
+  .param.presetdiff { box-shadow: inset 3px 0 0 var(--accent); }
+  .pendingmark { color: var(--warn); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .presetmark { color: var(--accent); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .param.inactive { opacity: .45; }
+  .param .cell.inactive { opacity: .45; }
+  .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
+  .legend { color: var(--muted); font-size: 11px; }
+  #captureOverlay {
+    position: fixed; inset: 0; z-index: 1000; cursor: crosshair;
+    display: flex; align-items: center; justify-content: center; padding: 24px;
+    background: rgba(11, 17, 32, .72); color: #f4f6fb; text-align: center;
+  }
+  #captureOverlay[hidden] { display: none; }
+  #captureMsg { max-width: 420px; font-size: 14px; line-height: 1.7; }
+  #tabbar { display: flex; gap: 6px; }
+  #tabbar button.active { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  #actions:not([hidden]), #presetRow:not([hidden]) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #presetDiffIndicator { color: var(--accent); font-weight: 700; white-space: nowrap; }
+  dialog#presetNameDialog {
+    background: var(--surface); color: var(--text); border: none; border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px 18px; min-width: 280px;
+  }
+  dialog#presetNameDialog::backdrop { background: rgba(15, 23, 42, .5); }
+  dialog#presetNameDialog h2 { font-size: 13px; margin: 0 0 6px; }
+  dialog#presetNameDialog input[type=text] { width: 100%; box-sizing: border-box; margin: 8px 0; }
+  dialog#presetNameDialog .dialogbuttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+  .error { color: var(--danger); font-size: 12px; }
+  #studioNotice:not([hidden]) {
+    margin-top: 12px; padding: 10px 12px; border-radius: var(--radius);
+    background: var(--surface); border: 1px solid var(--border); color: var(--muted);
+  }
+  #keymapWorkspace:not([hidden]) { display: grid; grid-template-columns: 1fr 340px; gap: 14px; margin-top: 12px; align-items: start; }
+  @media (max-width: 980px) { #keymapWorkspace { grid-template-columns: 1fr; } }
+  .layerlist-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+  .layer-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 700; }
+  .layer-btn.presetdiff::after { content: '●'; color: var(--warn); font-size: 9px; margin-left: 4px; }
+  .keymap-svg-wrap { overflow-x: auto; }
+  .keymap-svg-wrap svg { width: 100%; max-width: 1200px; display: block; margin: 0 auto; }
+  .keycap { fill: var(--surface-alt); stroke: var(--border-strong); stroke-width: 1.5; cursor: pointer; }
+  .keycap:hover { stroke: var(--accent); }
+  .keycap.selected { fill: var(--accent-weak); stroke: var(--accent); stroke-width: 2.5; }
+  .keycap.presetdiff { stroke: var(--warn); stroke-width: 2.5; stroke-dasharray: 5 3; }
+  .keycap-label { fill: var(--text); font: 600 15px -apple-system, sans-serif; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
+  .keycap-label.placeholder { fill: var(--muted); }
+  .keyeditor .field { margin-bottom: 10px; }
+  .keyeditor label.fieldlabel { display: block; font-size: 11px; color: var(--muted); margin-bottom: 3px; }
+  .modrow { display: flex; gap: 10px; margin: 6px 0 10px; flex-wrap: wrap; }
+  .modrow label { display: inline-flex; align-items: center; gap: 3px; font-size: 12px; white-space: nowrap; }
+  .kcsearch { width: 100%; margin-bottom: 8px; box-sizing: border-box; }
+  .kcgroups { max-height: 260px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 6px; }
+  .kcgroup-title { font-size: 10px; color: var(--muted); font-weight: 700; margin: 6px 0 2px; text-transform: uppercase; }
+  .kcgrid { display: flex; flex-wrap: wrap; gap: 4px; }
+  .kcbtn { padding: 3px 8px; font-size: 12px; }
+  .kcbtn.selected { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div id="topbarRow1">
+    <h1>tp-tuner</h1>
+    <button id="btnConnect" class="primary">接続</button>
+    <button id="btnDisconnect" disabled>切断</button>
+    <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
+    <span id="connStatus">未接続</span>
+    <span class="sep"></span>
+    <div id="actions">
+      <button id="btnWrite" class="primary" disabled>書き込み</button>
+      <span id="dirtyIndicator" hidden></span>
+      <button id="btnReload" disabled>再読み込み</button>
+      <button id="btnResetAll" disabled>デフォルトに戻す</button>
+      <button id="btnExport">.conf をエクスポート</button>
+      <button id="btnKeymapExport">.keymap をエクスポート</button>
+    </div>
+    <span class="sep"></span>
+    <span id="status"></span>
+  </div>
+  <div id="presetRow">
+    <label for="selPreset">プリセット</label>
+    <select id="selPreset"></select>
+    <button id="btnPresetNew">新規作成</button>
+    <button id="btnPresetSave" disabled>保存</button>
+    <button id="btnPresetDelete" disabled>削除</button>
+    <span id="presetDiffIndicator" hidden></span>
+  </div>
+  <div id="topbarRow2">
+    <div id="tabbar">
+      <button id="tabBtnTrackpad" class="active">タッチパッド設定</button>
+      <button id="tabBtnKeymap">キー設定</button>
+    </div>
+  </div>
+</div>
+<dialog id="presetNameDialog">
+  <form method="dialog">
+    <h2>プリセットを新規作成</h2>
+    <p class="legend">今の画面の状態(タッチパッド + キー設定)を保存します</p>
+    <input type="text" id="presetNameInput" maxlength="40" placeholder="名前">
+    <p id="presetNameError" class="error" hidden></p>
+    <div class="dialogbuttons">
+      <button value="cancel" formnovalidate>キャンセル</button>
+      <button value="ok" id="presetNameOk" class="primary">作成</button>
+    </div>
+  </form>
+</dialog>
+<div id="devicePanel" hidden>
+  <select id="selDevice"></select>
+  <button id="btnConnectDevice">この機器に接続</button>
+</div>
+<div id="notice" hidden></div>
+
+<div id="tabTrackpad">
+<div class="row" id="liveRow">
+  <label><input type="checkbox" id="chkLive" checked>ライブ表示</label>
+  <button id="btnCapture">ポインタロック</button>
+</div>
+
+<div id="captureOverlay" hidden>
+  <div id="captureMsg"></div>
+</div>
+
+<div id="workspace">
+  <section class="padscol">
+    <div class="padgrid">
+      <div class="padcard" id="padCardL" data-side="L">
+        <div class="padhead"><span class="sidebadge">左手</span></div>
+        <div class="padnow" id="nowL">-</div>
+        <canvas class="padcanvas" id="padL"></canvas>
+        <div class="padstatus" id="padStatusL">未接続</div>
+      </div>
+      <div class="padcard" id="padCardR" data-side="R">
+        <div class="padhead"><span class="sidebadge">右手</span></div>
+        <div class="padnow" id="nowR">-</div>
+        <canvas class="padcanvas" id="padR"></canvas>
+        <div class="padstatus" id="padStatusR">未接続</div>
+      </div>
+    </div>
+  </section>
+  <section class="opscol">
+    <div class="card opslog">
+      <h2>検知した操作</h2>
+      <ol id="opsLog"></ol>
+    </div>
+  </section>
+</div>
+
+<details class="section" id="secParams" open>
+  <summary>パラメータ</summary>
+  <div class="body">
+    <div class="toolbar">
+      <input type="search" id="paramSearch" placeholder="パラメータを検索(名前・説明)">
+      <label><input type="checkbox" id="chkDetail">詳細: 左右別に設定</label>
+    </div>
+    <div id="params"><span class="legend">接続すると tp list の内容がここに表示されます</span></div>
+  </div>
+</details>
+
+<details id="logbox">
+  <summary>シリアルログ <button id="btnStats" type="button" title="左右の計測値(syswq 遅れ・フレーム処理時間・I2C エラー・接続パラメータ)を読み取ってログに出す。読み取るとリセットされる">統計</button> <button id="btnLogCopy" type="button" title="ログ全体をクリップボードにコピー">コピー</button></summary>
+  <pre id="log"></pre>
+</details>
+</div>
+
+<div id="tabKeymap" hidden>
+  <div id="studioNotice" class="legend" hidden></div>
+  <div id="keymapWorkspace" hidden>
+    <section class="padscol">
+      <div class="card layerbar">
+        <h2>レイヤー</h2>
+        <div class="layerlist-row" id="layerList"></div>
+        <div id="presetLayerNote" class="legend" hidden></div>
+        <div class="row">
+          <button id="btnLayerAdd">追加</button>
+          <button id="btnLayerRemove">削除</button>
+        </div>
+      </div>
+      <div class="card keymap-svg-card">
+        <h2>キー配列</h2>
+        <div class="keymap-svg-wrap" id="keymapSvgWrap"></div>
+      </div>
+    </section>
+    <section class="opscol">
+      <div class="card keyeditor" id="keyEditor" hidden>
+        <h2>キーの設定</h2>
+        <div id="keyEditorBody"></div>
+      </div>
+    </section>
+  </div>
+</div>
+
+<script src="keycodes.js"></script>
+<script src="studio.js"></script>
+<script src="keymap_ui.js"></script>
+<script src="keymap_export.js"></script>
+<script src="presets.js"></script>
+<script src="tuner.js"></script>
+<script>
+  if (/(?:^|[?&])fakeNative=1(?:&|$)/.test(location.search)) {
+    document.write('<script src="dev/fake-native.js"><\/script>');
+  }
+</script>
+<script src="app_link.js"></script>
+<script src="app_params.js"></script>
+<script src="app_pad.js"></script>
+<script src="app_keymap.js"></script>
+<script src="app_presets.js"></script>
+<script src="app_main.js"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+name: tp-tuner app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'tools/tp-tuner/**'
+      - 'tools/tp-tuner-mac/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-14
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build app
+        run: bash tools/tp-tuner-mac/build.sh --build ${{ github.run_number }}
+
+      - name: Package zip
+        run: ditto -c -k --keepParent tools/tp-tuner-mac/build/TpTuner.app "TpTuner-b${{ github.run_number }}.zip"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          notes="$(git log -1 --format='%h %s')"
+          gh release create "tp-tuner-b${{ github.run_number }}" "TpTuner-b${{ github.run_number }}.zip" \
+            --title "tp-tuner build ${{ github.run_number }}" \
+            --notes "$notes"

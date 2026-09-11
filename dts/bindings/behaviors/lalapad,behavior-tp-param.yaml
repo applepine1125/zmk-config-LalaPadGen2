@@ -1,0 +1,8 @@
+description: |
+  tp-tuner の左手向けパラメータ転送 behavior。右手(central)が
+  zmk_split_central_invoke_behavior で送り、左手(peripheral)で
+  param1(パラメータ index または 0x8000 以上のオペコード)と param2(値)を実行する。
+
+compatible: "lalapad,behavior-tp-param"
+
+include: two_param.yaml
