@@ -85,7 +85,6 @@
     Pad.markPadDirty();
     $('btnConnect').disabled = isConn || (!navigator.serial && !Link.hasNativeBridge);
     $('btnDisconnect').disabled = !isConn;
-    Params.setButtonsEnabled(isConn);
     if (!isConn) {
       Pad.resetTrackpadQuiet();
       Params.reset();

@@ -4,6 +4,8 @@
   if (!T) return;
   const Link = root.TpAppLink;
   if (!Link) return;
+  const Presets = root.TpPresets;
+  if (!Presets) return;
 
   const $ = (id) => document.getElementById(id);
 
@@ -91,6 +93,8 @@
   const params = { R: [], L: [] };
   let pending = { common: {}, R: {}, L: {} };
   let detailMode = false;
+  let query = '';
+  let presetTrackpad = null;
   let mergedByName = {};
   const DEPENDENT_ON = (() => {
     const map = {};
@@ -138,6 +142,50 @@
     return count;
   }
 
+  function screenTrackpad() {
+    return Presets.trackpadScreenValues({ R: params.R, L: params.L }, pending);
+  }
+
+  function setPresetTrackpad(presetTrackpadOrNull) {
+    presetTrackpad = presetTrackpadOrNull || null;
+    renderParams();
+  }
+
+  function presetDiff() {
+    return Presets.trackpadDiff(presetTrackpad, screenTrackpad());
+  }
+
+  function applyPresetTrackpad(trackpad) {
+    pending = Presets.trackpadPendingFromPreset(trackpad, { R: params.R, L: params.L });
+    renderParams();
+    root.TpAppMain.renderHeader();
+  }
+
+  function presetDiffForName(name, screen) {
+    if (!presetTrackpad) return null;
+    const pr = presetTrackpad.R;
+    const pl = presetTrackpad.L;
+    const sr = screen.R;
+    const sl = screen.L;
+    const rHas = !!(pr && Object.prototype.hasOwnProperty.call(pr, name));
+    const lHas = !!(pl && Object.prototype.hasOwnProperty.call(pl, name));
+    const rReadable = !!(sr && Object.prototype.hasOwnProperty.call(sr, name));
+    const lReadable = !!(sl && Object.prototype.hasOwnProperty.call(sl, name));
+    const rDiff = rHas && rReadable && pr[name] !== sr[name];
+    const lDiff = lHas && lReadable && pl[name] !== sl[name];
+    if (!rDiff && !lDiff) return null;
+    return { rDiff, lDiff, presetR: rHas ? pr[name] : undefined, presetL: lHas ? pl[name] : undefined };
+  }
+
+  function presetMarkTextCommon(kind, info) {
+    if (info.rDiff && info.lDiff && info.presetR === info.presetL) {
+      return `プリセット: ${T.formatParamValue(kind, info.presetR)}`;
+    }
+    const rTxt = info.presetR !== undefined ? T.formatParamValue(kind, info.presetR) : '-';
+    const lTxt = info.presetL !== undefined ? T.formatParamValue(kind, info.presetL) : '-';
+    return `プリセット: 右 ${rTxt} / 左 ${lTxt}`;
+  }
+
   function commonGetValue(name) {
     if (Object.prototype.hasOwnProperty.call(pending.common, name)) return pending.common[name];
     const p = mergedByName[name];
@@ -151,6 +199,15 @@
     const p = mergedByName[name];
     if (!p) return undefined;
     return sideKey === 'R' ? p.valueR : p.valueL;
+  }
+
+  function commonScreenValue(p) {
+    if (Object.prototype.hasOwnProperty.call(pending.common, p.name)) return pending.common[p.name];
+    const vals = [];
+    if (p.valueR !== null) vals.push(sideGetValue('R', p.name));
+    if (p.valueL !== null) vals.push(sideGetValue('L', p.name));
+    if (vals.length && vals.every((v) => v === vals[0])) return vals[0];
+    return p.value;
   }
 
   function isRowActiveCommon(name) {
@@ -188,27 +245,95 @@
     }
   }
 
+  function applyRowVisuals(row, p, screen) {
+    const presetInfo = presetDiffForName(p.name, screen);
+    row.classList.toggle('presetdiff', !!presetInfo);
+    if (detailMode) {
+      for (const sideKey of ['R', 'L']) {
+        const cell = row.querySelector(`.cell[data-side="${sideKey}"]`);
+        if (!cell) continue;
+        const old = cell.querySelector('.presetmark');
+        if (old) old.remove();
+        const diff = sideKey === 'R' ? (presetInfo && presetInfo.rDiff) : (presetInfo && presetInfo.lDiff);
+        if (diff) {
+          const val = sideKey === 'R' ? presetInfo.presetR : presetInfo.presetL;
+          const pm = document.createElement('span');
+          pm.className = 'presetmark';
+          pm.textContent = `プリセット: ${T.formatParamValue(p.kind, val)}`;
+          cell.appendChild(pm);
+        }
+      }
+      let descDiv = row.querySelector('.desc');
+      const help = helpText(p.name);
+      if (help) {
+        if (!descDiv) { descDiv = document.createElement('div'); descDiv.className = 'desc'; row.appendChild(descDiv); }
+        descDiv.textContent = help;
+      } else if (descDiv) {
+        descDiv.remove();
+      }
+      return;
+    }
+    const bothReadable = p.valueR !== null && p.valueL !== null;
+    const rVal = bothReadable ? sideGetValue('R', p.name) : null;
+    const lVal = bothReadable ? sideGetValue('L', p.name) : null;
+    const differs = bothReadable && rVal !== lVal;
+    const help = helpText(p.name);
+    const presetText = presetInfo ? presetMarkTextCommon(p.kind, presetInfo) : '';
+    const differsText = differs ? `左右で違う(右 ${T.formatParamValue(p.kind, rVal)} / 左 ${T.formatParamValue(p.kind, lVal)})` : '';
+    let descDiv = row.querySelector('.desc');
+    if (presetText || differsText || help) {
+      if (!descDiv) { descDiv = document.createElement('div'); descDiv.className = 'desc'; row.appendChild(descDiv); }
+      descDiv.innerHTML = '';
+      if (presetText) {
+        const pm = document.createElement('span');
+        pm.className = 'presetmark';
+        pm.textContent = presetText;
+        descDiv.appendChild(pm);
+      }
+      const rest = [differsText, help].filter(Boolean).join(' ・ ');
+      if (rest) {
+        if (presetText) descDiv.appendChild(document.createTextNode(' ・ '));
+        descDiv.appendChild(document.createTextNode(rest));
+      }
+    } else if (descDiv) {
+      descDiv.remove();
+    }
+  }
+
+  function refreshRowVisuals(name) {
+    const row = document.querySelector(`.param[data-name="${CSS.escape(name)}"]`);
+    if (!row) return;
+    const p = mergedByName[name];
+    if (!p) return;
+    applyRowVisuals(row, p, screenTrackpad());
+  }
+
   function updateRowMark(nameKey, bucket, originalValue) {
     const row = document.querySelector(`.param[data-name="${CSS.escape(nameKey)}"]`);
     if (!row) return;
+    const p = mergedByName[nameKey];
     const cell = bucket === 'common' ? row.querySelector('.cell') : row.querySelector(`.cell[data-side="${bucket}"]`);
-    if (!cell) return;
-    const mark = cell.querySelector('.pendingmark');
-    if (mark) mark.remove();
-    const value = bucket === 'common' ? pending.common[nameKey] : pending[bucket][nameKey];
-    if (value !== undefined) {
-      const m = document.createElement('span');
-      m.className = 'pendingmark';
-      m.textContent = `← ${originalValue}`;
-      cell.appendChild(m);
+    if (cell) {
+      const mark = cell.querySelector('.pendingmark');
+      if (mark) mark.remove();
+      const value = bucket === 'common' ? pending.common[nameKey] : pending[bucket][nameKey];
+      if (value !== undefined) {
+        const m = document.createElement('span');
+        m.className = 'pendingmark';
+        m.textContent = `← ${T.formatParamValue(p ? p.kind : undefined, originalValue)}`;
+        cell.appendChild(m);
+      }
     }
     const rowHasPending = pending.common[nameKey] !== undefined || pending.R[nameKey] !== undefined || pending.L[nameKey] !== undefined;
     row.classList.toggle('changed', rowHasPending);
   }
 
   function setPendingCommon(p, value) {
+    delete pending.R[p.name];
+    delete pending.L[p.name];
     if (value === p.value) delete pending.common[p.name]; else pending.common[p.name] = value;
     updateRowMark(p.name, 'common', p.value);
+    refreshRowVisuals(p.name);
     refreshDependentRows(p.name);
     root.TpAppMain.renderHeader();
   }
@@ -217,6 +342,7 @@
     const current = sideKey === 'R' ? p.valueR : p.valueL;
     if (value === current) delete pending[sideKey][p.name]; else pending[sideKey][p.name] = value;
     updateRowMark(p.name, sideKey, current);
+    refreshRowVisuals(p.name);
     refreshDependentRows(p.name);
     root.TpAppMain.renderHeader();
   }
@@ -246,13 +372,13 @@
   }
 
   function renderCommonCell(p, active) {
-    const displayValue = Object.prototype.hasOwnProperty.call(pending.common, p.name) ? pending.common[p.name] : p.value;
+    const displayValue = commonScreenValue(p);
     const wrap = buildEditor(p.kind, p.min, p.max, displayValue, (v) => setPendingCommon(p, v));
     if (!active) setInputsDisabled(wrap, true);
     if (Object.prototype.hasOwnProperty.call(pending.common, p.name)) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
-      m.textContent = `← ${p.value}`;
+      m.textContent = `← ${T.formatParamValue(p.kind, p.value)}`;
       wrap.appendChild(m);
     }
     return wrap;
@@ -273,13 +399,13 @@
     if (Object.prototype.hasOwnProperty.call(bucket, p.name)) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
-      m.textContent = `← ${current}`;
+      m.textContent = `← ${T.formatParamValue(p.kind, current)}`;
       wrap.appendChild(m);
     }
     return wrap;
   }
 
-  function renderParamRow(p) {
+  function renderParamRow(p, screen) {
     const row = document.createElement('div');
     row.className = 'param' + (p.kind === 'driver_bool' ? ' bool' : '') + (detailMode ? ' detail' : '');
     row.dataset.name = p.name;
@@ -295,14 +421,7 @@
       row.classList.toggle('inactive', !active);
       row.appendChild(renderCommonCell(p, active));
     }
-    const help = helpText(p.name);
-    if (help || (p.differs && !detailMode)) {
-      const d = document.createElement('div');
-      d.className = 'desc';
-      const differsText = p.differs && !detailMode ? `左右で違う(右 ${p.valueR} / 左 ${p.valueL})` : '';
-      d.textContent = [differsText, help].filter(Boolean).join(' ・ ');
-      row.appendChild(d);
-    }
+    applyRowVisuals(row, p, screen);
     return row;
   }
 
@@ -320,6 +439,8 @@
     const groups = GROUPS.concat([{ title: 'その他', names: merged.map((p) => p.name).filter((n) => !known.has(n)) }]);
     mergedByName = Object.fromEntries(merged.map((p) => [p.name, p]));
     const byName = mergedByName;
+    const screen = screenTrackpad();
+    let totalRows = 0;
     for (const g of groups) {
       const box = document.createElement('fieldset');
       const legend = document.createElement('legend');
@@ -340,10 +461,14 @@
         const p = byName[name];
         if (!p || seen.has(name)) continue;
         seen.add(name);
-        box.appendChild(renderParamRow(p));
+        if (!T.paramMatchesQuery(p.name, helpText(p.name), query)) continue;
+        box.appendChild(renderParamRow(p, screen));
         rows++;
       }
-      if (rows > 0) root2.appendChild(box);
+      if (rows > 0) { root2.appendChild(box); totalRows += rows; }
+    }
+    if (totalRows === 0) {
+      root2.innerHTML = '<span class="legend">一致するパラメータがありません</span>';
     }
   }
 
@@ -371,11 +496,11 @@
     return next;
   }
 
-  async function writeAll() {
+  async function write() {
     const sides = Link.activeSides();
-    if (!sides.length) { root.TpAppMain.setStatus('未接続です', true); return; }
+    if (!sides.length) return { written: 0, failed: 0, total: 0 };
     const cmds = T.pendingCommands(pending, sides);
-    if (!cmds.length) { root.TpAppMain.setStatus('書き込む変更がありません'); return; }
+    if (!cmds.length) return { written: 0, failed: 0, total: 0 };
     const failed = [];
     for (const c of cmds) {
       const parts = c.cmd.split(' ');
@@ -393,28 +518,20 @@
     }
     root.TpAppMain.renderHeader();
     renderParams();
-    root.TpAppMain.setStatus(failed.length
-      ? `書き込み: ${cmds.length - failed.length}/${cmds.length} 件成功。失敗した行は保留のままです`
-      : `${cmds.length} 件を書き込みました`, failed.length > 0);
+    return { written: cmds.length - failed.length, failed: failed.length, total: cmds.length };
   }
 
-  async function reloadAll() {
-    if (pendingCount() > 0 && !window.confirm('書き込んでいない変更を捨てて、キーボードに保存されている状態に戻します。よろしいですか?')) return;
+  async function reload() {
     pending = emptyPending();
-    try {
-      const count = await loadAllParams();
-      for (const s of Link.activeSides()) await refreshInfoForSide(s);
-      root.TpAppMain.renderHeader();
-      root.TpAppMain.setStatus(`パラメータ ${count} 件を再読み込みしました`);
-    } catch (e) {
-      root.TpAppMain.setStatus(errText(e), true);
-    }
+    const count = await loadAllParams();
+    for (const s of Link.activeSides()) await refreshInfoForSide(s);
+    root.TpAppMain.renderHeader();
+    return count;
   }
 
-  async function resetAll() {
+  async function resetToDefault() {
     const sides = Link.activeSides();
-    if (!sides.length) { root.TpAppMain.setStatus('未接続です', true); return; }
-    if (!window.confirm('すべてのパラメータをファームのデフォルト値に戻します。保存済みの値も削除されます。よろしいですか?')) return;
+    if (!sides.length) return false;
     let allOk = true;
     for (const s of sides) allOk = (await Link.runSimpleOnSide(s, 'tp reset')) && allOk;
     pending = emptyPending();
@@ -424,7 +541,7 @@
     }
     root.TpAppMain.renderHeader();
     renderParams();
-    root.TpAppMain.setStatus(allOk ? 'すべてデフォルトに戻しました' : '一部の側で失敗しました', !allOk);
+    return allOk;
   }
 
   function reset() {
@@ -432,21 +549,13 @@
     params.R = []; params.L = [];
   }
 
-  function setButtonsEnabled(isConn) {
-    $('btnWrite').disabled = !isConn;
-    $('btnReload').disabled = !isConn;
-    $('btnResetAll').disabled = !isConn;
-  }
-
-  $('btnWrite').onclick = () => { writeAll(); };
-  $('btnReload').onclick = () => { reloadAll(); };
-  $('btnResetAll').onclick = () => { resetAll(); };
-  $('btnExport').onclick = () => { exportConfNow(); };
   $('chkDetail').onchange = () => { detailMode = $('chkDetail').checked; renderParams(); };
+  $('paramSearch').oninput = () => { query = $('paramSearch').value; renderParams(); };
 
   const api = {
     render: renderParams, reset, pendingCount, paramsForSuggest, loadAllParams, refreshInfoForSide,
-    setButtonsEnabled,
+    screenTrackpad, setPresetTrackpad, presetDiff, applyPresetTrackpad,
+    write, reload, resetToDefault, exportConf: exportConfNow,
   };
   root.TpAppParams = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -164,8 +164,9 @@
   }
   details.section > summary { cursor: pointer; font-weight: 700; color: var(--muted); font-size: 12px; padding: 4px 0; }
   details.section > .body { padding-top: 10px; }
-  .toolbar { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .toolbar { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 10px; }
   .toolbar label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
+  #paramSearch { box-sizing: border-box; }
   fieldset {
     border: 1px solid var(--border); border-radius: var(--radius); margin: 0 0 10px; padding: 8px 10px 6px;
     background: var(--surface-alt);
@@ -191,7 +192,9 @@
   .param.bool input[type=checkbox] { justify-self: start; }
   .param.changed { background: var(--warn-weak); }
   .param.error { background: var(--danger-weak); }
+  .param.presetdiff { box-shadow: inset 3px 0 0 var(--accent); }
   .pendingmark { color: var(--warn); font-size: 11px; font-weight: 600; white-space: nowrap; }
+  .presetmark { color: var(--accent); font-size: 11px; font-weight: 600; white-space: nowrap; }
   .param.inactive { opacity: .45; }
   .param .cell.inactive { opacity: .45; }
   .row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 6px; }
@@ -313,6 +316,7 @@
   <summary>パラメータ</summary>
   <div class="body">
     <div class="toolbar">
+      <input type="search" id="paramSearch" placeholder="パラメータを検索(名前・説明)">
       <label><input type="checkbox" id="chkDetail">詳細: 左右別に設定</label>
     </div>
     <div id="params"><span class="legend">接続すると tp list の内容がここに表示されます</span></div>
