@@ -210,6 +210,10 @@
     return p.value;
   }
 
+  function rowHasPending(name) {
+    return pending.common[name] !== undefined || pending.R[name] !== undefined || pending.L[name] !== undefined;
+  }
+
   function isRowActiveCommon(name) {
     return T.isParamActive(name, commonGetValue);
   }
@@ -245,9 +249,10 @@
     }
   }
 
-  function applyRowVisuals(row, p, screen) {
+  function applyRowVisuals(row, p, screen, help) {
     const presetInfo = presetDiffForName(p.name, screen);
     row.classList.toggle('presetdiff', !!presetInfo);
+    row.classList.toggle('changed', rowHasPending(p.name));
     if (detailMode) {
       for (const sideKey of ['R', 'L']) {
         const cell = row.querySelector(`.cell[data-side="${sideKey}"]`);
@@ -264,7 +269,6 @@
         }
       }
       let descDiv = row.querySelector('.desc');
-      const help = helpText(p.name);
       if (help) {
         if (!descDiv) { descDiv = document.createElement('div'); descDiv.className = 'desc'; row.appendChild(descDiv); }
         descDiv.textContent = help;
@@ -277,7 +281,6 @@
     const rVal = bothReadable ? sideGetValue('R', p.name) : null;
     const lVal = bothReadable ? sideGetValue('L', p.name) : null;
     const differs = bothReadable && rVal !== lVal;
-    const help = helpText(p.name);
     const presetText = presetInfo ? presetMarkTextCommon(p.kind, presetInfo) : '';
     const differsText = differs ? `左右で違う(右 ${T.formatParamValue(p.kind, rVal)} / 左 ${T.formatParamValue(p.kind, lVal)})` : '';
     let descDiv = row.querySelector('.desc');
@@ -305,7 +308,7 @@
     if (!row) return;
     const p = mergedByName[name];
     if (!p) return;
-    applyRowVisuals(row, p, screenTrackpad());
+    applyRowVisuals(row, p, screenTrackpad(), helpText(name));
   }
 
   function updateRowMark(nameKey, bucket, originalValue) {
@@ -313,19 +316,16 @@
     if (!row) return;
     const p = mergedByName[nameKey];
     const cell = bucket === 'common' ? row.querySelector('.cell') : row.querySelector(`.cell[data-side="${bucket}"]`);
-    if (cell) {
-      const mark = cell.querySelector('.pendingmark');
-      if (mark) mark.remove();
-      const value = bucket === 'common' ? pending.common[nameKey] : pending[bucket][nameKey];
-      if (value !== undefined) {
-        const m = document.createElement('span');
-        m.className = 'pendingmark';
-        m.textContent = `← ${T.formatParamValue(p ? p.kind : undefined, originalValue)}`;
-        cell.appendChild(m);
-      }
+    if (!cell) return;
+    const mark = cell.querySelector('.pendingmark');
+    if (mark) mark.remove();
+    const value = bucket === 'common' ? pending.common[nameKey] : pending[bucket][nameKey];
+    if (value !== undefined) {
+      const m = document.createElement('span');
+      m.className = 'pendingmark';
+      m.textContent = `← ${T.formatParamValue(p ? p.kind : undefined, originalValue)}`;
+      cell.appendChild(m);
     }
-    const rowHasPending = pending.common[nameKey] !== undefined || pending.R[nameKey] !== undefined || pending.L[nameKey] !== undefined;
-    row.classList.toggle('changed', rowHasPending);
   }
 
   function setPendingCommon(p, value) {
@@ -375,7 +375,7 @@
     const displayValue = commonScreenValue(p);
     const wrap = buildEditor(p.kind, p.min, p.max, displayValue, (v) => setPendingCommon(p, v));
     if (!active) setInputsDisabled(wrap, true);
-    if (Object.prototype.hasOwnProperty.call(pending.common, p.name)) {
+    if (rowHasPending(p.name)) {
       const m = document.createElement('span');
       m.className = 'pendingmark';
       m.textContent = `← ${T.formatParamValue(p.kind, p.value)}`;
@@ -405,7 +405,7 @@
     return wrap;
   }
 
-  function renderParamRow(p, screen) {
+  function renderParamRow(p, screen, help) {
     const row = document.createElement('div');
     row.className = 'param' + (p.kind === 'driver_bool' ? ' bool' : '') + (detailMode ? ' detail' : '');
     row.dataset.name = p.name;
@@ -421,7 +421,7 @@
       row.classList.toggle('inactive', !active);
       row.appendChild(renderCommonCell(p, active));
     }
-    applyRowVisuals(row, p, screen);
+    applyRowVisuals(row, p, screen, help);
     return row;
   }
 
@@ -461,8 +461,9 @@
         const p = byName[name];
         if (!p || seen.has(name)) continue;
         seen.add(name);
-        if (!T.paramMatchesQuery(p.name, helpText(p.name), query)) continue;
-        box.appendChild(renderParamRow(p, screen));
+        const help = helpText(name);
+        if (!T.paramMatchesQuery(p.name, help, query)) continue;
+        box.appendChild(renderParamRow(p, screen, help));
         rows++;
       }
       if (rows > 0) { root2.appendChild(box); totalRows += rows; }
