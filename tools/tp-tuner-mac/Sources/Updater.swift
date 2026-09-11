@@ -137,8 +137,12 @@ final class Updater {
     }
     try? FileManager.default.removeItem(at: backupURL)
 
+    /* 実行中の自分がいる間は open が既存インスタンスを前面に出すだけなので、-n で別プロセスとして起動してから終了する */
     DispatchQueue.main.async {
-      NSWorkspace.shared.open(currentBundleURL)
+      let relaunch = Process()
+      relaunch.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+      relaunch.arguments = ["-n", currentBundleURL.path]
+      try? relaunch.run()
       NSApplication.shared.terminate(nil)
     }
   }
