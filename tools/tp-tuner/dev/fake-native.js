@@ -24,6 +24,7 @@
   }
   const PARAMS = { R: makeParams(250), L: makeParams(200) };
   let connectedId = null;
+  let fakePresetsText = null;
   let summaryTimer = null;
   let summarySide = 'R';
   let liveTimer = null;
@@ -387,6 +388,11 @@
         fakeStudioUsbReady = false;
       } else if (msg.type === 'studioWrite') {
         handleStudioWrite(msg.b64);
+      } else if (msg.type === 'presetsLoad') {
+        emit(fakePresetsText === null ? { type: 'presetsLoaded', ok: true } : { type: 'presetsLoaded', ok: true, text: fakePresetsText });
+      } else if (msg.type === 'presetsSave') {
+        fakePresetsText = msg.text;
+        emit({ type: 'presetsSaved', ok: true });
       }
     },
   };

@@ -12,6 +12,7 @@
   const RECONNECT_SETTLE_MS = 1000;
   const AUTOCONNECT_KEY = 'tp-tuner.autoconnect';
   const LASTPORT_KEY = 'tp-tuner.lastPort';
+  const PRESETS_KEY = 'tp-tuner.presets';
   const DISCONNECTED_MSG = '切断されました。再接続を待っています';
   const SIDE_LABEL = { R: '右手', L: '左手' };
 
@@ -35,6 +36,8 @@
   let autoConnectEnabled = true;
   let connectedDeviceId = null;
   let pendingSaveFile = null;
+  const pendingLoadPresets = [];
+  const pendingSavePresets = [];
 
   const hooks = {
     onLog: null, onTrace: null, onStatus: null, onUiChange: null, onReady: null,
@@ -237,6 +240,8 @@
         else if (evt.type === 'studioData') { if (t.onStudioData) t.onStudioData(evt.b64); }
         else if (evt.type === 'studioClosed') { if (t.onStudioClosed) t.onStudioClosed(evt.reason); }
         else if (evt.type === 'fileSaved') { if (pendingSaveFile) { const r = pendingSaveFile; pendingSaveFile = null; r(evt); } }
+        else if (evt.type === 'presetsLoaded') { if (pendingLoadPresets.length) pendingLoadPresets.shift()({ ok: evt.ok, text: evt.text, error: evt.error }); }
+        else if (evt.type === 'presetsSaved') { if (pendingSavePresets.length) pendingSavePresets.shift()({ ok: evt.ok, error: evt.error }); }
       },
     };
     return t;
@@ -319,6 +324,36 @@
     a.remove();
     URL.revokeObjectURL(url);
     return Promise.resolve({ ok: true });
+  }
+
+  function loadPresetsText() {
+    if (hasNativeBridge) {
+      return new Promise((resolve) => {
+        pendingLoadPresets.push(resolve);
+        window.webkit.messageHandlers.tpTuner.postMessage({ type: 'presetsLoad' });
+      });
+    }
+    try {
+      const text = localStorage.getItem(PRESETS_KEY);
+      return Promise.resolve(text === null ? { ok: true } : { ok: true, text });
+    } catch (e) {
+      return Promise.resolve({ ok: false, error: errText(e) });
+    }
+  }
+
+  function savePresetsText(text) {
+    if (hasNativeBridge) {
+      return new Promise((resolve) => {
+        pendingSavePresets.push(resolve);
+        window.webkit.messageHandlers.tpTuner.postMessage({ type: 'presetsSave', text });
+      });
+    }
+    try {
+      localStorage.setItem(PRESETS_KEY, text);
+      return Promise.resolve({ ok: true });
+    } catch (e) {
+      return Promise.resolve({ ok: false, error: errText(e) });
+    }
   }
 
   function updateConnectedState(isConn) {
@@ -676,7 +711,7 @@
   const api = {
     hasNativeBridge, SIDE_LABEL,
     init, connect, disconnect,
-    send, sendTo, runSimpleOnSide, saveFile,
+    send, sendTo, runSimpleOnSide, saveFile, loadPresetsText, savePresetsText,
     isConnected, activeSides, isSideActive,
     studioWrite, studioOpen, studioClose,
     getTransportKind: () => (transport ? transport.kind : null),

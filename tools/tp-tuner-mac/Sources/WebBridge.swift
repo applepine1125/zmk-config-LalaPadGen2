@@ -114,8 +114,43 @@ final class WebBridge: NSObject {
     case "saveFile":
       guard let name = json["name"] as? String, let text = json["text"] as? String else { return }
       saveFile(name: name, text: text)
+    case "presetsLoad":
+      loadPresets()
+    case "presetsSave":
+      guard let text = json["text"] as? String else { return }
+      savePresets(text: text)
     default:
       break
+    }
+  }
+
+  private func presetsFileURL() -> URL {
+    let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    return supportDir.appendingPathComponent("TpTuner/presets.json")
+  }
+
+  private func loadPresets() {
+    let url = presetsFileURL()
+    guard FileManager.default.fileExists(atPath: url.path) else {
+      send(type: "presetsLoaded", payload: ["ok": true])
+      return
+    }
+    do {
+      let text = try String(contentsOf: url, encoding: .utf8)
+      send(type: "presetsLoaded", payload: ["ok": true, "text": text])
+    } catch {
+      send(type: "presetsLoaded", payload: ["ok": false, "error": error.localizedDescription])
+    }
+  }
+
+  private func savePresets(text: String) {
+    let url = presetsFileURL()
+    do {
+      try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+      try Data(text.utf8).write(to: url, options: .atomic)
+      send(type: "presetsSaved", payload: ["ok": true])
+    } catch {
+      send(type: "presetsSaved", payload: ["ok": false, "error": error.localizedDescription])
     }
   }
 
