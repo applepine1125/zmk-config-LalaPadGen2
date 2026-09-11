@@ -16,12 +16,13 @@
   let studioAvailable = false;
   let studioLocked = false;
   let studioDirty = false;
-  let studioBusy = false;
+  let loadPromise = null;
   let studioUsbOpenTried = false;
   let studioUsbWaitTimer = null;
   let physicalLayout = null;
   let behaviors = [];
   let keymapData = null;
+  let presetKeymap = null;
   let selectedLayerIndex = 0;
   let selectedKeyPos = null;
   let activeTab = 'trackpad';
@@ -30,14 +31,6 @@
     const el = $('studioNotice');
     el.textContent = text;
     el.hidden = !text;
-  }
-
-  function renderStudioHeader() {
-    const hasData = !!keymapData;
-    $('btnStudioSave').disabled = !hasData || !studioDirty;
-    $('btnStudioReload').disabled = !studioClient;
-    $('btnStudioReset').disabled = !hasData;
-    $('studioDirtyIndicator').hidden = !studioDirty;
   }
 
   function teardownStudio() {
@@ -50,7 +43,7 @@
     selectedLayerIndex = 0;
     selectedKeyPos = null;
     renderKeymapWorkspace();
-    renderStudioHeader();
+    root.TpAppMain.renderHeader();
   }
 
   function disconnectCleanup() {
@@ -69,7 +62,7 @@
     studioClient.onNotification = (n) => {
       if (n.keymap && n.keymap.unsavedChangesStatusChanged !== undefined) {
         studioDirty = n.keymap.unsavedChangesStatusChanged;
-        renderStudioHeader();
+        root.TpAppMain.renderHeader();
       }
       if (n.core && n.core.lockStateChanged !== undefined) {
         studioLocked = n.core.lockStateChanged !== 0;
@@ -88,8 +81,14 @@
     }, 4000);
   }
 
+  function isStudioUsable() {
+    if (!Link.hasNativeBridge) return false;
+    if (!Link.isConnected()) return false;
+    if (Link.getTransportKind() === 'ble') return studioAvailable;
+    return Link.getUsbSide() === 'R' && studioAvailable;
+  }
+
   function updateStudioAvailability() {
-    if (activeTab !== 'keymap') return;
     if (!Link.hasNativeBridge) { setStudioNotice('Studio 機能は Mac アプリでのみ使えます'); return; }
     if (!Link.isConnected()) { setStudioNotice('接続すると使えます'); return; }
     if (Link.getTransportKind() === 'ble') {
@@ -111,33 +110,67 @@
     if (!keymapData) loadKeymapData(); else renderKeymapWorkspace();
   }
 
-  async function loadKeymapData() {
-    if (studioBusy || !studioClient) return;
-    studioBusy = true;
-    setStudioNotice('キー設定を読み込んでいます...');
-    try {
-      await Pad.setTrackpadQuiet(true);
-      const lockState = await studioClient.getLockState();
-      studioLocked = lockState !== 1;
-      if (studioLocked) { setStudioNotice('Studio がロックされています'); keymapData = null; renderKeymapWorkspace(); return; }
-      physicalLayout = await studioClient.getPhysicalLayouts();
-      const ids = await studioClient.listBehaviors();
-      const details = [];
-      for (const id of ids) details.push(await studioClient.getBehaviorDetails(id));
-      behaviors = details.sort((a, b) => a.displayName.localeCompare(b.displayName, 'en'));
-      keymapData = await studioClient.getKeymap();
-      studioDirty = await studioClient.checkUnsavedChanges();
-      if (selectedLayerIndex >= keymapData.layers.length) selectedLayerIndex = 0;
-      selectedKeyPos = null;
-      setStudioNotice('');
-      renderKeymapWorkspace();
-      renderStudioHeader();
-    } catch (e) {
-      setStudioNotice('キー設定の読み込みに失敗しました: ' + errText(e) + '(「再読み込み」でやり直せます)');
-    } finally {
-      studioBusy = false;
-      renderStudioHeader();
-    }
+  function loadKeymapData() {
+    if (loadPromise) return loadPromise;
+    if (!studioClient) return Promise.resolve();
+    loadPromise = (async () => {
+      setStudioNotice('キー設定を読み込んでいます...');
+      try {
+        await Pad.setTrackpadQuiet(true);
+        const lockState = await studioClient.getLockState();
+        studioLocked = lockState !== 1;
+        if (studioLocked) { setStudioNotice('Studio がロックされています'); keymapData = null; renderKeymapWorkspace(); return; }
+        physicalLayout = await studioClient.getPhysicalLayouts();
+        const ids = await studioClient.listBehaviors();
+        const details = [];
+        for (const id of ids) details.push(await studioClient.getBehaviorDetails(id));
+        behaviors = details.sort((a, b) => a.displayName.localeCompare(b.displayName, 'en'));
+        keymapData = await studioClient.getKeymap();
+        studioDirty = await studioClient.checkUnsavedChanges();
+        if (selectedLayerIndex >= keymapData.layers.length) selectedLayerIndex = 0;
+        selectedKeyPos = null;
+        setStudioNotice('');
+        renderKeymapWorkspace();
+      } catch (e) {
+        setStudioNotice('キー設定の読み込みに失敗しました: ' + errText(e) + '(「再読み込み」でやり直せます)');
+      } finally {
+        if (activeTab !== 'keymap') await Pad.setTrackpadQuiet(false);
+        loadPromise = null;
+        root.TpAppMain.renderHeader();
+        if (root.TpAppPresets && root.TpAppPresets.onKeymapLoaded) root.TpAppPresets.onKeymapLoaded();
+      }
+    })();
+    return loadPromise;
+  }
+
+  function isReady() {
+    return !!studioClient && !!keymapData;
+  }
+
+  async function ensureLoaded() {
+    if (isReady()) return true;
+    if (loadPromise) { await loadPromise; return isReady(); }
+    if (!isStudioUsable()) return false;
+    if (!studioClient) createStudioClient();
+    await loadKeymapData();
+    return isReady();
+  }
+
+  function isDirty() {
+    return studioDirty;
+  }
+
+  function snapshot() {
+    return keymapData ? TpPresets.keymapSnapshot(keymapData, behaviors, TpKeymapUi.HIDDEN_KEY_POSITIONS) : null;
+  }
+
+  function setPresetKeymap(next) {
+    presetKeymap = next || null;
+    renderKeymapWorkspace();
+  }
+
+  function presetDiff() {
+    return TpPresets.keymapDiff(presetKeymap, snapshot());
   }
 
   function renderKeymapWorkspace() {
@@ -152,16 +185,23 @@
   function renderLayerList() {
     const wrap = $('layerList');
     wrap.innerHTML = '';
+    const diff = presetDiff();
+    const diffLayers = new Set(diff.keys.map((k) => k.layer));
     keymapData.layers.forEach((layer, i) => {
       const b = document.createElement('button');
       b.type = 'button';
-      b.className = 'layer-btn' + (i === selectedLayerIndex ? ' active' : '');
+      b.className = 'layer-btn' + (i === selectedLayerIndex ? ' active' : '') + (diffLayers.has(i) ? ' presetdiff' : '');
       b.textContent = layer.name || `Layer ${i}`;
       b.onclick = () => { selectedLayerIndex = i; selectedKeyPos = null; renderKeymapWorkspace(); };
       wrap.appendChild(b);
     });
     $('btnLayerAdd').disabled = !studioClient || keymapData.availableLayers <= 0;
     $('btnLayerRemove').disabled = !studioClient || keymapData.layers.length < 2;
+    const note = $('presetLayerNote');
+    note.hidden = !diff.layerCount;
+    note.textContent = diff.layerCount
+      ? `プリセットはレイヤー ${diff.layerCount.preset} 個(今は ${diff.layerCount.screen} 個)`
+      : '';
   }
 
   function renderKeymapSvg() {
@@ -169,17 +209,21 @@
     wrap.innerHTML = '';
     const layout = physicalLayout.layouts[physicalLayout.activeLayoutIndex];
     if (!layout || !layout.keys.length) return;
-    const bounds = TpKeymapUi.layoutBounds(layout.keys);
+    const visibleKeys = layout.keys.filter((_, idx) => !TpKeymapUi.isKeyHidden(idx));
+    const bounds = TpKeymapUi.layoutBounds(visibleKeys);
     const scale = bounds.width > 0 ? 1200 / bounds.width : 40;
     const pad = 10;
     const svgW = bounds.width * scale + pad * 2;
     const svgH = bounds.height * scale + pad * 2;
     const layer = keymapData.layers[selectedLayerIndex];
     const bindings = (layer && layer.bindings) || [];
+    const diff = presetDiff();
+    const diffPos = new Set(diff.keys.filter((k) => k.layer === selectedLayerIndex).map((k) => k.pos));
     const svgNS = 'http://www.w3.org/2000/svg';
     const svg = document.createElementNS(svgNS, 'svg');
     svg.setAttribute('viewBox', `0 0 ${svgW} ${svgH}`);
     layout.keys.forEach((key, idx) => {
+      if (TpKeymapUi.isKeyHidden(idx)) return;
       const r = TpKeymapUi.keyRect(key, scale);
       const x = r.x - bounds.minX * scale + pad;
       const y = r.y - bounds.minY * scale + pad;
@@ -195,7 +239,7 @@
       rect.setAttribute('width', Math.max(1, r.width - 4));
       rect.setAttribute('height', Math.max(1, r.height - 4));
       rect.setAttribute('rx', 6);
-      rect.setAttribute('class', 'keycap' + (idx === selectedKeyPos ? ' selected' : ''));
+      rect.setAttribute('class', 'keycap' + (idx === selectedKeyPos ? ' selected' : '') + (diffPos.has(idx) ? ' presetdiff' : ''));
       const text = document.createElementNS(svgNS, 'text');
       text.setAttribute('x', x + r.width / 2);
       text.setAttribute('y', y + r.height / 2);
@@ -218,21 +262,24 @@
     targetLayer.bindings[pos] = newBinding;
     renderKeymapSvg();
     renderKeyEditor();
+    renderLayerList();
     try {
       const code = await studioClient.setLayerBinding(targetLayer.id, pos, newBinding);
       if (code) {
         targetLayer.bindings[pos] = prevBinding;
         renderKeymapSvg();
         if (isStillSelected()) renderKeyEditor();
+        renderLayerList();
         root.TpAppMain.setStatus('キーの設定に失敗しました: ' + TpKeymapUi.setBindingErrorText(code), true);
       } else {
         studioDirty = true;
-        renderStudioHeader();
+        root.TpAppMain.renderHeader();
       }
     } catch (e) {
       targetLayer.bindings[pos] = prevBinding;
       renderKeymapSvg();
       if (isStillSelected()) renderKeyEditor();
+      renderLayerList();
       root.TpAppMain.setStatus('キーの設定に失敗しました: ' + errText(e), true);
     }
   }
@@ -381,12 +428,25 @@
     if (f2) container.appendChild(f2);
   }
 
+  function presetEntryLabel(entry) {
+    const resolved = TpPresets.resolveEntry(entry, behaviors, keymapData.layers);
+    if (resolved) return TpKeymapUi.bindingLabel(resolved, behaviors, keymapData.layers);
+    return entry.behavior || '不明な behavior';
+  }
+
   function renderKeyEditor() {
     const panel = $('keyEditor');
     const body = $('keyEditorBody');
     body.innerHTML = '';
     if (selectedKeyPos === null) { panel.hidden = true; return; }
     panel.hidden = false;
+    const diffEntry = presetDiff().keys.find((k) => k.layer === selectedLayerIndex && k.pos === selectedKeyPos);
+    if (diffEntry) {
+      const mark = document.createElement('div');
+      mark.className = 'presetmark';
+      mark.textContent = 'プリセット: ' + presetEntryLabel(diffEntry.preset);
+      body.appendChild(mark);
+    }
     const layer = keymapData.layers[selectedLayerIndex];
     const fallbackBehaviorId = behaviors.length ? behaviors[0].id : 0;
     const binding = layer.bindings[selectedKeyPos] || { behaviorId: fallbackBehaviorId, param1: 0, param2: 0 };
@@ -446,11 +506,86 @@
     }
   }
 
-  async function exportKeymapNow() {
+  async function exportKeymap() {
     if (!keymapData || !physicalLayout) { root.TpAppMain.setStatus('キー設定を読み込んでからエクスポートしてください', true); return; }
     const layout = physicalLayout.layouts[physicalLayout.activeLayoutIndex] || { keys: [] };
     const text = TpKeymapExport.exportKeymap({ keymap: keymapData, behaviors, layout });
     await saveExportedFile('lalapadgen2.keymap', text);
+  }
+
+  async function save() {
+    if (!studioClient) throw new Error('Studio に接続されていません');
+    await studioClient.saveChanges();
+    studioDirty = false;
+    root.TpAppMain.renderHeader();
+  }
+
+  async function reload() {
+    if (!isStudioUsable()) return false;
+    if (!studioClient) createStudioClient();
+    if (studioDirty) {
+      try { await studioClient.discardChanges(); studioDirty = false; } catch (e) { /* 続けて読み直す */ }
+    }
+    await loadKeymapData();
+    return isReady();
+  }
+
+  async function resetToDefault() {
+    if (!studioClient) throw new Error('Studio に接続されていません');
+    const ok = await studioClient.resetSettings();
+    if (!ok) throw new Error('ファームが拒否しました');
+    studioDirty = false;
+    await loadKeymapData();
+  }
+
+  async function applyPresetKeymap(preset) {
+    if (!studioClient || !keymapData) return { applied: 0, skipped: 0, layerError: 'キー設定を読み込んでから反映してください' };
+    const adjust = TpPresets.layerCountAdjust(preset, keymapData);
+    let layerError = null;
+    for (let i = 0; i < adjust.add && !layerError; i++) {
+      if (keymapData.availableLayers <= 0) { layerError = 'レイヤーをこれ以上追加できません'; break; }
+      try {
+        const res = await studioClient.addLayer();
+        keymapData.layers.push(res.layer);
+        keymapData.availableLayers = Math.max(0, keymapData.availableLayers - 1);
+      } catch (e) {
+        layerError = 'レイヤーの追加に失敗しました: ' + errText(e);
+      }
+    }
+    for (let i = 0; i < adjust.remove && !layerError && keymapData.layers.length > 1; i++) {
+      const lastIndex = keymapData.layers.length - 1;
+      try {
+        await studioClient.removeLayer(lastIndex);
+        keymapData.layers.splice(lastIndex, 1);
+        keymapData.availableLayers += 1;
+      } catch (e) {
+        layerError = 'レイヤーの削除に失敗しました: ' + errText(e);
+      }
+    }
+    try {
+      keymapData = await studioClient.getKeymap();
+    } catch (e) {
+      layerError = layerError || ('キー設定の再取得に失敗しました: ' + errText(e));
+    }
+    let applied = 0;
+    let skipped = 0;
+    const plan = TpPresets.planKeymapBindings(preset, keymapData, behaviors);
+    skipped += plan.skipped.length;
+    for (const op of plan.ops) {
+      try {
+        const code = await studioClient.setLayerBinding(op.layerId, op.pos, op.binding);
+        if (code) { skipped++; continue; }
+        keymapData.layers[op.layerIndex].bindings[op.pos] = op.binding;
+        applied++;
+      } catch (e) {
+        skipped++;
+      }
+    }
+    try { studioDirty = await studioClient.checkUnsavedChanges(); } catch (e) { /* 反映結果は返すので通知は諦める */ }
+    if (selectedLayerIndex >= keymapData.layers.length) selectedLayerIndex = 0;
+    renderKeymapWorkspace();
+    root.TpAppMain.renderHeader();
+    return { applied, skipped, layerError };
   }
 
   function handleStudioReady(available) {
@@ -475,44 +610,6 @@
     activeTab = tab;
   }
 
-  $('btnStudioSave').onclick = async () => {
-    if (!studioClient) return;
-    try {
-      await studioClient.saveChanges();
-      studioDirty = false;
-      renderStudioHeader();
-      root.TpAppMain.setStatus('キー設定を書き込みました');
-    } catch (e) {
-      root.TpAppMain.setStatus('書き込みに失敗しました: ' + errText(e), true);
-    }
-  };
-  // 再読み込み: 書き込み前の変更を捨て、キーボードに保存されている状態を読み直す
-  $('btnStudioReload').onclick = async () => {
-    if (!studioClient) { updateStudioAvailability(); return; }
-    try {
-      if (studioDirty && !window.confirm('書き込んでいない変更を捨てて、キーボードに保存されている状態に戻します。よろしいですか?')) return;
-      if (studioDirty) { await studioClient.discardChanges(); studioDirty = false; }
-      await loadKeymapData();
-      if (keymapData) root.TpAppMain.setStatus('キー設定を再読み込みしました');
-    } catch (e) {
-      root.TpAppMain.setStatus('再読み込みに失敗しました: ' + errText(e), true);
-    }
-  };
-  // デフォルトに戻す: 保存済みの変更も消して、ファームに組み込まれたキーマップ(リポジトリの .keymap)に戻す
-  $('btnStudioReset').onclick = async () => {
-    if (!studioClient) return;
-    if (!window.confirm('キー設定をデフォルト(ファームに組み込まれたキーマップ)に戻しますか? 書き込み済みの変更もすべて消えます。')) return;
-    try {
-      const ok = await studioClient.resetSettings();
-      if (!ok) throw new Error('ファームが拒否しました');
-      studioDirty = false;
-      await loadKeymapData();
-      root.TpAppMain.setStatus('キー設定をデフォルトに戻しました');
-    } catch (e) {
-      root.TpAppMain.setStatus('デフォルトに戻せませんでした: ' + errText(e), true);
-    }
-  };
-  $('btnKeymapExport').onclick = () => { exportKeymapNow(); };
   $('btnLayerAdd').onclick = async () => {
     if (!studioClient || keymapData.availableLayers <= 0) return;
     try {
@@ -523,7 +620,7 @@
       selectedKeyPos = null;
       studioDirty = true;
       renderKeymapWorkspace();
-      renderStudioHeader();
+      root.TpAppMain.renderHeader();
     } catch (e) {
       root.TpAppMain.setStatus('レイヤーの追加に失敗しました: ' + errText(e), true);
     }
@@ -539,7 +636,7 @@
       selectedKeyPos = null;
       studioDirty = true;
       renderKeymapWorkspace();
-      renderStudioHeader();
+      root.TpAppMain.renderHeader();
     } catch (e) {
       root.TpAppMain.setStatus('レイヤーの削除に失敗しました: ' + errText(e), true);
     }
@@ -548,6 +645,8 @@
   const api = {
     setActiveTab, updateAvailability: updateStudioAvailability, teardownStudio, disconnectCleanup,
     handleStudioReady, handleStudioData, handleStudioClosed,
+    isReady, ensureLoaded, isDirty, snapshot, setPresetKeymap, presetDiff, applyPresetKeymap,
+    save, reload, resetToDefault, exportKeymap,
   };
   root.TpAppKeymap = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

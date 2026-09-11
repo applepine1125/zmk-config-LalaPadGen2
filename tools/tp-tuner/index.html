@@ -218,11 +218,13 @@
   @media (max-width: 980px) { #keymapWorkspace { grid-template-columns: 1fr; } }
   .layerlist-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
   .layer-btn.active { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 700; }
+  .layer-btn.presetdiff::after { content: '●'; color: var(--warn); font-size: 9px; margin-left: 4px; }
   .keymap-svg-wrap { overflow-x: auto; }
   .keymap-svg-wrap svg { width: 100%; max-width: 1200px; display: block; margin: 0 auto; }
   .keycap { fill: var(--surface-alt); stroke: var(--border-strong); stroke-width: 1.5; cursor: pointer; }
   .keycap:hover { stroke: var(--accent); }
   .keycap.selected { fill: var(--accent-weak); stroke: var(--accent); stroke-width: 2.5; }
+  .keycap.presetdiff { stroke: var(--warn); stroke-width: 2.5; stroke-dasharray: 5 3; }
   .keycap-label { fill: var(--text); font: 600 15px -apple-system, sans-serif; text-anchor: middle; dominant-baseline: middle; pointer-events: none; }
   .keycap-label.placeholder { fill: var(--muted); }
   .keyeditor .field { margin-bottom: 10px; }
@@ -336,6 +338,7 @@
       <div class="card layerbar">
         <h2>レイヤー</h2>
         <div class="layerlist-row" id="layerList"></div>
+        <div id="presetLayerNote" class="legend" hidden></div>
         <div class="row">
           <button id="btnLayerAdd">追加</button>
           <button id="btnLayerRemove">削除</button>
