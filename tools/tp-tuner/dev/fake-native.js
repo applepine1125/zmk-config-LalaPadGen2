@@ -238,9 +238,11 @@
   }
 
   function emit(evt) {
-    if (window.tpTunerNative && typeof window.tpTunerNative.onEvent === 'function') {
-      window.tpTunerNative.onEvent(evt);
-    }
+    Promise.resolve().then(() => {
+      if (window.tpTunerNative && typeof window.tpTunerNative.onEvent === 'function') {
+        window.tpTunerNative.onEvent(evt);
+      }
+    });
   }
 
   function responseLines(argv, sideLabel, sideKey) {

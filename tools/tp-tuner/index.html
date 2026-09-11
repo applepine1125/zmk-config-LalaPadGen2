@@ -208,8 +208,17 @@
   #captureMsg { max-width: 420px; font-size: 14px; line-height: 1.7; }
   #tabbar { display: flex; gap: 6px; }
   #tabbar button.active { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); font-weight: 700; }
-  #trackpadActions:not([hidden]), #keymapActions:not([hidden]) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  #studioDirtyIndicator { color: var(--warn); font-weight: 600; white-space: nowrap; }
+  #actions, #presetRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #presetDiffIndicator { color: var(--accent); font-weight: 700; white-space: nowrap; }
+  dialog#presetNameDialog {
+    background: var(--surface); color: var(--text); border: none; border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 16px 18px; min-width: 280px;
+  }
+  dialog#presetNameDialog::backdrop { background: rgba(15, 23, 42, .5); }
+  dialog#presetNameDialog h2 { font-size: 13px; margin: 0 0 6px; }
+  dialog#presetNameDialog input[type=text] { width: 100%; box-sizing: border-box; margin: 8px 0; }
+  dialog#presetNameDialog .dialogbuttons { display: flex; justify-content: flex-end; gap: 8px; margin-top: 10px; }
+  .error { color: var(--danger); font-size: 12px; }
   #studioNotice:not([hidden]) {
     margin-top: 12px; padding: 10px 12px; border-radius: var(--radius);
     background: var(--surface); border: 1px solid var(--border); color: var(--muted);
@@ -249,22 +258,24 @@
     <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
     <span id="connStatus">未接続</span>
     <span class="sep"></span>
-    <div id="trackpadActions">
-      <button id="btnWrite" class="primary" disabled>書き込む</button>
-      <span id="dirtyIndicator" hidden>未書き込みの変更 0 件</span>
+    <div id="actions">
+      <button id="btnWrite" class="primary" disabled>書き込み</button>
+      <span id="dirtyIndicator" hidden></span>
       <button id="btnReload" disabled>再読み込み</button>
       <button id="btnResetAll" disabled>デフォルトに戻す</button>
       <button id="btnExport">.conf をエクスポート</button>
-    </div>
-    <div id="keymapActions" hidden>
-      <button id="btnStudioSave" class="primary" disabled>書き込む</button>
-      <span id="studioDirtyIndicator" hidden>未保存の変更あり</span>
-      <button id="btnStudioReload" disabled>再読み込み</button>
-      <button id="btnStudioReset" disabled>デフォルトに戻す</button>
       <button id="btnKeymapExport">.keymap をエクスポート</button>
     </div>
     <span class="sep"></span>
     <span id="status"></span>
+  </div>
+  <div id="presetRow">
+    <label for="selPreset">プリセット</label>
+    <select id="selPreset"></select>
+    <button id="btnPresetNew">新規作成</button>
+    <button id="btnPresetSave" disabled>保存</button>
+    <button id="btnPresetDelete" disabled>削除</button>
+    <span id="presetDiffIndicator" hidden></span>
   </div>
   <div id="topbarRow2">
     <div id="tabbar">
@@ -273,6 +284,18 @@
     </div>
   </div>
 </div>
+<dialog id="presetNameDialog">
+  <form method="dialog">
+    <h2>プリセットを新規作成</h2>
+    <p class="legend">今の画面の状態(タッチパッド + キー設定)を保存します</p>
+    <input type="text" id="presetNameInput" maxlength="40" placeholder="名前">
+    <p id="presetNameError" class="error" hidden></p>
+    <div class="dialogbuttons">
+      <button value="cancel" formnovalidate>キャンセル</button>
+      <button value="ok" id="presetNameOk" class="primary">作成</button>
+    </div>
+  </form>
+</dialog>
 <div id="devicePanel" hidden>
   <select id="selDevice"></select>
   <button id="btnConnectDevice">この機器に接続</button>
@@ -373,6 +396,7 @@
 <script src="app_params.js"></script>
 <script src="app_pad.js"></script>
 <script src="app_keymap.js"></script>
+<script src="app_presets.js"></script>
 <script src="app_main.js"></script>
 </body>
 </html>
