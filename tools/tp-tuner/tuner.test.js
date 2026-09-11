@@ -628,3 +628,20 @@ test('指 3 本で大きく動いたとき、inferKind はスワイプのボタ�
   assert.equal(T.inferKind({ ...base, buttonsPressed: [0x115] }, T.DEFAULT_PARAMS), 'swipe3');
   assert.equal(T.kindLabel('swipe3'), '3 本指スワイプ');
 });
+
+test('driver_bool のとき、formatParamValue すると ON / OFF になり、それ以外は文字列になる', () => {
+  assert.equal(T.formatParamValue('driver_bool', 1), 'ON');
+  assert.equal(T.formatParamValue('driver_bool', 0), 'OFF');
+  assert.equal(T.formatParamValue('ic_u16', 250), '250');
+});
+
+test('クエリがあるとき、paramMatchesQuery は名前か説明文の部分一致で判定する', () => {
+  assert.equal(T.paramMatchesQuery('cursor_inertia_decay', '慣性の減衰', '慣性'), true);
+  assert.equal(T.paramMatchesQuery('cursor_inertia_decay', '', 'INERTIA'), true);
+  assert.equal(T.paramMatchesQuery('1f_tap_max_ms', 'タップ', 'scroll'), false);
+});
+
+test('クエリが空のとき、paramMatchesQuery は常に true になる', () => {
+  assert.equal(T.paramMatchesQuery('1f_tap_max_ms', 'タップ', ''), true);
+  assert.equal(T.paramMatchesQuery('1f_tap_max_ms', 'タップ', '   '), true);
+});

@@ -203,3 +203,16 @@ test('behavior を切り替えたとき、defaultBindingFor は定義に合う�
   assert.deepEqual(U.defaultBindingFor({ id: 1 }, 0), { behaviorId: 1, param1: 0, param2: 0 });
   assert.equal(U.setBindingErrorText(3), 'パラメータが不正です(この behavior が受け付けない値)');
 });
+
+test('HIDDEN_KEY_POSITIONS は十字キーとトラックパッド割り当ての位置 42〜67 の26要素になる', () => {
+  assert.equal(U.HIDDEN_KEY_POSITIONS.length, 26);
+  assert.equal(U.HIDDEN_KEY_POSITIONS[0], 42);
+  assert.equal(U.HIDDEN_KEY_POSITIONS[U.HIDDEN_KEY_POSITIONS.length - 1], 67);
+});
+
+test('位置が42〜67の範囲内のとき、isKeyHidden は true になり範囲外は false になる', () => {
+  assert.equal(U.isKeyHidden(41), false);
+  assert.equal(U.isKeyHidden(42), true);
+  assert.equal(U.isKeyHidden(67), true);
+  assert.equal(U.isKeyHidden(68), false);
+});

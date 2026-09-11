@@ -805,6 +805,18 @@
     return pts;
   }
 
+  function formatParamValue(kind, value) {
+    return kind === 'driver_bool' ? (value ? 'ON' : 'OFF') : String(value);
+  }
+
+  function paramMatchesQuery(name, help, query) {
+    const q = (query || '').trim().toLowerCase();
+    if (!q) return true;
+    const n = (name || '').toLowerCase();
+    const h = (help || '').toLowerCase();
+    return n.includes(q) || h.includes(q);
+  }
+
   const api = {
     BTN, REL, BTN_NAMES, DEFAULT_PARAMS, PARAM_DEPENDS,
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
@@ -813,6 +825,7 @@
     paramValue, isParamActive, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, inferKind, whyNot, describeState,
     observationText, hostText, sentText, recognitionText, kindLabel,
     mergeParams, pendingCommands, liveCommands, padStateFromFrame, frameToPadPoints,
+    formatParamValue, paramMatchesQuery,
   };
   root.TpTuner = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

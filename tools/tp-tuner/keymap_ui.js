@@ -239,12 +239,20 @@
     return out;
   }
 
+  const HIDDEN_KEY_POSITIONS = [];
+  for (let pos = 42; pos <= 67; pos++) HIDDEN_KEY_POSITIONS.push(pos);
+
+  function isKeyHidden(pos) {
+    return HIDDEN_KEY_POSITIONS.includes(pos);
+  }
+
   const api = {
-    MOD_ORDER, HID_USAGE_PAGE,
+    MOD_ORDER, HID_USAGE_PAGE, HIDDEN_KEY_POSITIONS,
     layoutBounds, keyRect,
     paramDescKind, describeParamSlot, valueFitsSlot, findMatchingSetIndex, defaultBindingFor, setBindingErrorText,
     layerIndexById, modLabelPrefix, formatHidUsageLabel, bindingLabel,
     filterKeycodes, groupKeycodes, keycodeWithinHidUsage, modsFromFlags, flagsFromMods,
+    isKeyHidden,
   };
   root.TpKeymapUi = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
