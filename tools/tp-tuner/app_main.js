@@ -143,7 +143,7 @@
       if (keymapDirtyBefore) {
         try { await Keymap.save(); } catch (e) { keymapErr = errText(e); }
       }
-      if (!writeResult && !keymapDirtyBefore) { setStatus('書き込む変更がありません'); return; }
+      if (!(writeResult && writeResult.total > 0) && !keymapDirtyBefore) { setStatus('書き込む変更がありません'); return; }
       const parts = [];
       if (writeResult && writeResult.written > 0) parts.push(`パッド ${writeResult.written} 件`);
       if (keymapDirtyBefore && !keymapErr) parts.push('キー設定');
