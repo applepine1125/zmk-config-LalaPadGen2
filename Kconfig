@@ -14,10 +14,3 @@ config LALAPAD_TP_TUNER
       Expose the IQS9151 runtime tuning commands over a custom GATT service
       on the central half and forward commands for the peripheral half over
       the ZMK split link (behavior invocation / input-split events).
-
-config LALAPAD_DIAG_ISR_SAMPLER
-    bool "1ms timer sampler for tp stats (CPU halt detection, long coop runs with PC/LR)"
-    default n
-    depends on LALAPAD_TP_TUNER
-    help
-      Wakes the CPU every 1ms. Costs battery; enable only while diagnosing.

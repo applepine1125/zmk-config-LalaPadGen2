@@ -57,9 +57,13 @@
 | frame_n / frame_max_us / frame_avg_us | フレーム work の回数・最大/平均処理時間 | ドライバ |
 | frame_gap_max_ms | 指が乗っている間のフレーム間隔の最大 | ドライバ |
 | i2c_err | I2C エラー回数 | ドライバ |
+| i2c_max_us / i2c_avg_us | フレーム読み出し(I2C)単体の最大/平均時間 | ドライバ |
+| reset_n | IC の SHOW_RESET を検出して状態を初期化した回数 | ドライバ |
+| rdy_miss | フレーム読み出し開始時に RDY が非アクティブだった回数 | ドライバ |
+| end_err | 通信窓を閉じるコマンドの失敗回数 | ドライバ |
 | wq_late_max_us / wq_late_over3 | syswq に 10ms 周期で積んだプローブの遅れの最大値(µs)と 3ms 超えの回数 | config(`src/lalapad_diag.c`) |
-| pos_n / pos_gap_max_ms | キー位置イベント数と最大間隔(右は左由来も別カウント) | config |
-| link_int_us / link_lat / link_to_ms | 接続ごとの interval・latency・timeout(BT で返す左手分は最初の接続のみ) | config(`bt_conn_foreach`) |
+| pos_local / pos_remote | キー位置イベント数(自分側/相手側由来) | config |
+| link_int_us / link_lat / link_to_ms / link_tx_len | 接続ごとの interval・latency・timeout・LE データ長(BT で返す左手分は最初の接続のみ) | config(`bt_conn_foreach`) |
 | notify_fail | tp-tuner の送信失敗回数 | config |
 
 取得経路:
