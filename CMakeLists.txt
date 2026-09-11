@@ -1,4 +1,4 @@
-set(_lalapad_sources)
+set(_lalapad_sources src/boot_diag.c)
 
 if(CONFIG_ZMK_INPUT_PROCESSOR_SCROLL_ACCEL)
   list(APPEND _lalapad_sources src/input_processor_scroll_accel.c)
