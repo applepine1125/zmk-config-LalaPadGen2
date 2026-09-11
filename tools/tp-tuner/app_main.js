@@ -143,20 +143,15 @@
       if (keymapDirtyBefore) {
         try { await Keymap.save(); } catch (e) { keymapErr = errText(e); }
       }
+      if (!writeResult && !keymapDirtyBefore) { setStatus('書き込む変更がありません'); return; }
       const parts = [];
-      if (writeResult) parts.push(`パッド ${writeResult.written} 件`);
+      if (writeResult && writeResult.written > 0) parts.push(`パッド ${writeResult.written} 件`);
       if (keymapDirtyBefore && !keymapErr) parts.push('キー設定');
-      let msg = parts.length ? parts.join('と') + 'を書き込みました' : '書き込む変更がありません';
-      let isError = false;
-      if (writeResult && writeResult.failed > 0) {
-        msg += `(${writeResult.failed} 件失敗。失敗した行は保留のままです)`;
-        isError = true;
-      }
-      if (keymapErr) {
-        msg += 'キー設定の書き込みに失敗しました: ' + keymapErr;
-        isError = true;
-      }
-      setStatus(msg, isError);
+      const msgs = [];
+      if (parts.length) msgs.push(parts.join('と') + 'を書き込みました');
+      if (writeResult && writeResult.failed > 0) msgs.push(`パッド ${writeResult.failed} 件の書き込みに失敗しました。失敗した行は保留のままです`);
+      if (keymapErr) msgs.push('キー設定の書き込みに失敗しました: ' + keymapErr);
+      setStatus(msgs.join('。'), !!keymapErr || (writeResult && writeResult.failed > 0));
     } finally {
       setBusy(false);
     }

@@ -139,7 +139,9 @@
         await persistAndReport('接続すると差分を表示します');
         return;
       }
-      if (preset.trackpad) Params.applyPresetTrackpad(preset.trackpad);
+      store = Presets.selectPreset(store, newId);
+      applyCompareTargets();
+      Params.applyPresetTrackpad(preset.trackpad);
       let skippedNote = '';
       let layerErrorNote = '';
       let keymapNote = '';
@@ -153,9 +155,9 @@
         } else {
           keymapNote = '(キー設定は Studio が使えないため反映していません)';
         }
+      } else if (Keymap.isDirty()) {
+        await Keymap.reload();
       }
-      store = Presets.selectPreset(store, newId);
-      applyCompareTargets();
       const msg = `プリセット「${preset.name}」を画面に反映しました。「書き込み」でキーボードに書き込みます`
         + skippedNote + layerErrorNote + keymapNote;
       await persistAndReport(msg);

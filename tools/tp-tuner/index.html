@@ -72,7 +72,7 @@
   button:disabled { opacity: .45; cursor: default; }
   button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
   button.active { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); }
-  select, input[type=number] {
+  select, input[type=number], input[type=text], input[type=search] {
     font: inherit; padding: 3px 6px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
     background: var(--surface); color: var(--text);
   }
@@ -208,7 +208,7 @@
   #captureMsg { max-width: 420px; font-size: 14px; line-height: 1.7; }
   #tabbar { display: flex; gap: 6px; }
   #tabbar button.active { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); font-weight: 700; }
-  #actions, #presetRow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  #actions:not([hidden]), #presetRow:not([hidden]) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   #presetDiffIndicator { color: var(--accent); font-weight: 700; white-space: nowrap; }
   dialog#presetNameDialog {
     background: var(--surface); color: var(--text); border: none; border-radius: var(--radius);
