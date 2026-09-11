@@ -76,7 +76,19 @@ static void set_stage(uint32_t stage) {
     }
 }
 
+extern uint8_t z_main_stack[];
+
+static unsigned int main_stack_used(void) {
+    size_t unused = 0;
+
+    while (unused < CONFIG_MAIN_STACK_SIZE && z_main_stack[unused] == 0xaa) {
+        unused++;
+    }
+    return (unsigned int)(CONFIG_MAIN_STACK_SIZE - unused);
+}
+
 static void print_status(void) {
+    printk("[diag] main_stack_used=%u/%u\n", main_stack_used(), (unsigned int)CONFIG_MAIN_STACK_SIZE);
     printk("[diag] boot=%u stage=%u uptime=%u | prev: stage=%u crashes=%u reason=%u pc=0x%08x "
            "lr=0x%08x crash_stage=%u thread=%s\n",
            rec.boots, rec.stage, k_uptime_get_32(), prev.stage, prev.crashes, prev.crash_reason,
