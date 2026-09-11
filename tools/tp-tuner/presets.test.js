@@ -242,6 +242,12 @@ test('trackpadPendingFromPreset は読めていない側(params空)を無視す�
   assert.deepEqual(P.trackpadPendingFromPreset(presetTrackpad, paramsBySide), { common: {}, R: { a: 10 }, L: {} });
 });
 
+test('プリセットが右手の値しか持たないとき、両手が読めていても左手には反映しない', () => {
+  const presetTrackpad = { R: { a: 10 } };
+  const paramsBySide = { R: [{ name: 'a', value: 1 }], L: [{ name: 'a', value: 1 }] };
+  assert.deepEqual(P.trackpadPendingFromPreset(presetTrackpad, paramsBySide), { common: {}, R: { a: 10 }, L: {} });
+});
+
 test('trackpadPendingFromPreset はプリセットに無い名前を無視する', () => {
   const presetTrackpad = { R: { a: 10 } };
   const paramsBySide = { R: [{ name: 'a', value: 1 }, { name: 'b', value: 2 }], L: [{ name: 'a', value: 10 }] };

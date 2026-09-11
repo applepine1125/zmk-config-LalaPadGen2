@@ -161,7 +161,8 @@
       const presetSidesForName = ['R', 'L'].filter((s) => presetTrackpad[s] && Object.prototype.hasOwnProperty.call(presetTrackpad[s], name));
       const presetValues = presetSidesForName.map((s) => presetTrackpad[s][name]);
       const allSame = presetValues.every((v) => v === presetValues[0]);
-      if (allSame) {
+      const coversReadable = readableSides.every((s) => presetSidesForName.includes(s));
+      if (allSame && coversReadable) {
         const v = presetValues[0];
         const differs = readableSides.some((s) => keyboardValue(paramsBySide, s, name) !== v);
         if (differs) out.common[name] = v;
