@@ -37,7 +37,6 @@
     $('btnStudioSave').disabled = !hasData || !studioDirty;
     $('btnStudioReload').disabled = !studioClient;
     $('btnStudioReset').disabled = !hasData;
-    $('btnKeymapExport').disabled = !hasData || !physicalLayout;
     $('studioDirtyIndicator').hidden = !studioDirty;
   }
 
@@ -448,7 +447,7 @@
   }
 
   async function exportKeymapNow() {
-    if (!keymapData || !physicalLayout) return;
+    if (!keymapData || !physicalLayout) { setStatus('キー設定を読み込んでからエクスポートしてください', true); return; }
     const layout = physicalLayout.layouts[physicalLayout.activeLayoutIndex] || { keys: [] };
     const text = TpKeymapExport.exportKeymap({ keymap: keymapData, behaviors, layout });
     await saveExportedFile('lalapadgen2.keymap', text);
