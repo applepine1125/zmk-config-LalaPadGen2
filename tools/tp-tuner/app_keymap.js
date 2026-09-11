@@ -447,7 +447,7 @@
   }
 
   async function exportKeymapNow() {
-    if (!keymapData || !physicalLayout) { setStatus('キー設定を読み込んでからエクスポートしてください', true); return; }
+    if (!keymapData || !physicalLayout) { root.TpAppMain.setStatus('キー設定を読み込んでからエクスポートしてください', true); return; }
     const layout = physicalLayout.layouts[physicalLayout.activeLayoutIndex] || { keys: [] };
     const text = TpKeymapExport.exportKeymap({ keymap: keymapData, behaviors, layout });
     await saveExportedFile('lalapadgen2.keymap', text);
