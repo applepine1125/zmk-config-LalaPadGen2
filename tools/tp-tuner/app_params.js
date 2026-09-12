@@ -15,7 +15,7 @@
 
   const GROUPS = [
     { title: '1本指タップ / タップドラッグ', names: ['1f_tap_enable', '1f_tap_max_ms', '1f_tap_move', '1f_presshold_enable', '1f_tapdrag_gap_max_ms'] },
-    { title: '2本指タップ / スクロール / ピンチ', names: ['2f_tap_enable', '2f_tap_max_ms', '2f_tap_move', '2f_presshold_enable', '2f_tapdrag_gap_max_ms', 'scroll_x_enable', 'scroll_y_enable', '2f_scroll_start_move', '2f_pinch_enable', '2f_pinch_start_distance', '2f_pinch_ratio_x10', '2f_pinch_wheel_gain_x10'] },
+    { title: '2本指タップ / スクロール / ピンチ', names: ['2f_tap_enable', '2f_tap_max_ms', '2f_tap_move', '2f_presshold_enable', '2f_tapdrag_gap_max_ms', 'scroll_x_enable', 'scroll_y_enable', '2f_scroll_start_move', '2f_scroll_slow_speed', '2f_scroll_fast_speed', '2f_scroll_slow_gain_x100', '2f_scroll_fast_gain_x100', '2f_pinch_enable', '2f_pinch_start_distance', '2f_pinch_ratio_x10', '2f_pinch_wheel_gain_x10'] },
     { title: '3本指', names: ['3f_tap_enable', '3f_tap_max_ms', '3f_tap_move', '3f_presshold_enable', '3f_tapdrag_gap_max_ms', '3f_swipe_threshold'] },
     { title: '慣性', names: ['cursor_inertia_enable', 'cursor_inertia_decay', 'cursor_inertia_recent_window_ms', 'cursor_inertia_stale_gap_ms', 'cursor_inertia_min_samples', 'cursor_inertia_min_avg_speed', 'scroll_inertia_enable', 'scroll_inertia_decay', 'scroll_inertia_recent_window_ms', 'scroll_inertia_stale_gap_ms', 'scroll_inertia_min_samples', 'scroll_inertia_min_avg_speed'] },
     { title: '送信レート(BLE 対策)', names: ['cursor_report_interval_ms', 'scroll_report_interval_ms'] },
@@ -44,6 +44,10 @@
     scroll_x_enable: { what: '横の 2 本指スクロール', on: '横スクロールする', off: '横スクロールしない' },
     scroll_y_enable: { what: '縦の 2 本指スクロール', on: '縦スクロールする', off: '縦スクロールしない' },
     '2f_scroll_start_move': { what: '2 本指の移動をスクロールと判定し始める移動量', up: 'スクロールの始まりが重くなる', down: '小さな動きで始まる(2 本指タップがスクロール扱いになりやすい)' },
+    '2f_scroll_slow_speed': { what: 'この速さ(1 フレームあたりの移動量)以下を「ゆっくり」とみなす', up: 'ゆっくり扱いになる範囲が広がる', down: 'ゆっくり扱いになる範囲が狭まる' },
+    '2f_scroll_fast_speed': { what: 'この速さ(1 フレームあたりの移動量)以上を「速い」とみなす', up: '速い扱いになりにくくなる', down: '速い扱いになりやすくなる' },
+    '2f_scroll_slow_gain_x100': { what: 'ゆっくり動かしたときのスクロール量の倍率(100 = 等倍)', up: 'ゆっくり動かしたときのスクロール量が増える', down: 'ゆっくり動かしたときのスクロール量が減る' },
+    '2f_scroll_fast_gain_x100': { what: '速く動かしたときのスクロール量の倍率(100 = 等倍)', up: '速く動かしたときのスクロール量が増える', down: '速く動かしたときのスクロール量が減る' },
     '2f_pinch_enable': { what: '2 本指ピンチ', on: 'ピンチする', off: 'ピンチしない' },
     '2f_pinch_start_distance': { what: '指の間隔の変化がこれを超えるとピンチ', up: '大きく開閉しないとピンチにならない', down: '敏感になる(スクロールがピンチに化けやすい)' },
     '2f_pinch_ratio_x10': { what: 'スクロールかピンチかを決める比率(×0.1)。指の間隔の変化が重心の移動のこの倍率以上ならピンチ。動き出しの最小量は 2f_scroll_start_move / 2f_pinch_start_distance', up: 'ピンチになりにくくなる(スクロール寄り)', down: 'ピンチになりやすくなる' },
