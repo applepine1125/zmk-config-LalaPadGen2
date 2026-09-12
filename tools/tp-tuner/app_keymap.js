@@ -26,6 +26,7 @@
   let selectedLayerIndex = 0;
   let selectedKeyPos = null;
   let activeTab = 'trackpad';
+  let resetOnWrite = false;
 
   function setStudioNotice(text) {
     const el = $('studioNotice');
@@ -201,7 +202,14 @@
       b.onclick = () => { selectedLayerIndex = i; selectedKeyPos = null; renderKeymapWorkspace(); };
       wrap.appendChild(b);
     });
-    $('btnLayerAdd').disabled = !studioClient || keymapData.availableLayers <= 0;
+    const noAvailableLayers = keymapData.availableLayers <= 0;
+    const addNoteText = noAvailableLayers ? 'ファームのキーマップに空レイヤーがないため追加できません' : '';
+    const btnAdd = $('btnLayerAdd');
+    btnAdd.disabled = !studioClient || noAvailableLayers;
+    btnAdd.title = addNoteText;
+    const addNote = $('layerAddNote');
+    addNote.hidden = !noAvailableLayers;
+    addNote.textContent = addNoteText;
     $('btnLayerRemove').disabled = !studioClient || keymapData.layers.length < 2;
     const note = $('presetLayerNote');
     note.hidden = !diff.layerCount;
@@ -501,22 +509,10 @@
     renderParamInputs(sets[setIdx], binding, paramsContainer);
   }
 
-  async function saveExportedFile(name, text) {
-    try {
-      const res = await Link.saveFile(name, text);
-      if (res.cancelled) return;
-      if (!res.ok) { root.TpAppMain.setStatus('保存に失敗しました: ' + (res.error || ''), true); return; }
-      root.TpAppMain.setStatus((res.path || name) + ' に保存しました');
-    } catch (e) {
-      root.TpAppMain.setStatus('保存に失敗しました: ' + errText(e), true);
-    }
-  }
-
-  async function exportKeymap() {
-    if (!keymapData || !physicalLayout) { root.TpAppMain.setStatus('キー設定を読み込んでからエクスポートしてください', true); return; }
+  function exportKeymapText() {
+    if (!keymapData || !physicalLayout) return null;
     const layout = physicalLayout.layouts[physicalLayout.activeLayoutIndex] || { keys: [] };
-    const text = TpKeymapExport.exportKeymap({ keymap: keymapData, behaviors, layout });
-    await saveExportedFile('lalapadgen2.keymap', text);
+    return TpKeymapExport.exportKeymap({ keymap: keymapData, behaviors, layout });
   }
 
   async function save() {
@@ -646,6 +642,30 @@
     if (tab === 'keymap' && isReady()) Pad.setTrackpadQuiet(true);
   }
 
+  function setResetOnWrite(v) {
+    resetOnWrite = !!v;
+  }
+
+  function isResetOnWrite() {
+    return resetOnWrite;
+  }
+
+  function updateUndoButton() {
+    const btn = $('btnKeymapUndo');
+    const busy = root.TpAppMain ? root.TpAppMain.isBusy() : false;
+    btn.disabled = busy || !isDirty();
+  }
+
+  $('btnKeymapUndo').onclick = async () => {
+    if (!isDirty()) return;
+    root.TpAppMain.setBusy(true);
+    try {
+      await reload();
+    } finally {
+      root.TpAppMain.setBusy(false);
+    }
+  };
+
   $('btnLayerAdd').onclick = async () => {
     if (!studioClient || keymapData.availableLayers <= 0) return;
     try {
@@ -682,7 +702,8 @@
     setActiveTab, updateAvailability: updateStudioAvailability, teardownStudio, disconnectCleanup,
     handleStudioReady, handleStudioData, handleStudioClosed,
     isReady, ensureLoaded, isDirty, snapshot, setPresetKeymap, presetDiff, applyPresetKeymap,
-    save, reload, resetToDefault, exportKeymap,
+    setResetOnWrite, isResetOnWrite, updateUndoButton,
+    save, reload, resetToDefault, exportKeymapText,
   };
   root.TpAppKeymap = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

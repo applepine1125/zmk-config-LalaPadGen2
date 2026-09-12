@@ -81,18 +81,18 @@
     const conn = Link.isConnected();
     const pendingN = Params.pendingCount();
     const keymapDirty = Keymap.isDirty();
+    const resetOnWrite = Keymap.isResetOnWrite();
     const dirtyParts = [];
     if (pendingN > 0) dirtyParts.push(`パッド ${pendingN} 件`);
     if (keymapDirty) dirtyParts.push('キー設定あり');
     $('dirtyIndicator').hidden = dirtyParts.length === 0;
     $('dirtyIndicator').textContent = dirtyParts.length ? `未書き込み: ${dirtyParts.join(' / ')}` : '';
 
-    $('btnWrite').disabled = busy || !conn || !(pendingN > 0 || keymapDirty);
+    $('btnWrite').disabled = busy || !conn || !(pendingN > 0 || keymapDirty || resetOnWrite);
     $('btnReload').disabled = busy || !conn;
-    $('btnResetAll').disabled = busy || !conn;
     $('btnExport').disabled = busy;
-    $('btnKeymapExport').disabled = busy;
 
+    Keymap.updateUndoButton();
     if (root.TpAppPresets) root.TpAppPresets.render();
   }
 
@@ -134,21 +134,34 @@
 
   async function doWrite() {
     if (busy) return;
+    const resetRequested = Keymap.isResetOnWrite();
+    let resetConfirmed = false;
+    if (resetRequested) {
+      resetConfirmed = window.confirm('キー設定をファーム既定に戻します。キーボードに保存済みの変更も消えます。よろしいですか?');
+    }
     setBusy(true);
     try {
       const pendingBefore = Params.pendingCount();
       const keymapDirtyBefore = Keymap.isDirty();
       const writeResult = pendingBefore > 0 ? await Params.write() : null;
       let keymapErr = null;
-      if (keymapDirtyBefore) {
-        try { await Keymap.save(); } catch (e) { keymapErr = errText(e); }
+      let keymapAction = '';
+      if (resetRequested && resetConfirmed) {
+        try {
+          await Keymap.resetToDefault();
+          Keymap.setResetOnWrite(false);
+          keymapAction = 'reset';
+        } catch (e) { keymapErr = errText(e); }
+      } else if (keymapDirtyBefore) {
+        try { await Keymap.save(); keymapAction = 'save'; } catch (e) { keymapErr = errText(e); }
       }
-      if (!(writeResult && writeResult.total > 0) && !keymapDirtyBefore) { setStatus('書き込む変更がありません'); return; }
+      if (!(writeResult && writeResult.total > 0) && !keymapAction && !keymapErr) { setStatus('書き込む変更がありません'); return; }
       const parts = [];
       if (writeResult && writeResult.written > 0) parts.push(`パッド ${writeResult.written} 件`);
-      if (keymapDirtyBefore && !keymapErr) parts.push('キー設定');
+      if (keymapAction === 'save') parts.push('キー設定');
       const msgs = [];
       if (parts.length) msgs.push(parts.join('と') + 'を書き込みました');
+      if (keymapAction === 'reset') msgs.push('キー設定をファーム既定に戻しました');
       if (writeResult && writeResult.failed > 0) msgs.push(`パッド ${writeResult.failed} 件の書き込みに失敗しました。失敗した行は保留のままです`);
       if (keymapErr) msgs.push('キー設定の書き込みに失敗しました: ' + keymapErr);
       setStatus(msgs.join('。'), !!keymapErr || (writeResult && writeResult.failed > 0));
@@ -174,17 +187,24 @@
     }
   }
 
-  async function doResetAll() {
+  async function doExport() {
     if (busy) return;
-    if (!window.confirm('タッチパッドのパラメータとキー設定をファームのデフォルトに戻します。キーボードに保存済みの値も削除されます。よろしいですか?')) return;
+    const confText = Params.exportConfText();
+    if (confText === null) { setStatus('パラメータが読み込まれていません', true); return; }
+    const keymapText = Keymap.exportKeymapText();
+    const files = [{ name: 'lalapadgen2.conf', text: confText }];
+    if (keymapText !== null) files.push({ name: 'lalapadgen2.keymap', text: keymapText });
     setBusy(true);
     try {
-      const ok = await Params.resetToDefault();
-      let keymapNote = '';
-      if (await Keymap.ensureLoaded()) {
-        try { await Keymap.resetToDefault(); } catch (e) { keymapNote = '(キー設定のリセットに失敗しました: ' + errText(e) + ')'; }
+      const res = await Link.saveFiles(files);
+      if (res.cancelled) return;
+      if (!res.ok) {
+        const savedNote = res.dir && res.saved && res.saved.length ? `(${res.dir} に ${res.saved.length} 件保存済み)` : '';
+        setStatus('保存に失敗しました: ' + (res.error || '') + savedNote, true);
+        return;
       }
-      setStatus(ok ? 'デフォルトに戻しました' + keymapNote : 'デフォルトに戻せませんでした' + keymapNote, !ok || !!keymapNote);
+      if (keymapText === null) { setStatus('キー設定を読めていないため .conf だけ保存しました'); return; }
+      setStatus(res.dir ? `${res.dir} に ${files.length} 件保存しました` : `${files.length} 件保存しました`);
     } finally {
       setBusy(false);
     }
@@ -196,9 +216,7 @@
   $('btnDisconnect').onclick = () => { Link.disconnect(); };
   $('btnWrite').onclick = () => { doWrite(); };
   $('btnReload').onclick = () => { doReload(); };
-  $('btnResetAll').onclick = () => { doResetAll(); };
-  $('btnExport').onclick = () => { Params.exportConf(); };
-  $('btnKeymapExport').onclick = () => { Keymap.exportKeymap(); };
+  $('btnExport').onclick = () => { doExport(); };
   $('btnStats').onclick = (e) => { e.preventDefault(); e.stopPropagation(); readStats(); };
   $('btnLogCopy').onclick = async (e) => {
     e.preventDefault(); e.stopPropagation();

@@ -85,6 +85,51 @@ test('serializeStore で末尾改行付きにしても parseStore すると同�
   assert.deepEqual(r.store, store);
 });
 
+test('listPresets は先頭に固定 ID の default を付けて返す', () => {
+  const store = { version: 1, selectedId: null, presets: [preset({ id: 'p-1' })] };
+  assert.deepEqual(P.listPresets(store), [
+    { id: 'default', name: 'default', builtin: true },
+    preset({ id: 'p-1' }),
+  ]);
+});
+
+test('listPresets は store 自体を変更しない(保存はしない)', () => {
+  const store = { version: 1, selectedId: null, presets: [] };
+  P.listPresets(store);
+  assert.deepEqual(store, { version: 1, selectedId: null, presets: [] });
+});
+
+test('存在しない selectedId でも default なら parseStore でそのまま残る', () => {
+  const raw = JSON.stringify({ version: 1, selectedId: 'default', presets: [] });
+  const r = P.parseStore(raw);
+  assert.equal(r.store.selectedId, 'default');
+});
+
+test('default という名前は validateName で拒否される', () => {
+  const store = { version: 1, selectedId: null, presets: [] };
+  assert.deepEqual(P.validateName(store, 'default'), { ok: false, error: 'この名前は使えません' });
+});
+
+test('前後に空白があっても default という名前は validateName で拒否される', () => {
+  const store = { version: 1, selectedId: null, presets: [] };
+  assert.deepEqual(P.validateName(store, '  default  '), { ok: false, error: 'この名前は使えません' });
+});
+
+test('default を selectPreset すると選択できる', () => {
+  const store = { version: 1, selectedId: null, presets: [] };
+  assert.equal(P.selectPreset(store, 'default').selectedId, 'default');
+});
+
+test('default を対象に updatePreset しても元の store がそのまま返る', () => {
+  const store = { version: 1, selectedId: 'default', presets: [preset({ id: 'p-1' })] };
+  assert.equal(P.updatePreset(store, 'default', { trackpad: { R: { a: 1 } }, keymap: null }, 't1'), store);
+});
+
+test('default を対象に deletePreset しても元の store がそのまま返る', () => {
+  const store = { version: 1, selectedId: 'default', presets: [preset({ id: 'p-1' })] };
+  assert.equal(P.deletePreset(store, 'default'), store);
+});
+
 test('findPreset は該当する id のプリセットを返し、無ければ null になる', () => {
   const store = { version: 1, selectedId: null, presets: [preset({ id: 'p-1' }), preset({ id: 'p-2', name: 'B' })] };
   assert.equal(P.findPreset(store, 'p-2').name, 'B');

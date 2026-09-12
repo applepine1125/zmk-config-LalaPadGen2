@@ -190,6 +190,25 @@
     notifyHeaderChanged();
   }
 
+  function defaultTrackpad() {
+    const out = {};
+    for (const side of ['R', 'L']) {
+      if (!params[side] || !params[side].length) continue;
+      const vals = {};
+      for (const p of params[side]) vals[p.name] = p.def;
+      out[side] = vals;
+    }
+    return out;
+  }
+
+  function applyDefaults() {
+    const target = defaultTrackpad();
+    presetTrackpad = target;
+    pending = Presets.trackpadPendingFromPreset(target, { R: params.R, L: params.L });
+    renderParams();
+    notifyHeaderChanged();
+  }
+
   function presetDiffForName(name, screen) {
     if (!presetTrackpad) return null;
     const pr = presetTrackpad.R;
@@ -540,22 +559,10 @@
     }
   }
 
-  async function saveExportedFile(name, text) {
-    try {
-      const res = await Link.saveFile(name, text);
-      if (res.cancelled) return;
-      if (!res.ok) { root.TpAppMain.setStatus('保存に失敗しました: ' + (res.error || ''), true); return; }
-      root.TpAppMain.setStatus((res.path || name) + ' に保存しました');
-    } catch (e) {
-      root.TpAppMain.setStatus('保存に失敗しました: ' + errText(e), true);
-    }
-  }
-
-  async function exportConfNow() {
+  function exportConfText() {
     const merged = T.mergeParams(params.R, params.L);
-    if (merged.length === 0) { root.TpAppMain.setStatus('パラメータが読み込まれていません', true); return; }
-    const text = T.exportConf(merged, { diffOnly: false });
-    await saveExportedFile('lalapadgen2.conf', text);
+    if (merged.length === 0) return null;
+    return T.exportConf(merged, { diffOnly: false });
   }
 
   function rebuildPendingFromFailures(failed) {
@@ -597,21 +604,6 @@
     return count;
   }
 
-  async function resetToDefault() {
-    const sides = Link.activeSides();
-    if (!sides.length) return false;
-    let allOk = true;
-    for (const s of sides) allOk = (await Link.runSimpleOnSide(s, 'tp reset')) && allOk;
-    pending = emptyPending();
-    for (const s of sides) {
-      await loadParamsForSide(s);
-      await refreshInfoForSide(s);
-    }
-    notifyHeaderChanged();
-    renderParams();
-    return allOk;
-  }
-
   function undoPending() {
     pending = emptyPending();
     renderParams();
@@ -629,8 +621,8 @@
 
   const api = {
     render: renderParams, reset, pendingCount, paramsForSuggest, loadAllParams, refreshInfoForSide,
-    screenTrackpad, setPresetTrackpad, presetDiff, presetDiffSummary, applyPresetTrackpad,
-    write, reload, resetToDefault, undoPending, exportConf: exportConfNow,
+    screenTrackpad, setPresetTrackpad, presetDiff, presetDiffSummary, applyPresetTrackpad, applyDefaults,
+    write, reload, undoPending, exportConfText,
   };
   root.TpAppParams = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

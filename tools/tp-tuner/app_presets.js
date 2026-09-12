@@ -14,7 +14,14 @@
   let lastOptionsKey = null;
   let pendingCreateName = null;
 
+  const DEFAULT_ID = Presets.DEFAULT_PRESET_ID;
+
+  function isDefaultSelected() {
+    return store.selectedId === DEFAULT_ID;
+  }
+
   function selectedPreset() {
+    if (isDefaultSelected()) return { id: DEFAULT_ID, name: Presets.DEFAULT_PRESET_NAME, builtin: true, trackpad: null, keymap: null };
     return Presets.findPreset(store, store.selectedId);
   }
 
@@ -24,9 +31,15 @@
     Keymap.setPresetKeymap(preset ? preset.keymap : null);
   }
 
-  function diffCount() {
-    if (!store.selectedId) return 0;
-    return Presets.diffCount(Params.presetDiff(), Keymap.presetDiff());
+  function diffSummaryText() {
+    const paramSummary = Params.presetDiffSummary();
+    const keymapDiff = isDefaultSelected() ? { layerCount: null, keys: [] } : Keymap.presetDiff();
+    const keymapCount = keymapDiff.keys.length + (keymapDiff.layerCount ? 1 : 0);
+    const count = paramSummary.count + keymapCount;
+    const items = paramSummary.items + keymapCount;
+    if (count === 0) return 'プリセットと一致';
+    const detail = count !== items ? `(左右 ${paramSummary.items} 項目)` : '';
+    return `差分 ${count} 件${detail}`;
   }
 
   async function persistAndReport(successMsg) {
@@ -49,7 +62,8 @@
   }
 
   function renderOptions() {
-    const key = store.presets.map((p) => p.id + ':' + p.name).join('|') + '#' + (store.selectedId || '');
+    const list = Presets.listPresets(store);
+    const key = list.map((p) => p.id + ':' + p.name).join('|') + '#' + (store.selectedId || '');
     if (key === lastOptionsKey) return;
     lastOptionsKey = key;
     const sel = $('selPreset');
@@ -58,7 +72,7 @@
     none.value = '';
     none.textContent = '無し';
     sel.appendChild(none);
-    for (const p of store.presets) {
+    for (const p of list) {
       const o = document.createElement('option');
       o.value = p.id;
       o.textContent = p.name;
@@ -72,19 +86,16 @@
     const busy = root.TpAppMain ? root.TpAppMain.isBusy() : false;
     const conn = Link.isConnected();
     const selected = !!store.selectedId;
+    const isDefault = isDefaultSelected();
     const hasTrackpad = !!screenTrackpadOrNull();
     $('selPreset').disabled = busy;
     $('btnPresetNew').disabled = busy || !conn || !(hasTrackpad || Keymap.isReady());
-    $('btnPresetSave').disabled = busy || !selected;
-    $('btnPresetDelete').disabled = busy || !selected;
+    $('btnPresetSave').disabled = busy || !selected || isDefault;
+    $('btnPresetDelete').disabled = busy || !selected || isDefault;
     const ind = $('presetDiffIndicator');
-    if (selected && conn) {
-      const n = diffCount();
-      ind.hidden = false;
-      ind.textContent = n > 0 ? `プリセットとの差分 ${n} 件` : 'プリセットと一致';
-    } else {
-      ind.hidden = true;
-    }
+    ind.hidden = !(selected && conn);
+    if (selected && conn) ind.textContent = diffSummaryText();
+    $('presetKeymapResetNote').hidden = !Keymap.isResetOnWrite();
   }
 
   async function init() {
@@ -117,8 +128,31 @@
       root.TpAppMain.setBusy(true);
       try {
         store = Presets.selectPreset(store, null);
+        Keymap.setResetOnWrite(false);
         applyCompareTargets();
         await persistAndReport();
+      } finally {
+        root.TpAppMain.setBusy(false);
+      }
+      return;
+    }
+    if (newId === DEFAULT_ID) {
+      const hasPending = Params.pendingCount() > 0 || Keymap.isDirty();
+      if (hasPending) {
+        const ok = window.confirm('書き込んでいない変更を捨てて、default(ファーム既定)の内容を画面に反映します。よろしいですか?');
+        if (!ok) { sel.value = prevId || ''; return; }
+      }
+      root.TpAppMain.setBusy(true);
+      try {
+        store = Presets.selectPreset(store, newId);
+        applyCompareTargets();
+        if (!Link.isConnected()) {
+          await persistAndReport('接続すると差分を表示します');
+          return;
+        }
+        Params.applyDefaults();
+        Keymap.setResetOnWrite(true);
+        await persistAndReport('default を画面に反映しました。トラックパッドは「書き込み」で反映し、キー設定は「書き込み」時にファーム既定へ戻します');
       } finally {
         root.TpAppMain.setBusy(false);
       }
@@ -133,6 +167,7 @@
     }
     root.TpAppMain.setBusy(true);
     try {
+      Keymap.setResetOnWrite(false);
       if (!Link.isConnected()) {
         store = Presets.selectPreset(store, newId);
         applyCompareTargets();
@@ -257,7 +292,7 @@
   $('btnPresetDelete').onclick = () => { deletePresetFlow(); };
   $('selPreset').onchange = () => { onSelectChange(); };
 
-  const api = { init, diffCount, render, onKeymapLoaded: render };
+  const api = { init, render, onKeymapLoaded: render };
   root.TpAppPresets = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

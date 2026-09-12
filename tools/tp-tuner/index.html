@@ -208,6 +208,7 @@
   #tabbar button.active { background: var(--accent-weak); border-color: var(--accent); color: var(--accent); font-weight: 700; }
   #actions:not([hidden]), #presetRow:not([hidden]) { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   #presetDiffIndicator { color: var(--accent); font-weight: 700; white-space: nowrap; }
+  #presetKeymapResetNote { color: var(--warn); font-weight: 600; white-space: nowrap; }
   dialog#presetNameDialog {
     background: var(--surface); color: var(--text); border: none; border-radius: var(--radius);
     box-shadow: var(--shadow); padding: 16px 18px; min-width: 280px;
@@ -256,15 +257,6 @@
     <label id="autoConnectLabel"><input type="checkbox" id="chkAutoConnect">自動接続</label>
     <span id="connStatus">未接続</span>
     <span class="sep"></span>
-    <div id="actions">
-      <button id="btnWrite" class="primary" disabled>書き込み</button>
-      <span id="dirtyIndicator" hidden></span>
-      <button id="btnReload" disabled>再読み込み</button>
-      <button id="btnResetAll" disabled>デフォルトに戻す</button>
-      <button id="btnExport">.conf をエクスポート</button>
-      <button id="btnKeymapExport">.keymap をエクスポート</button>
-    </div>
-    <span class="sep"></span>
     <span id="status"></span>
   </div>
   <div id="presetRow">
@@ -274,6 +266,13 @@
     <button id="btnPresetSave" disabled>保存</button>
     <button id="btnPresetDelete" disabled>削除</button>
     <span id="presetDiffIndicator" hidden></span>
+    <span id="presetKeymapResetNote" hidden>キー設定は書き込み時に既定へ戻します</span>
+  </div>
+  <div id="actions">
+    <button id="btnWrite" class="primary" disabled>書き込み</button>
+    <span id="dirtyIndicator" hidden></span>
+    <button id="btnReload" disabled>再読み込み</button>
+    <button id="btnExport">設定をエクスポート</button>
   </div>
   <div id="topbarRow2">
     <div id="tabbar">
@@ -361,9 +360,11 @@
         <h2>レイヤー</h2>
         <div class="layerlist-row" id="layerList"></div>
         <div id="presetLayerNote" class="legend" hidden></div>
+        <div id="layerAddNote" class="legend" hidden></div>
         <div class="row">
           <button id="btnLayerAdd">追加</button>
           <button id="btnLayerRemove">削除</button>
+          <button id="btnKeymapUndo" disabled>変更を取り消す</button>
         </div>
       </div>
       <div class="card keymap-svg-card">

@@ -4,9 +4,16 @@
   const TpKeymapUi = (typeof module !== 'undefined' && module.exports) ? require('./keymap_ui.js') : root.TpKeymapUi;
 
   const STORE_VERSION = 1;
+  const DEFAULT_PRESET_ID = 'default';
+  const DEFAULT_PRESET_NAME = 'default';
+  const DEFAULT_PRESET = { id: DEFAULT_PRESET_ID, name: DEFAULT_PRESET_NAME, builtin: true };
 
   function emptyStore() {
     return { version: STORE_VERSION, selectedId: null, presets: [] };
+  }
+
+  function listPresets(store) {
+    return [DEFAULT_PRESET, ...store.presets];
   }
 
   function parseStore(text) {
@@ -35,7 +42,9 @@
         trackpad: p.trackpad || null,
         keymap: p.keymap || null,
       }));
-    const selectedId = presets.some((p) => p.id === data.selectedId) ? data.selectedId : null;
+    const selectedId = (data.selectedId === DEFAULT_PRESET_ID || presets.some((p) => p.id === data.selectedId))
+      ? data.selectedId
+      : null;
     return { ok: true, store: { version: STORE_VERSION, selectedId, presets } };
   }
 
@@ -50,6 +59,7 @@
   function validateName(store, name, exceptId) {
     const trimmed = (name || '').trim();
     if (!trimmed) return { ok: false, error: '名前を入力してください' };
+    if (trimmed === DEFAULT_PRESET_NAME) return { ok: false, error: 'この名前は使えません' };
     const dup = store.presets.some((p) => p.id !== exceptId && p.name === trimmed);
     if (dup) return { ok: false, error: '同じ名前のプリセットがあります' };
     return { ok: true, name: trimmed };
@@ -76,6 +86,7 @@
   }
 
   function updatePreset(store, id, { trackpad, keymap }, now) {
+    if (id === DEFAULT_PRESET_ID) return store;
     const idx = store.presets.findIndex((p) => p.id === id);
     if (idx === -1) return store;
     const preset = store.presets[idx];
@@ -91,6 +102,7 @@
   }
 
   function deletePreset(store, id) {
+    if (id === DEFAULT_PRESET_ID) return store;
     const presets = store.presets.filter((p) => p.id !== id);
     const selectedId = store.selectedId === id ? null : store.selectedId;
     return { ...store, presets, selectedId };
@@ -98,6 +110,7 @@
 
   function selectPreset(store, id) {
     if (id === null) return { ...store, selectedId: null };
+    if (id === DEFAULT_PRESET_ID) return { ...store, selectedId: DEFAULT_PRESET_ID };
     const exists = store.presets.some((p) => p.id === id);
     return { ...store, selectedId: exists ? id : null };
   }
@@ -302,8 +315,8 @@
   }
 
   const api = {
-    STORE_VERSION, emptyStore, parseStore, serializeStore, findPreset, validateName,
-    createPreset, updatePreset, deletePreset, selectPreset,
+    STORE_VERSION, DEFAULT_PRESET_ID, DEFAULT_PRESET_NAME, emptyStore, listPresets, parseStore, serializeStore,
+    findPreset, validateName, createPreset, updatePreset, deletePreset, selectPreset,
     trackpadScreenValues, trackpadDiff, trackpadPendingFromPreset,
     keymapSnapshot, entriesEqual, keymapDiff, diffCount, resolveEntry, layerCountAdjust, planKeymapBindings,
   };
