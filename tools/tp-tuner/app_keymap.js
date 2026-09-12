@@ -51,6 +51,7 @@
     if (studioUsbOpenTried && Link.getTransportKind() === 'usb') Link.studioClose();
     studioAvailable = false;
     studioUsbOpenTried = false;
+    resetOnWrite = false;
     clearTimeout(studioUsbWaitTimer);
     teardownStudio();
   }

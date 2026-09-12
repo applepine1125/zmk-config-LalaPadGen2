@@ -26,6 +26,11 @@
   }
 
   function applyCompareTargets() {
+    if (isDefaultSelected()) {
+      Params.setPresetTrackpad(Params.defaultTrackpad());
+      Keymap.setPresetKeymap(null);
+      return;
+    }
     const preset = selectedPreset();
     Params.setPresetTrackpad(preset ? preset.trackpad : null);
     Keymap.setPresetKeymap(preset ? preset.keymap : null);
@@ -119,11 +124,16 @@
     render();
   }
 
+  function onParamsLoaded() {
+    applyCompareTargets();
+    if (root.TpAppMain) root.TpAppMain.renderHeader();
+  }
+
   async function onSelectChange() {
     const sel = $('selPreset');
     const newId = sel.value || null;
     const prevId = store.selectedId;
-    if (newId === prevId) return;
+    if (newId === prevId && newId !== DEFAULT_ID) return;
     if (newId === null) {
       root.TpAppMain.setBusy(true);
       try {
@@ -292,7 +302,7 @@
   $('btnPresetDelete').onclick = () => { deletePresetFlow(); };
   $('selPreset').onchange = () => { onSelectChange(); };
 
-  const api = { init, render, onKeymapLoaded: render };
+  const api = { init, render, onKeymapLoaded: render, onParamsLoaded };
   root.TpAppPresets = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })(typeof globalThis !== 'undefined' ? globalThis : this);

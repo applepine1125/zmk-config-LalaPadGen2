@@ -163,6 +163,7 @@
       count += params[s].length;
     }
     renderParams();
+    if (root.TpAppPresets && root.TpAppPresets.onParamsLoaded) root.TpAppPresets.onParamsLoaded();
     return count;
   }
 
@@ -621,7 +622,8 @@
 
   const api = {
     render: renderParams, reset, pendingCount, paramsForSuggest, loadAllParams, refreshInfoForSide,
-    screenTrackpad, setPresetTrackpad, presetDiff, presetDiffSummary, applyPresetTrackpad, applyDefaults,
+    screenTrackpad, setPresetTrackpad, presetDiff, presetDiffSummary, applyPresetTrackpad,
+    defaultTrackpad, applyDefaults,
     write, reload, undoPending, exportConfText,
   };
   root.TpAppParams = api;
