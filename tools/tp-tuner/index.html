@@ -166,6 +166,7 @@
   details.section > .body { padding-top: 10px; }
   .toolbar { display: flex; flex-direction: column; align-items: stretch; gap: 8px; margin-bottom: 10px; }
   .toolbar label { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); white-space: nowrap; }
+  .toolbar #btnParamsUndo { align-self: flex-start; }
   #paramSearch { box-sizing: border-box; }
   fieldset {
     border: 1px solid var(--border); border-radius: var(--radius); margin: 0 0 10px; padding: 8px 10px 6px;
@@ -178,17 +179,14 @@
     gap: 6px; align-items: center; padding: 4px 6px; border-radius: var(--radius-sm);
   }
   .param.detail { grid-template-columns: minmax(120px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); }
-  .param label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--mono); font-size: 12px; }
+  .param label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
   .param .desc { grid-column: 1 / -1; color: var(--muted); font-size: 11px; margin-top: -2px; }
+  .param .desc .paramname { font-family: var(--mono); opacity: .7; }
   .param .cell { display: flex; align-items: center; gap: 4px; min-width: 0; }
-  .param input[type=range] {
-    flex: 1 1 auto; min-width: 0; margin: 0; height: 4px; appearance: none; background: var(--border-strong);
-    border-radius: 999px; outline: none;
+  .param .cell .stepbtn {
+    flex: none; width: 30px; padding: 2px 0; font-size: 12px; line-height: 1.4;
   }
-  .param input[type=range]::-webkit-slider-thumb {
-    appearance: none; width: 13px; height: 13px; border-radius: 50%; background: var(--accent); cursor: pointer;
-  }
-  .param input[type=number] { width: 62px; flex: none; }
+  .param input[type=number] { width: 56px; flex: none; text-align: center; }
   .param.bool input[type=checkbox] { justify-self: start; }
   .param.changed { background: var(--warn-weak); }
   .param.error { background: var(--danger-weak); }
@@ -343,6 +341,7 @@
     <div class="toolbar">
       <input type="search" id="paramSearch" placeholder="パラメータを検索(名前・説明)">
       <label><input type="checkbox" id="chkDetail">詳細: 左右別に設定</label>
+      <button id="btnParamsUndo" type="button" disabled>変更を取り消す</button>
     </div>
     <div id="params"><span class="legend">接続すると tp list の内容がここに表示されます</span></div>
   </div>

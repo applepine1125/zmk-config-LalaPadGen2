@@ -83,11 +83,25 @@
     lp1_mode_timeout_s: { what: 'LP1 から LP2(さらに省電力)に落ちるまでの時間(秒)', up: '長い放置後も復帰が速いが電池を使う', down: '早く省電力になる' },
   };
 
-  function helpText(name) {
-    const h = PARAM_HELP[name];
-    if (!h) return '';
-    if (h.on) return `${h.what}。ON: ${h.on}。OFF: ${h.off}`;
-    return `${h.what}。上げると${h.up}。下げると${h.down}`;
+  function helpFor(name) {
+    return PARAM_HELP[name] || null;
+  }
+
+  function effectText(help) {
+    if (help.on) return `ON: ${help.on} / OFF: ${help.off}`;
+    return `上げると${help.up} / 下げると${help.down}`;
+  }
+
+  function helpSearchText(help) {
+    return help ? `${help.what} ${effectText(help)}` : '';
+  }
+
+  function appendEffectAndName(container, p, help) {
+    container.appendChild(document.createTextNode(effectText(help) + ' ・ '));
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'paramname';
+    nameSpan.textContent = p.name;
+    container.appendChild(nameSpan);
   }
 
   const params = { R: [], L: [] };
@@ -111,6 +125,16 @@
 
   function pendingCount() {
     return new Set([...Object.keys(pending.common), ...Object.keys(pending.R), ...Object.keys(pending.L)]).size;
+  }
+
+  function updateUndoButton() {
+    const btn = $('btnParamsUndo');
+    if (btn) btn.disabled = pendingCount() === 0;
+  }
+
+  function notifyHeaderChanged() {
+    root.TpAppMain.renderHeader();
+    updateUndoButton();
   }
 
   function paramsForSuggest(sideKey) {
@@ -155,10 +179,15 @@
     return Presets.trackpadDiff(presetTrackpad, screenTrackpad());
   }
 
+  function presetDiffSummary() {
+    const diff = presetDiff();
+    return { count: diff.length, items: new Set(diff.map((d) => d.name)).size };
+  }
+
   function applyPresetTrackpad(trackpad) {
     pending = Presets.trackpadPendingFromPreset(trackpad, { R: params.R, L: params.L });
     renderParams();
-    root.TpAppMain.renderHeader();
+    notifyHeaderChanged();
   }
 
   function presetDiffForName(name, screen) {
@@ -224,6 +253,13 @@
 
   function setInputsDisabled(cell, disabled) {
     for (const el of cell.querySelectorAll('input')) el.disabled = disabled;
+    const num = cell.querySelector('input[type=number]');
+    for (const btn of cell.querySelectorAll('button.stepbtn')) {
+      if (disabled) { btn.disabled = true; continue; }
+      if (!num) { btn.disabled = false; continue; }
+      const v = Number(num.value);
+      btn.disabled = btn.dataset.dir === 'down' ? v <= Number(num.min) : v >= Number(num.max);
+    }
   }
 
   function refreshDependentRows(changedName) {
@@ -271,7 +307,8 @@
       let descDiv = row.querySelector('.desc');
       if (help) {
         if (!descDiv) { descDiv = document.createElement('div'); descDiv.className = 'desc'; row.appendChild(descDiv); }
-        descDiv.textContent = help;
+        descDiv.innerHTML = '';
+        appendEffectAndName(descDiv, p, help);
       } else if (descDiv) {
         descDiv.remove();
       }
@@ -293,10 +330,13 @@
         pm.textContent = presetText;
         descDiv.appendChild(pm);
       }
-      const rest = [differsText, help].filter(Boolean).join(' ・ ');
-      if (rest) {
+      if (differsText) {
         if (presetText) descDiv.appendChild(document.createTextNode(' ・ '));
-        descDiv.appendChild(document.createTextNode(rest));
+        descDiv.appendChild(document.createTextNode(differsText));
+      }
+      if (help) {
+        if (presetText || differsText) descDiv.appendChild(document.createTextNode(' ・ '));
+        appendEffectAndName(descDiv, p, help);
       }
     } else if (descDiv) {
       descDiv.remove();
@@ -308,7 +348,7 @@
     if (!row) return;
     const p = mergedByName[name];
     if (!p) return;
-    applyRowVisuals(row, p, screenTrackpad(), helpText(name));
+    applyRowVisuals(row, p, screenTrackpad(), helpFor(name));
   }
 
   function updateRowMark(nameKey, bucket, originalValue) {
@@ -335,7 +375,7 @@
     updateRowMark(p.name, 'common', p.value);
     refreshRowVisuals(p.name);
     refreshDependentRows(p.name);
-    root.TpAppMain.renderHeader();
+    notifyHeaderChanged();
   }
 
   function setPendingSide(p, sideKey, value) {
@@ -344,7 +384,17 @@
     updateRowMark(p.name, sideKey, current);
     refreshRowVisuals(p.name);
     refreshDependentRows(p.name);
-    root.TpAppMain.renderHeader();
+    notifyHeaderChanged();
+  }
+
+  function stepButton(text, title, dir) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'stepbtn';
+    b.textContent = text;
+    b.title = title;
+    b.dataset.dir = dir;
+    return b;
   }
 
   function buildEditor(kind, min, max, value, onChange) {
@@ -356,18 +406,34 @@
       cb.checked = !!value;
       cb.onchange = () => onChange(cb.checked ? 1 : 0);
       wrap.appendChild(cb);
-    } else {
-      const range = document.createElement('input');
-      range.type = 'range'; range.min = min; range.max = max; range.value = value;
-      const num = document.createElement('input');
-      num.type = 'number'; num.min = min; num.max = max; num.value = value;
-      range.oninput = () => { num.value = range.value; onChange(Number(range.value)); };
-      num.onchange = () => {
-        const v = Math.min(max, Math.max(min, Math.round(Number(num.value) || 0)));
-        num.value = v; range.value = v; onChange(v);
-      };
-      wrap.append(range, num);
+      return wrap;
     }
+    const steps = T.stepsForRange(min, max);
+    const num = document.createElement('input');
+    num.type = 'number'; num.min = min; num.max = max; num.value = value;
+    const btnMinusMinus = stepButton('−−', `${steps.large} 減らす`, 'down');
+    const btnMinus = stepButton('−', `${steps.small} 減らす`, 'down');
+    const btnPlus = stepButton('+', `${steps.small} 増やす`, 'up');
+    const btnPlusPlus = stepButton('++', `${steps.large} 増やす`, 'up');
+    const clamp = (v) => Math.min(max, Math.max(min, v));
+    const updateButtons = (v) => {
+      btnMinusMinus.disabled = v <= min;
+      btnMinus.disabled = v <= min;
+      btnPlus.disabled = v >= max;
+      btnPlusPlus.disabled = v >= max;
+    };
+    const commit = (v) => {
+      num.value = v;
+      updateButtons(v);
+      onChange(v);
+    };
+    btnMinusMinus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) - steps.large));
+    btnMinus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) - steps.small));
+    btnPlus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) + steps.small));
+    btnPlusPlus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) + steps.large));
+    num.onchange = () => commit(clamp(Math.round(Number(num.value) || 0)));
+    updateButtons(value);
+    wrap.append(btnMinusMinus, btnMinus, num, btnPlus, btnPlusPlus);
     return wrap;
   }
 
@@ -410,7 +476,7 @@
     row.className = 'param' + (p.kind === 'driver_bool' ? ' bool' : '') + (detailMode ? ' detail' : '');
     row.dataset.name = p.name;
     const label = document.createElement('label');
-    label.textContent = p.name;
+    label.textContent = help ? help.what : p.name;
     label.title = `[${p.kind}] 範囲 ${p.min}..${p.max} 既定 ${p.def}`;
     row.appendChild(label);
     if (detailMode) {
@@ -426,6 +492,7 @@
   }
 
   function renderParams() {
+    updateUndoButton();
     const root2 = $('params');
     root2.innerHTML = '';
     const merged = T.mergeParams(params.R, params.L);
@@ -461,8 +528,8 @@
         const p = byName[name];
         if (!p || seen.has(name)) continue;
         seen.add(name);
-        const help = helpText(name);
-        if (!T.paramMatchesQuery(p.name, help, query)) continue;
+        const help = helpFor(name);
+        if (!T.paramMatchesQuery(p.name, helpSearchText(help), query)) continue;
         box.appendChild(renderParamRow(p, screen, help));
         rows++;
       }
@@ -517,7 +584,7 @@
       await loadParamsForSide(s);
       await refreshInfoForSide(s);
     }
-    root.TpAppMain.renderHeader();
+    notifyHeaderChanged();
     renderParams();
     return { written: cmds.length - failed.length, failed: failed.length, total: cmds.length };
   }
@@ -526,7 +593,7 @@
     pending = emptyPending();
     const count = await loadAllParams();
     for (const s of Link.activeSides()) await refreshInfoForSide(s);
-    root.TpAppMain.renderHeader();
+    notifyHeaderChanged();
     return count;
   }
 
@@ -540,9 +607,15 @@
       await loadParamsForSide(s);
       await refreshInfoForSide(s);
     }
-    root.TpAppMain.renderHeader();
+    notifyHeaderChanged();
     renderParams();
     return allOk;
+  }
+
+  function undoPending() {
+    pending = emptyPending();
+    renderParams();
+    notifyHeaderChanged();
   }
 
   function reset() {
@@ -552,11 +625,12 @@
 
   $('chkDetail').onchange = () => { detailMode = $('chkDetail').checked; renderParams(); };
   $('paramSearch').oninput = () => { query = $('paramSearch').value; renderParams(); };
+  $('btnParamsUndo').onclick = () => undoPending();
 
   const api = {
     render: renderParams, reset, pendingCount, paramsForSuggest, loadAllParams, refreshInfoForSide,
-    screenTrackpad, setPresetTrackpad, presetDiff, applyPresetTrackpad,
-    write, reload, resetToDefault, exportConf: exportConfNow,
+    screenTrackpad, setPresetTrackpad, presetDiff, presetDiffSummary, applyPresetTrackpad,
+    write, reload, resetToDefault, undoPending, exportConf: exportConfNow,
   };
   root.TpAppParams = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

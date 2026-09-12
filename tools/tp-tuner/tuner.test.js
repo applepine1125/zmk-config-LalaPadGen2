@@ -645,3 +645,23 @@ test('クエリが空のとき、paramMatchesQuery は常に true になる', ()
   assert.equal(T.paramMatchesQuery('1f_tap_max_ms', 'タップ', ''), true);
   assert.equal(T.paramMatchesQuery('1f_tap_max_ms', 'タップ', '   '), true);
 });
+
+test('範囲が 20 以下のとき、stepsForRange は小 1・大 5 を返す', () => {
+  assert.deepEqual(T.stepsForRange(0, 20), { small: 1, large: 5 });
+  assert.deepEqual(T.stepsForRange(1, 1), { small: 1, large: 5 });
+});
+
+test('範囲が 200 以下のとき、stepsForRange は小 5・大 20 を返す', () => {
+  assert.deepEqual(T.stepsForRange(0, 21), { small: 5, large: 20 });
+  assert.deepEqual(T.stepsForRange(0, 200), { small: 5, large: 20 });
+});
+
+test('範囲が 2000 以下のとき、stepsForRange は小 10・大 100 を返す', () => {
+  assert.deepEqual(T.stepsForRange(0, 201), { small: 10, large: 100 });
+  assert.deepEqual(T.stepsForRange(1, 2001), { small: 10, large: 100 });
+});
+
+test('範囲が 2000 を超えるとき、stepsForRange は小 100・大 1000 を返す', () => {
+  assert.deepEqual(T.stepsForRange(0, 2001), { small: 100, large: 1000 });
+  assert.deepEqual(T.stepsForRange(1, 1000000), { small: 100, large: 1000 });
+});

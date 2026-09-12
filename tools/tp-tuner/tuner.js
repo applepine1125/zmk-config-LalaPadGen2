@@ -817,6 +817,14 @@
     return n.includes(q) || h.includes(q);
   }
 
+  function stepsForRange(min, max) {
+    const range = max - min;
+    if (range <= 20) return { small: 1, large: 5 };
+    if (range <= 200) return { small: 5, large: 20 };
+    if (range <= 2000) return { small: 10, large: 100 };
+    return { small: 100, large: 1000 };
+  }
+
   const api = {
     BTN, REL, BTN_NAMES, DEFAULT_PARAMS, PARAM_DEPENDS,
     stripAnsi, isPrompt, stripPromptPrefix, isEcho, parseListLine, parseInfoLine, parseTraceLine,
@@ -825,7 +833,7 @@
     paramValue, isParamActive, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, inferKind, whyNot, describeState,
     observationText, hostText, sentText, recognitionText, kindLabel,
     mergeParams, pendingCommands, liveCommands, padStateFromFrame, frameToPadPoints,
-    formatParamValue, paramMatchesQuery,
+    formatParamValue, paramMatchesQuery, stepsForRange,
   };
   root.TpTuner = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
