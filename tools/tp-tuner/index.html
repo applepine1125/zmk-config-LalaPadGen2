@@ -174,11 +174,16 @@
   }
   legend { font-weight: 700; padding: 0 4px; font-size: 13px; color: var(--muted); }
   fieldset > button { margin-bottom: 6px; }
+  .groupnote { color: var(--muted); font-size: 12px; margin: 0 0 6px; }
   .param {
     display: grid; grid-template-columns: minmax(130px, 1.2fr) minmax(0, 1fr);
     gap: 6px; align-items: center; padding: 4px 6px; border-radius: var(--radius-sm);
   }
   .param.detail { grid-template-columns: minmax(130px, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); }
+  .param.paramheader {
+    padding: 0 6px 4px; margin: 0 0 4px; border-bottom: 1px solid var(--border);
+  }
+  .param.paramheader .headcell { font-size: 12px; font-weight: 700; color: var(--muted); }
   .param label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .param .desc { grid-column: 1 / -1; color: var(--muted); font-size: 12px; margin-top: -2px; }
   .param .desc .paramname { font-family: var(--mono); opacity: .7; }
@@ -186,6 +191,7 @@
   .param .cell .stepbtn {
     flex: none; width: 34px; padding: 3px 0; font-size: 13px; line-height: 1.4;
   }
+  .param .cell .paramslider { flex: 1 1 auto; min-width: 48px; accent-color: var(--accent); }
   .param input[type=number] { width: 62px; flex: none; text-align: center; }
   .param.bool input[type=checkbox] { justify-self: start; }
   .param.changed { background: var(--warn-weak); }

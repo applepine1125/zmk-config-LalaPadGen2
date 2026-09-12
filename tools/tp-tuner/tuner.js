@@ -817,12 +817,30 @@
     return n.includes(q) || h.includes(q);
   }
 
-  function stepsForRange(min, max) {
-    const range = max - min;
-    if (range <= 20) return { small: 1, large: 5 };
-    if (range <= 200) return { small: 5, large: 20 };
-    if (range <= 2000) return { small: 10, large: 100 };
-    return { small: 100, large: 1000 };
+  // ファームの min/max はレジスタの型の範囲(u8 0..255, u16 0/1..65535)で、
+  // 一部はそのままだとスライダーや刻みでの操作が現実的でない。UI 操作向けの
+  // 実用レンジをここだけ上書きする
+  const PRACTICAL_RANGES = {
+    active_mode_sampling_period_ms: { min: 1, max: 100 },
+    idle_touch_mode_sampling_period_ms: { min: 1, max: 200 },
+    idle_mode_sampling_period_ms: { min: 1, max: 200 },
+    lp1_mode_sampling_period_ms: { min: 1, max: 500 },
+    lp2_mode_sampling_period_ms: { min: 1, max: 1000 },
+    active_mode_timeout_ms: { min: 0, max: 20000 },
+    idle_touch_mode_timeout_s: { min: 0, max: 120 },
+    idle_mode_timeout_s: { min: 0, max: 120 },
+    lp1_mode_timeout_s: { min: 0, max: 600 },
+  };
+
+  function practicalRange(name, min, max, current) {
+    const override = PRACTICAL_RANGES[name];
+    let lo = override ? Math.max(override.min, min) : min;
+    let hi = override ? Math.min(override.max, max) : max;
+    if (typeof current === 'number' && !Number.isNaN(current)) {
+      if (current < lo) lo = Math.max(min, current);
+      if (current > hi) hi = Math.min(max, current);
+    }
+    return { min: lo, max: hi };
   }
 
   const api = {
@@ -833,7 +851,7 @@
     paramValue, isParamActive, segmentAttempts, observeAttempt, observationFromSummary, summaryHostWindow, inferKind, whyNot, describeState,
     observationText, hostText, sentText, recognitionText, kindLabel,
     mergeParams, pendingCommands, liveCommands, padStateFromFrame, frameToPadPoints,
-    formatParamValue, paramMatchesQuery, stepsForRange,
+    formatParamValue, paramMatchesQuery, practicalRange,
   };
   root.TpTuner = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

@@ -19,9 +19,10 @@
     { title: '3本指', names: ['3f_tap_enable', '3f_tap_max_ms', '3f_tap_move', '3f_presshold_enable', '3f_tapdrag_gap_max_ms', '3f_swipe_threshold'] },
     { title: '慣性', names: ['cursor_inertia_enable', 'cursor_inertia_decay', 'cursor_inertia_recent_window_ms', 'cursor_inertia_stale_gap_ms', 'cursor_inertia_min_samples', 'cursor_inertia_min_avg_speed', 'scroll_inertia_enable', 'scroll_inertia_decay', 'scroll_inertia_recent_window_ms', 'scroll_inertia_stale_gap_ms', 'scroll_inertia_min_samples', 'scroll_inertia_min_avg_speed'] },
     { title: '送信レート(BLE 対策)', names: ['cursor_report_interval_ms', 'scroll_report_interval_ms'] },
-    { title: 'IC 感度(変更後にパッドへ一度触れると反映)', ic: true, names: ['touch_set_threshold', 'touch_clear_threshold', 'alp_set_debounce', 'alp_clear_debounce', 'stationary_touch_mov_threshold', 'jitter_filter_delta', 'finger_confidence_threshold'] },
-    { title: 'IC サンプリング周期', ic: true, names: ['active_mode_sampling_period_ms', 'idle_touch_mode_sampling_period_ms', 'idle_mode_sampling_period_ms', 'lp1_mode_sampling_period_ms', 'lp2_mode_sampling_period_ms', 'active_mode_timeout_ms', 'idle_touch_mode_timeout_s', 'idle_mode_timeout_s', 'lp1_mode_timeout_s'] },
-    { title: 'IC フィルタ / ATI(変更後は Re-ATI)', ic: true, names: ['ati_targetcount', 'dynamic_filter_bottom_speed', 'dynamic_filter_top_speed', 'dynamic_filter_bottom_beta'] },
+    { title: 'IC 感度 / タッチ判定', ic: true, names: ['touch_set_threshold', 'touch_clear_threshold', 'finger_confidence_threshold', 'alp_set_debounce', 'alp_clear_debounce'] },
+    { title: 'IC 座標フィルタ(手ぶれ・なめらかさ)', ic: true, names: ['stationary_touch_mov_threshold', 'jitter_filter_delta', 'dynamic_filter_bottom_speed', 'dynamic_filter_top_speed', 'dynamic_filter_bottom_beta'] },
+    { title: 'IC サンプリング周期 / 省電力', ic: true, names: ['active_mode_sampling_period_ms', 'idle_touch_mode_sampling_period_ms', 'idle_mode_sampling_period_ms', 'lp1_mode_sampling_period_ms', 'lp2_mode_sampling_period_ms', 'active_mode_timeout_ms', 'idle_touch_mode_timeout_s', 'idle_mode_timeout_s', 'lp1_mode_timeout_s'] },
+    { title: 'ATI(基準の自動校正)', ic: true, reati: true, names: ['ati_targetcount'] },
   ];
   const PARAM_HELP = {
     '1f_tap_enable': { what: '1 本指タップを左クリックにする', on: 'タップでクリックする', off: 'タップでクリックしない' },
@@ -61,26 +62,26 @@
     scroll_inertia_min_avg_speed: { what: 'この速度以上で離したときだけ慣性を出す', up: '滑りにくくなる', down: 'ゆっくり離しても滑る' },
     cursor_report_interval_ms: { what: 'カーソル移動の報告をまとめて送る間隔(ms)。0 でフレームごと(約 100Hz)。BLE で動かし続けると遅くなる場合は 16〜25 にすると送信量が半分〜1/3 になる', up: '送信は減るが最大その ms だけ遅れる', down: '遅れは減るが送信量が増える' },
     scroll_report_interval_ms: { what: '2 本指スクロールの報告をまとめて送る間隔(ms)。考え方はカーソルと同じ', up: '送信は減るが最大その ms だけ遅れる', down: '遅れは減るが送信量が増える' },
-    touch_set_threshold: { what: 'タッチと判定する強さの閾値', up: '軽いタッチを拾わなくなる', down: '軽いタッチを拾うが誤反応も増える' },
-    touch_clear_threshold: { what: 'タッチ解除の閾値(set より小さくする)', up: 'set との差が小さくなり離し判定が遅れやすい', down: 'set との差が大きくなり離し判定が遅れにくい' },
-    alp_set_debounce: { what: '低消費電力モードからの復帰に必要な連続検出回数', up: '誤起動が減るが初動が遅い', down: '初動が速いが誤起動が増える' },
-    alp_clear_debounce: { what: '低消費電力モードへ戻るのに必要な連続非検出回数', up: '戻りにくい', down: 'すぐ戻る' },
-    stationary_touch_mov_threshold: { what: 'これ以下の移動は静止と見なす', up: '小さなふらつきを無視する', down: '小さな動きも拾う' },
-    jitter_filter_delta: { what: 'ジッタ(震え)フィルタの幅', up: '細かな震えを消すが細かい動きも消える', down: '細かい動きが通るが震えも出る' },
-    finger_confidence_threshold: { what: '指と認める信頼度', up: '誤検出が減るが拾いにくい', down: '拾いやすいが誤検出が増える' },
-    dynamic_filter_bottom_speed: { what: '速度に応じた平滑化の下限速度', up: '低速域が広がり遅い動きも強く平滑化する', down: '低速域が狭まる' },
-    dynamic_filter_top_speed: { what: '速度に応じた平滑化の上限速度', up: '高速域まで平滑化が残る', down: '速い動きはすぐ生の座標になる' },
-    dynamic_filter_bottom_beta: { what: '低速時の平滑化の強さ', up: '滑らかだが遅れる', down: '追従が速いが震えが出る' },
-    ati_targetcount: { what: '感度の基準カウント。変えたら Re-ATI', up: '基準が高くなる', down: '基準が低くなる' },
-    active_mode_sampling_period_ms: { what: 'アクティブモードのサンプリング周期(ms)', up: '電池は持つが反応が遅い', down: '反応が速いが電池を使う' },
-    idle_touch_mode_sampling_period_ms: { what: '触れたまま静止しているときの周期(ms)', up: '電池は持つが反応が遅い', down: '反応が速いが電池を使う' },
-    idle_mode_sampling_period_ms: { what: '待機中の周期(ms)', up: '電池は持つが初動が遅い', down: '初動が速いが電池を使う' },
-    lp1_mode_sampling_period_ms: { what: '省電力 1 の周期(ms)', up: '電池は持つが初動が遅い', down: '初動が速いが電池を使う' },
-    lp2_mode_sampling_period_ms: { what: '省電力 2 の周期(ms)', up: '電池は持つが初動が遅い', down: '初動が速いが電池を使う' },
-    active_mode_timeout_ms: { what: 'アクティブモードから省電力へ落ちるまでの時間(ms)', up: '省電力に落ちにくい', down: 'すぐ省電力に落ちる' },
-    idle_touch_mode_timeout_s: { what: '指を置いたまま動かさないときに Idle-Touch から Idle に落ちるまでの時間(秒)', up: '置いたままでも反応が落ちにくいが電池を使う', down: '早く省電力になる' },
-    idle_mode_timeout_s: { what: '触れていないときに Idle から LP1(省電力)に落ちるまでの時間(秒)', up: '手を離した後も反応が速いままだが電池を使う', down: '早く省電力になり、次に触れたときの反応が遅れやすい' },
-    lp1_mode_timeout_s: { what: 'LP1 から LP2(さらに省電力)に落ちるまでの時間(秒)', up: '長い放置後も復帰が速いが電池を使う', down: '早く省電力になる' },
+    touch_set_threshold: { what: '触れたと判定するタッチ強度のしきい値', up: '軽いタッチを拾いにくくなる', down: '軽いタッチを拾うが誤反応も増える' },
+    touch_clear_threshold: { what: '離れたと判定するタッチ強度のしきい値(touch_set_threshold より小さくする)', up: 'set との差が縮まり離し判定が遅れやすい', down: 'set との差が広がり離し判定が早まる' },
+    alp_set_debounce: { what: '低消費電力モードから復帰するために必要な連続検出回数', up: '誤起動が減るが復帰が遅くなる', down: '復帰は速いが誤起動が増える' },
+    alp_clear_debounce: { what: '低消費電力モードへ戻るために必要な連続非検出回数', up: '戻りにくくなる', down: 'すぐ低消費電力モードへ戻る' },
+    stationary_touch_mov_threshold: { what: 'これ以下の移動量は指が止まっていると見なすしきい値', up: '大きく動いても止まっている扱いになりやすい', down: '小さな動きでも止まっていないと判定されやすい' },
+    jitter_filter_delta: { what: '指を止めているときの細かい揺れ(ジッタ)を消す幅', up: '大きな揺れまで消せるが細かい動きも消えやすい', down: '細かい動きは拾えるが震えも出やすい' },
+    finger_confidence_threshold: { what: '指として認識するために必要な確からしさの下限', up: '誤検出は減るが指を拾いにくくなる', down: '拾いやすくなるが誤検出が増える' },
+    dynamic_filter_bottom_speed: { what: '指の動きが遅いほど座標を強く滑らかにし、速いほど弱くする仕組みの下限速度。これより遅い動きは一律で最も強く滑らかになる', up: '最も強く滑らかにする範囲が速い動きまで広がる(ゆっくりした操作がより滑らかになるが遅れやすくなる)', down: '最も強く滑らかにする範囲が遅い動きだけに狭まる(ゆっくりした操作でも追従しやすくなる)' },
+    dynamic_filter_top_speed: { what: '同じ仕組みの上限速度。これより速い動きは滑らかにせず生の座標をそのまま使う', up: '滑らかにする速度域が広がり、速い動きも少し滑らかになる', down: '滑らかにする速度域が狭まり、速い動きはすぐ生の座標になる' },
+    dynamic_filter_bottom_beta: { what: '下限速度以下(いちばん遅い)のときの滑らかさの強さ', up: '遅い動きがより滑らかになるが追従が遅れる', down: '遅い動きの追従は良くなるが震えが出やすい' },
+    ati_targetcount: { what: '各電極の基準カウントの目標値。変更したら Re-ATI が必要', up: '基準が高くなる', down: '基準が低くなる' },
+    active_mode_sampling_period_ms: { what: '触れて操作している Active モードでのサンプリング周期(ms)', up: '反応は遅くなるが電池は持つ', down: '反応は速くなるが電池を使う' },
+    idle_touch_mode_sampling_period_ms: { what: '指を触れたまま動かしていない Idle-Touch モードでのサンプリング周期(ms)', up: '再び動かしたときの反応が遅れるが電池は持つ', down: '反応は速いが電池を使う' },
+    idle_mode_sampling_period_ms: { what: '指が触れていない Idle モードでのサンプリング周期(ms)', up: '触れたときの初動が遅れるが電池は持つ', down: '初動は速いが電池を使う' },
+    lp1_mode_sampling_period_ms: { what: 'より省電力な LP1 モードでのサンプリング周期(ms)', up: '初動が遅れるが電池は持つ', down: '初動は速いが電池を使う' },
+    lp2_mode_sampling_period_ms: { what: '最も省電力な LP2 モードでのサンプリング周期(ms)', up: '初動が遅れるが電池は持つ', down: '初動は速いが電池を使う' },
+    active_mode_timeout_ms: { what: '触れて操作している Active モードから、次の省電力モードへ落ちるまでの時間(ms)', up: 'Active モードを維持する時間が延びる(電池を使う)', down: '早く省電力モードへ落ちる' },
+    idle_touch_mode_timeout_s: { what: '指を触れたまま動かさない状態が続いたとき、次の省電力モードへ落ちるまでの時間(秒)', up: '置いたままでも反応が落ちにくいが電池を使う', down: '早く省電力になる' },
+    idle_mode_timeout_s: { what: '指が触れていない状態が続いたとき、さらに省電力な LP1 モードへ落ちるまでの時間(秒)', up: '手を離した後も反応が速いままの時間が延びるが電池を使う', down: '早く省電力になり、次に触れたときの反応が遅れやすい' },
+    lp1_mode_timeout_s: { what: '省電力の LP1 モードが続いたとき、さらに省電力な LP2 モードへ落ちるまでの時間(秒)', up: '長い放置後も復帰が速いままの時間が延びるが電池を使う', down: '早く最も省電力なモードになる' },
   };
 
   function helpFor(name) {
@@ -417,7 +418,10 @@
     return b;
   }
 
-  function buildEditor(kind, min, max, value, onChange) {
+  const STEP_SMALL = 1;
+  const STEP_LARGE = 10;
+
+  function buildEditor(kind, name, min, max, value, onChange) {
     const wrap = document.createElement('span');
     wrap.className = 'cell';
     if (kind === 'driver_bool') {
@@ -428,38 +432,45 @@
       wrap.appendChild(cb);
       return wrap;
     }
-    const steps = T.stepsForRange(min, max);
+    const range = T.practicalRange(name, min, max, value);
+    const rMin = range.min;
+    const rMax = range.max;
     const num = document.createElement('input');
-    num.type = 'number'; num.min = min; num.max = max; num.value = value;
-    const btnMinusMinus = stepButton('−−', `${steps.large} 減らす`, 'down');
-    const btnMinus = stepButton('−', `${steps.small} 減らす`, 'down');
-    const btnPlus = stepButton('+', `${steps.small} 増やす`, 'up');
-    const btnPlusPlus = stepButton('++', `${steps.large} 増やす`, 'up');
-    const clamp = (v) => Math.min(max, Math.max(min, v));
+    num.type = 'number'; num.min = rMin; num.max = rMax; num.value = value;
+    const slider = document.createElement('input');
+    slider.type = 'range'; slider.className = 'paramslider';
+    slider.min = rMin; slider.max = rMax; slider.step = 1; slider.value = value;
+    const btnMinusMinus = stepButton('−−', `${STEP_LARGE} 減らす`, 'down');
+    const btnMinus = stepButton('−', `${STEP_SMALL} 減らす`, 'down');
+    const btnPlus = stepButton('+', `${STEP_SMALL} 増やす`, 'up');
+    const btnPlusPlus = stepButton('++', `${STEP_LARGE} 増やす`, 'up');
+    const clamp = (v) => Math.min(rMax, Math.max(rMin, v));
     const updateButtons = (v) => {
-      btnMinusMinus.disabled = v <= min;
-      btnMinus.disabled = v <= min;
-      btnPlus.disabled = v >= max;
-      btnPlusPlus.disabled = v >= max;
+      btnMinusMinus.disabled = v <= rMin;
+      btnMinus.disabled = v <= rMin;
+      btnPlus.disabled = v >= rMax;
+      btnPlusPlus.disabled = v >= rMax;
     };
     const commit = (v) => {
       num.value = v;
+      slider.value = v;
       updateButtons(v);
       onChange(v);
     };
-    btnMinusMinus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) - steps.large));
-    btnMinus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) - steps.small));
-    btnPlus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) + steps.small));
-    btnPlusPlus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) + steps.large));
+    btnMinusMinus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) - STEP_LARGE));
+    btnMinus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) - STEP_SMALL));
+    btnPlus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) + STEP_SMALL));
+    btnPlusPlus.onclick = () => commit(clamp(Math.round(Number(num.value) || 0) + STEP_LARGE));
     num.onchange = () => commit(clamp(Math.round(Number(num.value) || 0)));
+    slider.oninput = () => commit(clamp(Math.round(Number(slider.value) || 0)));
     updateButtons(value);
-    wrap.append(btnMinusMinus, btnMinus, num, btnPlus, btnPlusPlus);
+    wrap.append(btnMinusMinus, btnMinus, slider, num, btnPlus, btnPlusPlus);
     return wrap;
   }
 
   function renderCommonCell(p, active) {
     const displayValue = commonScreenValue(p);
-    const wrap = buildEditor(p.kind, p.min, p.max, displayValue, (v) => setPendingCommon(p, v));
+    const wrap = buildEditor(p.kind, p.name, p.min, p.max, displayValue, (v) => setPendingCommon(p, v));
     if (!active) setInputsDisabled(wrap, true);
     if (rowHasPending(p.name)) {
       const m = document.createElement('span');
@@ -479,7 +490,7 @@
     const current = sideKey === 'R' ? p.valueR : p.valueL;
     const bucket = pending[sideKey];
     const displayValue = Object.prototype.hasOwnProperty.call(bucket, p.name) ? bucket[p.name] : current;
-    const editor = buildEditor(p.kind, p.min, p.max, displayValue, (v) => setPendingSide(p, sideKey, v));
+    const editor = buildEditor(p.kind, p.name, p.min, p.max, displayValue, (v) => setPendingSide(p, sideKey, v));
     wrap.append(...editor.childNodes);
     if (!active) { setInputsDisabled(wrap, true); wrap.classList.add('inactive'); }
     if (Object.prototype.hasOwnProperty.call(bucket, p.name)) {
@@ -511,6 +522,21 @@
     return row;
   }
 
+  function renderDetailHeader() {
+    const header = document.createElement('div');
+    header.className = 'param detail paramheader';
+    header.appendChild(document.createElement('span'));
+    const r = document.createElement('span');
+    r.className = 'headcell';
+    r.textContent = '右手';
+    header.appendChild(r);
+    const l = document.createElement('span');
+    l.className = 'headcell';
+    l.textContent = '左手';
+    header.appendChild(l);
+    return header;
+  }
+
   function renderParams() {
     updateUndoButton();
     const root2 = $('params');
@@ -521,6 +547,7 @@
       root2.innerHTML = '<span class="legend">接続すると tp list の内容がここに表示されます</span>';
       return;
     }
+    if (detailMode) root2.appendChild(renderDetailHeader());
     const seen = new Set();
     const known = new Set(GROUPS.flatMap((g) => g.names));
     const groups = GROUPS.concat([{ title: 'その他', names: merged.map((p) => p.name).filter((n) => !known.has(n)) }]);
@@ -534,6 +561,13 @@
       legend.textContent = g.title;
       box.appendChild(legend);
       if (g.ic) {
+        const note = document.createElement('div');
+        note.className = 'groupnote';
+        note.textContent = '書き込んだあと、パッドに一度触れると反映されます'
+          + (g.reati ? '。この値を変えたら Re-ATI が必要です' : '');
+        box.appendChild(note);
+      }
+      if (g.reati) {
         const b = document.createElement('button');
         b.textContent = 'Re-ATI';
         b.disabled = Link.activeSides().length === 0;

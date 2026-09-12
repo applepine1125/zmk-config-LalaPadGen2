@@ -646,22 +646,34 @@ test('クエリが空のとき、paramMatchesQuery は常に true になる', ()
   assert.equal(T.paramMatchesQuery('1f_tap_max_ms', 'タップ', '   '), true);
 });
 
-test('範囲が 20 以下のとき、stepsForRange は小 1・大 5 を返す', () => {
-  assert.deepEqual(T.stepsForRange(0, 20), { small: 1, large: 5 });
-  assert.deepEqual(T.stepsForRange(1, 1), { small: 1, large: 5 });
+test('実用レンジの上書きが無い名前のとき、practicalRange はファームの min/max をそのまま返す', () => {
+  assert.deepEqual(T.practicalRange('1f_tap_max_ms', 1, 1000, 250), { min: 1, max: 1000 });
 });
 
-test('範囲が 200 以下のとき、stepsForRange は小 5・大 20 を返す', () => {
-  assert.deepEqual(T.stepsForRange(0, 21), { small: 5, large: 20 });
-  assert.deepEqual(T.stepsForRange(0, 200), { small: 5, large: 20 });
+test('サンプリング周期・タイムアウト系の名前のとき、practicalRange は上書きした実用レンジを返す', () => {
+  assert.deepEqual(T.practicalRange('active_mode_sampling_period_ms', 1, 65535, 10), { min: 1, max: 100 });
+  assert.deepEqual(T.practicalRange('idle_touch_mode_sampling_period_ms', 1, 65535, 10), { min: 1, max: 200 });
+  assert.deepEqual(T.practicalRange('idle_mode_sampling_period_ms', 1, 65535, 10), { min: 1, max: 200 });
+  assert.deepEqual(T.practicalRange('lp1_mode_sampling_period_ms', 1, 65535, 10), { min: 1, max: 500 });
+  assert.deepEqual(T.practicalRange('lp2_mode_sampling_period_ms', 1, 65535, 10), { min: 1, max: 1000 });
+  assert.deepEqual(T.practicalRange('active_mode_timeout_ms', 0, 65535, 10), { min: 0, max: 20000 });
+  assert.deepEqual(T.practicalRange('idle_touch_mode_timeout_s', 0, 65535, 10), { min: 0, max: 120 });
+  assert.deepEqual(T.practicalRange('idle_mode_timeout_s', 0, 65535, 10), { min: 0, max: 120 });
+  assert.deepEqual(T.practicalRange('lp1_mode_timeout_s', 0, 65535, 10), { min: 0, max: 600 });
 });
 
-test('範囲が 2000 以下のとき、stepsForRange は小 10・大 100 を返す', () => {
-  assert.deepEqual(T.stepsForRange(0, 201), { small: 10, large: 100 });
-  assert.deepEqual(T.stepsForRange(1, 2001), { small: 10, large: 100 });
+test('現在値が実用レンジの上限を超えるとき、practicalRange するとその値を含むまで上限が広がる', () => {
+  assert.deepEqual(T.practicalRange('active_mode_timeout_ms', 0, 65535, 30000), { min: 0, max: 30000 });
 });
 
-test('範囲が 2000 を超えるとき、stepsForRange は小 100・大 1000 を返す', () => {
-  assert.deepEqual(T.stepsForRange(0, 2001), { small: 100, large: 1000 });
-  assert.deepEqual(T.stepsForRange(1, 1000000), { small: 100, large: 1000 });
+test('現在値がファームの最大値を超えていても、practicalRange はファームの最大値までしか広げない', () => {
+  assert.deepEqual(T.practicalRange('active_mode_timeout_ms', 0, 65535, 70000), { min: 0, max: 65535 });
+});
+
+test('現在値がファームの最小値を下回っていても、practicalRange はファームの最小値までしか広げない', () => {
+  assert.deepEqual(T.practicalRange('active_mode_sampling_period_ms', 1, 65535, 0), { min: 1, max: 100 });
+});
+
+test('current が渡されないとき、practicalRange は現在値による拡張をせず実用レンジをそのまま返す', () => {
+  assert.deepEqual(T.practicalRange('active_mode_sampling_period_ms', 1, 65535, undefined), { min: 1, max: 100 });
 });
