@@ -203,6 +203,12 @@ final class WebBridge: NSObject {
       UserDefaults.standard.set(dirURL.path, forKey: "lastExportDirectory")
       var saved: [String] = []
       for file in files {
+        if file.name.contains("/") || file.name.hasPrefix(".") {
+          self.send(type: "filesSaved",
+                    payload: ["ok": false, "dir": dirURL.path, "saved": saved,
+                              "error": "ファイル名が不正です: \(file.name)"])
+          return
+        }
         let fileURL = dirURL.appendingPathComponent(file.name)
         if FileManager.default.fileExists(atPath: fileURL.path) {
           let alert = NSAlert()
@@ -217,7 +223,9 @@ final class WebBridge: NSObject {
           try Data(file.text.utf8).write(to: fileURL, options: .atomic)
           saved.append(file.name)
         } catch {
-          self.send(type: "filesSaved", payload: ["ok": false, "error": error.localizedDescription])
+          self.send(type: "filesSaved",
+                    payload: ["ok": false, "dir": dirURL.path, "saved": saved,
+                              "error": error.localizedDescription])
           return
         }
       }
