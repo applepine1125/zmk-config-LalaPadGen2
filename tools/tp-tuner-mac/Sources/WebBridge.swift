@@ -114,6 +114,13 @@ final class WebBridge: NSObject {
     case "saveFile":
       guard let name = json["name"] as? String, let text = json["text"] as? String else { return }
       saveFile(name: name, text: text)
+    case "saveFiles":
+      guard let filesJson = json["files"] as? [[String: Any]] else { return }
+      let files = filesJson.compactMap { f -> (name: String, text: String)? in
+        guard let name = f["name"] as? String, let text = f["text"] as? String else { return nil }
+        return (name: name, text: text)
+      }
+      saveFiles(files)
     case "presetsLoad":
       loadPresets()
     case "presetsSave":
@@ -175,6 +182,46 @@ final class WebBridge: NSObject {
       } catch {
         self.send(type: "fileSaved", payload: ["ok": false, "error": error.localizedDescription])
       }
+    }
+  }
+
+  private func saveFiles(_ files: [(name: String, text: String)]) {
+    let panel = NSOpenPanel()
+    panel.canChooseDirectories = true
+    panel.canChooseFiles = false
+    panel.canCreateDirectories = true
+    panel.prompt = "保存"
+    if let dir = UserDefaults.standard.string(forKey: "lastExportDirectory") {
+      panel.directoryURL = URL(fileURLWithPath: dir, isDirectory: true)
+    }
+    panel.begin { [weak self] response in
+      guard let self = self else { return }
+      guard response == .OK, let dirURL = panel.url else {
+        self.send(type: "filesSaved", payload: ["ok": false, "cancelled": true])
+        return
+      }
+      UserDefaults.standard.set(dirURL.path, forKey: "lastExportDirectory")
+      var saved: [String] = []
+      for file in files {
+        let fileURL = dirURL.appendingPathComponent(file.name)
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+          let alert = NSAlert()
+          alert.messageText = "\(file.name) はすでにあります。上書きしますか?"
+          alert.addButton(withTitle: "上書き")
+          alert.addButton(withTitle: "キャンセル")
+          if alert.runModal() != .alertFirstButtonReturn {
+            continue
+          }
+        }
+        do {
+          try Data(file.text.utf8).write(to: fileURL, options: .atomic)
+          saved.append(file.name)
+        } catch {
+          self.send(type: "filesSaved", payload: ["ok": false, "error": error.localizedDescription])
+          return
+        }
+      }
+      self.send(type: "filesSaved", payload: ["ok": true, "dir": dirURL.path, "saved": saved])
     }
   }
 }

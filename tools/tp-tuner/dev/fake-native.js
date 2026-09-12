@@ -395,6 +395,8 @@
       } else if (msg.type === 'presetsSave') {
         fakePresetsText = msg.text;
         emit({ type: 'presetsSaved', ok: true });
+      } else if (msg.type === 'saveFiles') {
+        emit({ type: 'filesSaved', ok: true, dir: '/tmp/fake', saved: (msg.files || []).map((f) => f.name) });
       }
     },
   };

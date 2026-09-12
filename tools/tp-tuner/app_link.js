@@ -38,6 +38,7 @@
   let pendingSaveFile = null;
   const pendingLoadPresets = [];
   const pendingSavePresets = [];
+  const pendingSaveFiles = [];
 
   const hooks = {
     onLog: null, onTrace: null, onStatus: null, onUiChange: null, onReady: null,
@@ -242,6 +243,7 @@
         else if (evt.type === 'fileSaved') { if (pendingSaveFile) { const r = pendingSaveFile; pendingSaveFile = null; r(evt); } }
         else if (evt.type === 'presetsLoaded') { if (pendingLoadPresets.length) pendingLoadPresets.shift()({ ok: evt.ok, text: evt.text, error: evt.error }); }
         else if (evt.type === 'presetsSaved') { if (pendingSavePresets.length) pendingSavePresets.shift()({ ok: evt.ok, error: evt.error }); }
+        else if (evt.type === 'filesSaved') { if (pendingSaveFiles.length) pendingSaveFiles.shift()({ ok: evt.ok, dir: evt.dir, saved: evt.saved, cancelled: evt.cancelled, error: evt.error }); }
       },
     };
     return t;
@@ -324,6 +326,17 @@
     a.remove();
     URL.revokeObjectURL(url);
     return Promise.resolve({ ok: true });
+  }
+
+  function saveFiles(files) {
+    if (hasNativeBridge) {
+      return new Promise((resolve) => {
+        pendingSaveFiles.push(resolve);
+        window.webkit.messageHandlers.tpTuner.postMessage({ type: 'saveFiles', files });
+      });
+    }
+    for (const f of files) saveFile(f.name, f.text);
+    return Promise.resolve({ ok: true, saved: files.map((f) => f.name) });
   }
 
   function loadPresetsText() {
@@ -711,7 +724,7 @@
   const api = {
     hasNativeBridge, SIDE_LABEL,
     init, connect, disconnect,
-    send, sendTo, runSimpleOnSide, saveFile, loadPresetsText, savePresetsText,
+    send, sendTo, runSimpleOnSide, saveFile, saveFiles, loadPresetsText, savePresetsText,
     isConnected, activeSides, isSideActive,
     studioWrite, studioOpen, studioClose,
     getTransportKind: () => (transport ? transport.kind : null),
