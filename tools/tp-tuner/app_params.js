@@ -314,16 +314,9 @@
       for (const sideKey of ['R', 'L']) {
         const cell = row.querySelector(`.cell[data-side="${sideKey}"]`);
         if (!cell) continue;
-        const old = cell.querySelector('.presetmark');
-        if (old) old.remove();
         const diff = sideKey === 'R' ? (presetInfo && presetInfo.rDiff) : (presetInfo && presetInfo.lDiff);
-        if (diff) {
-          const val = sideKey === 'R' ? presetInfo.presetR : presetInfo.presetL;
-          const pm = document.createElement('span');
-          pm.className = 'presetmark';
-          pm.textContent = `プリセット: ${T.formatParamValue(p.kind, val)}`;
-          cell.appendChild(pm);
-        }
+        const val = sideKey === 'R' ? presetInfo && presetInfo.presetR : presetInfo && presetInfo.presetL;
+        setMarkSlot(cell, 'presetmark', diff ? `プリセット: ${T.formatParamValue(p.kind, val)}` : '');
       }
       let descDiv = row.querySelector('.desc');
       if (help) {
@@ -378,15 +371,9 @@
     const p = mergedByName[nameKey];
     const cell = bucket === 'common' ? row.querySelector('.cell') : row.querySelector(`.cell[data-side="${bucket}"]`);
     if (!cell) return;
-    const mark = cell.querySelector('.pendingmark');
-    if (mark) mark.remove();
     const value = bucket === 'common' ? pending.common[nameKey] : pending[bucket][nameKey];
-    if (value !== undefined) {
-      const m = document.createElement('span');
-      m.className = 'pendingmark';
-      m.textContent = `← ${T.formatParamValue(p ? p.kind : undefined, originalValue)}`;
-      cell.appendChild(m);
-    }
+    setMarkSlot(cell, 'pendingmark',
+                value === undefined ? '' : `← ${T.formatParamValue(p ? p.kind : undefined, originalValue)}`);
   }
 
   function setPendingCommon(p, value) {
@@ -468,15 +455,27 @@
     return wrap;
   }
 
+  // 変更前の値やプリセット値は、出入りでボタンの位置がずれないよう常に枠だけ置いて文字だけ差し替える
+  function appendMarkSlots(cell) {
+    for (const cls of ['presetmark', 'pendingmark']) {
+      const slot = document.createElement('span');
+      slot.className = `${cls} markslot`;
+      cell.appendChild(slot);
+    }
+  }
+
+  function setMarkSlot(cell, cls, text) {
+    const slot = cell && cell.querySelector(`.${cls}.markslot`);
+    if (slot) slot.textContent = text || '';
+  }
+
   function renderCommonCell(p, active) {
     const displayValue = commonScreenValue(p);
     const wrap = buildEditor(p.kind, p.name, p.min, p.max, displayValue, (v) => setPendingCommon(p, v));
     if (!active) setInputsDisabled(wrap, true);
+    appendMarkSlots(wrap);
     if (rowHasPending(p.name)) {
-      const m = document.createElement('span');
-      m.className = 'pendingmark';
-      m.textContent = `← ${T.formatParamValue(p.kind, p.value)}`;
-      wrap.appendChild(m);
+      setMarkSlot(wrap, 'pendingmark', `← ${T.formatParamValue(p.kind, p.value)}`);
     }
     return wrap;
   }
@@ -493,11 +492,9 @@
     const editor = buildEditor(p.kind, p.name, p.min, p.max, displayValue, (v) => setPendingSide(p, sideKey, v));
     wrap.append(...editor.childNodes);
     if (!active) { setInputsDisabled(wrap, true); wrap.classList.add('inactive'); }
+    appendMarkSlots(wrap);
     if (Object.prototype.hasOwnProperty.call(bucket, p.name)) {
-      const m = document.createElement('span');
-      m.className = 'pendingmark';
-      m.textContent = `← ${T.formatParamValue(p.kind, current)}`;
-      wrap.appendChild(m);
+      setMarkSlot(wrap, 'pendingmark', `← ${T.formatParamValue(p.kind, current)}`);
     }
     return wrap;
   }
