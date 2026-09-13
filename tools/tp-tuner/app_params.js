@@ -14,7 +14,7 @@
   }
 
   const GROUPS = [
-    { title: '1本指タップ / タップドラッグ', names: ['1f_tap_enable', '1f_tap_max_ms', '1f_tap_move', '1f_presshold_enable', '1f_tapdrag_gap_max_ms'] },
+    { title: '1本指タップ / タップドラッグ', names: ['1f_tap_enable', '1f_tap_max_ms', '1f_tap_move', '1f_presshold_enable', '1f_tapdrag_gap_max_ms', '1f_release_grace_ms', '1f_drag_hold_ms'] },
     { title: '2本指タップ / スクロール / ピンチ', names: ['2f_tap_enable', '2f_tap_max_ms', '2f_tap_move', '2f_presshold_enable', '2f_tapdrag_gap_max_ms', 'scroll_x_enable', 'scroll_y_enable', '2f_scroll_start_move', '2f_scroll_slow_speed', '2f_scroll_fast_speed', '2f_scroll_slow_gain_x100', '2f_scroll_fast_gain_x100', '2f_pinch_enable', '2f_pinch_start_distance', '2f_pinch_ratio_x10', '2f_pinch_wheel_gain_x10'] },
     { title: '3本指', names: ['3f_tap_enable', '3f_tap_max_ms', '3f_tap_move', '3f_presshold_enable', '3f_tapdrag_gap_max_ms', '3f_swipe_threshold'] },
     { title: '慣性', names: ['cursor_inertia_enable', 'cursor_inertia_decay', 'cursor_inertia_recent_window_ms', 'cursor_inertia_stale_gap_ms', 'cursor_inertia_min_samples', 'cursor_inertia_min_avg_speed', 'scroll_inertia_enable', 'scroll_inertia_decay', 'scroll_inertia_recent_window_ms', 'scroll_inertia_stale_gap_ms', 'scroll_inertia_min_samples', 'scroll_inertia_min_avg_speed'] },
@@ -30,6 +30,8 @@
     '1f_tap_move': { what: 'タップ中に許す指の移動量', up: '指がぶれてもタップになる', down: '少しの動きでカーソル移動扱いになる' },
     '1f_presshold_enable': { what: 'タップ後にボタンを押したまま 2 回目の接触を待ち、ドラッグにつなげる(タップドラッグ)', on: 'タップ→触れ直しでドラッグできる', off: 'タップドラッグしない' },
     '1f_tapdrag_gap_max_ms': { what: 'タップ後に 2 回目の接触を待つ時間(ms)', up: 'ゆっくりのダブルタップでもドラッグに入るがシングルクリックの確定が遅れる', down: 'クリックの確定は速いが素早く触れ直さないとドラッグに入らない' },
+    '1f_release_grace_ms': { what: 'ドラッグ中に指の検出が一瞬切れても続ける時間(ms)。0 で猶予なし(従来どおり)', up: '指が浮いても切れにくいが、離したときの反応が遅れる', down: '離したときの反応は速いが、ドラッグが途中で切れやすい' },
+    '1f_drag_hold_ms': { what: '2 回目の接触がこの時間を超えたらドラッグに確定する(ms)。0 で「タップと見なす押下時間の上限」(1f_tap_max_ms)を使う', up: '長く押さないとドラッグに確定しない(クリックになりやすい)', down: '短く押しただけでドラッグに確定する(クリックになりにくい)' },
     '2f_tap_enable': { what: '2 本指タップを右クリックにする', on: '2 本指タップでクリックする', off: '2 本指タップでクリックしない' },
     '2f_tap_max_ms': { what: '2 本指タップと見なす押下時間の上限(ms)', up: '長めのタップも拾うが短い押し込みもクリックになる', down: '素早いタップだけ拾う' },
     '2f_tap_move': { what: '2 本指タップ中に許す移動量', up: '指がぶれてもタップになる', down: '少しの動きでスクロール扱いになる' },
