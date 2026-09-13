@@ -217,7 +217,9 @@
   .param .cell .paramslider:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .param .cell .paramslider:disabled { cursor: default; }
   .param .cell .paramslider:disabled::-webkit-slider-thumb { background: var(--border-strong); }
-  .param input[type=number] { width: 62px; flex: none; text-align: center; }
+  .param input[type=number] { width: 76px; flex: none; text-align: center; appearance: textfield; -moz-appearance: textfield; }
+  .param input[type=number]::-webkit-inner-spin-button,
+  .param input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; appearance: none; margin: 0; }
   .param.bool input[type=checkbox] { justify-self: start; }
   .param.changed { background: var(--warn-weak); }
   .param.error { background: var(--danger-weak); }
