@@ -36,3 +36,9 @@ python3 tools/keymap-img/render.py
 ```
 
 詳細は [tools/keymap-img/README.md](tools/keymap-img/README.md) を参照。
+
+## 調整ツール
+
+トラックパッドとキー設定を調整する macOS アプリ(Lala2Conf)とそのページは、
+[lalapadgen2-configurator](https://github.com/applepine1125/lalapadgen2-configurator) に移しました。
+このリポジトリにはファームウェア側(GATT サービス・左手への転送・IQS9151 ドライバの参照)が残ります。
