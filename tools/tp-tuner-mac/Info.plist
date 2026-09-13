@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key>
+  <string>dev.applepine1125.tp-tuner</string>
+  <key>CFBundleName</key>
+  <string>TpTuner</string>
+  <key>CFBundleExecutable</key>
+  <string>TpTuner</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>13.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSBluetoothAlwaysUsageDescription</key>
+  <string>LalaPad のトラックパッド設定を BLE で読み書きするために使います</string>
+  <key>NSPrincipalClass</key>
+  <string>NSApplication</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>CFBundleShortVersionString</key>
+  <string>0.0.0</string>
+  <key>CFBundleVersion</key>
+  <string>0</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.utilities</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>© 2026 applepine1125</string>
+</dict>
+</plist>

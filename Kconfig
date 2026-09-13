@@ -5,3 +5,12 @@ config ZMK_INPUT_PROCESSOR_SCROLL_ACCEL
     help
       Apply a speed-dependent gain curve to scroll (wheel) events so that
       slow scrolls stay precise while fast flicks are compressed.
+
+config LALAPAD_TP_TUNER
+    bool "tp-tuner over BT: GATT service on central, split forwarding to peripheral"
+    default y
+    depends on INPUT_IQS9151 && ZMK_SPLIT
+    help
+      Expose the IQS9151 runtime tuning commands over a custom GATT service
+      on the central half and forward commands for the peripheral half over
+      the ZMK split link (behavior invocation / input-split events).
