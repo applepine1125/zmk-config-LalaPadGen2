@@ -310,55 +310,65 @@
     }
   }
 
+  // 印は 2 行目にまとめる。行の中に置くと、出入りでスライダーが伸び縮みしてボタンの位置が動くため
+  function pendingMarkText(p) {
+    const fmt = (v) => T.formatParamValue(p.kind, v);
+    const hasCommon = pending.common[p.name] !== undefined;
+    if (!detailMode) {
+      return rowHasPending(p.name) ? `未書き込み ← ${fmt(p.value)}` : '';
+    }
+    const parts = [];
+    if (p.valueR !== null && (hasCommon || pending.R[p.name] !== undefined)) parts.push(`右 ← ${fmt(p.valueR)}`);
+    if (p.valueL !== null && (hasCommon || pending.L[p.name] !== undefined)) parts.push(`左 ← ${fmt(p.valueL)}`);
+    return parts.length ? `未書き込み ${parts.join(' / ')}` : '';
+  }
+
+  function presetMarkTextDetail(p, presetInfo) {
+    if (!presetInfo) return '';
+    const fmt = (v) => T.formatParamValue(p.kind, v);
+    const parts = [];
+    if (presetInfo.rDiff) parts.push(`右 ${fmt(presetInfo.presetR)}`);
+    if (presetInfo.lDiff) parts.push(`左 ${fmt(presetInfo.presetL)}`);
+    return parts.length ? `プリセット: ${parts.join(' / ')}` : '';
+  }
+
   function applyRowVisuals(row, p, screen, help) {
     const presetInfo = presetDiffForName(p.name, screen);
     row.classList.toggle('presetdiff', !!presetInfo);
     row.classList.toggle('changed', rowHasPending(p.name));
-    if (detailMode) {
-      for (const sideKey of ['R', 'L']) {
-        const cell = row.querySelector(`.cell[data-side="${sideKey}"]`);
-        if (!cell) continue;
-        const diff = sideKey === 'R' ? (presetInfo && presetInfo.rDiff) : (presetInfo && presetInfo.lDiff);
-        const val = sideKey === 'R' ? presetInfo && presetInfo.presetR : presetInfo && presetInfo.presetL;
-        setMarkSlot(cell, 'presetmark', diff ? `プリセット: ${T.formatParamValue(p.kind, val)}` : '');
+    const pendingText = pendingMarkText(p);
+    const presetText = detailMode
+      ? presetMarkTextDetail(p, presetInfo)
+      : (presetInfo ? presetMarkTextCommon(p.kind, presetInfo) : '');
+    let differsText = '';
+    if (!detailMode && p.valueR !== null && p.valueL !== null) {
+      const rVal = sideGetValue('R', p.name);
+      const lVal = sideGetValue('L', p.name);
+      if (rVal !== lVal) {
+        differsText = `左右で違う(右 ${T.formatParamValue(p.kind, rVal)} / 左 ${T.formatParamValue(p.kind, lVal)})`;
       }
-      let descDiv = row.querySelector('.desc');
-      if (help) {
-        if (!descDiv) { descDiv = document.createElement('div'); descDiv.className = 'desc'; row.appendChild(descDiv); }
-        descDiv.innerHTML = '';
-        appendEffectAndName(descDiv, p, help);
-      } else if (descDiv) {
-        descDiv.remove();
-      }
+    }
+    let descDiv = row.querySelector('.desc');
+    if (!pendingText && !presetText && !differsText && !help) {
+      if (descDiv) descDiv.remove();
       return;
     }
-    const bothReadable = p.valueR !== null && p.valueL !== null;
-    const rVal = bothReadable ? sideGetValue('R', p.name) : null;
-    const lVal = bothReadable ? sideGetValue('L', p.name) : null;
-    const differs = bothReadable && rVal !== lVal;
-    const presetText = presetInfo ? presetMarkTextCommon(p.kind, presetInfo) : '';
-    const differsText = differs ? `左右で違う(右 ${T.formatParamValue(p.kind, rVal)} / 左 ${T.formatParamValue(p.kind, lVal)})` : '';
-    let descDiv = row.querySelector('.desc');
-    if (presetText || differsText || help) {
-      if (!descDiv) { descDiv = document.createElement('div'); descDiv.className = 'desc'; row.appendChild(descDiv); }
-      descDiv.innerHTML = '';
-      if (presetText) {
-        const pm = document.createElement('span');
-        pm.className = 'presetmark';
-        pm.textContent = presetText;
-        descDiv.appendChild(pm);
-      }
-      if (differsText) {
-        if (presetText) descDiv.appendChild(document.createTextNode(' ・ '));
-        descDiv.appendChild(document.createTextNode(differsText));
-      }
-      if (help) {
-        if (presetText || differsText) descDiv.appendChild(document.createTextNode(' ・ '));
-        appendEffectAndName(descDiv, p, help);
-      }
-    } else if (descDiv) {
-      descDiv.remove();
-    }
+    if (!descDiv) { descDiv = document.createElement('div'); descDiv.className = 'desc'; row.appendChild(descDiv); }
+    descDiv.innerHTML = '';
+    const separate = () => {
+      if (descDiv.childNodes.length) descDiv.appendChild(document.createTextNode(' ・ '));
+    };
+    const appendMark = (cls, text) => {
+      separate();
+      const span = document.createElement('span');
+      span.className = cls;
+      span.textContent = text;
+      descDiv.appendChild(span);
+    };
+    if (pendingText) appendMark('pendingmark', pendingText);
+    if (presetText) appendMark('presetmark', presetText);
+    if (differsText) { separate(); descDiv.appendChild(document.createTextNode(differsText)); }
+    if (help) { separate(); appendEffectAndName(descDiv, p, help); }
   }
 
   function refreshRowVisuals(name) {
@@ -369,22 +379,10 @@
     applyRowVisuals(row, p, screenTrackpad(), helpFor(name));
   }
 
-  function updateRowMark(nameKey, bucket, originalValue) {
-    const row = document.querySelector(`.param[data-name="${CSS.escape(nameKey)}"]`);
-    if (!row) return;
-    const p = mergedByName[nameKey];
-    const cell = bucket === 'common' ? row.querySelector('.cell') : row.querySelector(`.cell[data-side="${bucket}"]`);
-    if (!cell) return;
-    const value = bucket === 'common' ? pending.common[nameKey] : pending[bucket][nameKey];
-    setMarkSlot(cell, 'pendingmark',
-                value === undefined ? '' : `← ${T.formatParamValue(p ? p.kind : undefined, originalValue)}`);
-  }
-
   function setPendingCommon(p, value) {
     delete pending.R[p.name];
     delete pending.L[p.name];
     if (value === p.value) delete pending.common[p.name]; else pending.common[p.name] = value;
-    updateRowMark(p.name, 'common', p.value);
     refreshRowVisuals(p.name);
     refreshDependentRows(p.name);
     notifyHeaderChanged();
@@ -393,7 +391,6 @@
   function setPendingSide(p, sideKey, value) {
     const current = sideKey === 'R' ? p.valueR : p.valueL;
     if (value === current) delete pending[sideKey][p.name]; else pending[sideKey][p.name] = value;
-    updateRowMark(p.name, sideKey, current);
     refreshRowVisuals(p.name);
     refreshDependentRows(p.name);
     notifyHeaderChanged();
@@ -459,28 +456,10 @@
     return wrap;
   }
 
-  // 変更前の値やプリセット値は、出入りでボタンの位置がずれないよう常に枠だけ置いて文字だけ差し替える
-  function appendMarkSlots(cell) {
-    for (const cls of ['presetmark', 'pendingmark']) {
-      const slot = document.createElement('span');
-      slot.className = `${cls} markslot`;
-      cell.appendChild(slot);
-    }
-  }
-
-  function setMarkSlot(cell, cls, text) {
-    const slot = cell && cell.querySelector(`.${cls}.markslot`);
-    if (slot) slot.textContent = text || '';
-  }
-
   function renderCommonCell(p, active) {
     const displayValue = commonScreenValue(p);
     const wrap = buildEditor(p.kind, p.name, p.min, p.max, displayValue, (v) => setPendingCommon(p, v));
     if (!active) setInputsDisabled(wrap, true);
-    appendMarkSlots(wrap);
-    if (rowHasPending(p.name)) {
-      setMarkSlot(wrap, 'pendingmark', `← ${T.formatParamValue(p.kind, p.value)}`);
-    }
     return wrap;
   }
 
@@ -496,10 +475,6 @@
     const editor = buildEditor(p.kind, p.name, p.min, p.max, displayValue, (v) => setPendingSide(p, sideKey, v));
     wrap.append(...editor.childNodes);
     if (!active) { setInputsDisabled(wrap, true); wrap.classList.add('inactive'); }
-    appendMarkSlots(wrap);
-    if (Object.prototype.hasOwnProperty.call(bucket, p.name)) {
-      setMarkSlot(wrap, 'pendingmark', `← ${T.formatParamValue(p.kind, current)}`);
-    }
     return wrap;
   }
 
