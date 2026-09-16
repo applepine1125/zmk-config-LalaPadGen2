@@ -164,30 +164,6 @@
         track-remainders;
     };
 
-    // スクロール速度に応じたゲインカーブ(低速: そのまま / 高速: 圧縮)。
-    // L/Rで速度推定の状態を分けるため別インスタンスにする
-    zip_scroll_accel_R: zip_scroll_accel_R {
-        compatible = "zmk,input-processor-scroll-accel";
-        #input-processor-cells = <0>;
-        type = <INPUT_EV_REL>;
-        codes = <INPUT_REL_WHEEL INPUT_REL_HWHEEL>;
-        low-speed = <1000>;
-        high-speed = <9000>;
-        low-gain-x1000 = <1000>;
-        high-gain-x1000 = <400>;
-    };
-
-    zip_scroll_accel_L: zip_scroll_accel_L {
-        compatible = "zmk,input-processor-scroll-accel";
-        #input-processor-cells = <0>;
-        type = <INPUT_EV_REL>;
-        codes = <INPUT_REL_WHEEL INPUT_REL_HWHEEL>;
-        low-speed = <1000>;
-        high-speed = <9000>;
-        low-gain-x1000 = <1000>;
-        high-gain-x1000 = <400>;
-    };
-
     zip_vertical_scroll_scaler: zip_vertical_scroll_scaler {
         compatible = "zmk,input-processor-scaler";
         #input-processor-cells = <2>;
@@ -209,7 +185,6 @@
         status = "disabled";
         device = <&trackpad_split_R>;
         input-processors = <&trackpad_key_behaviors_R>,
-                           <&zip_scroll_accel_R>,
                            <&zip_xy_scaler 1 5>,
                            <&zip_vertical_scroll_scaler (-1) 10>,
                            <&zip_horizontal_scroll_scaler (-1) 10>,
@@ -232,7 +207,6 @@
         status = "disabled";
         device = <&trackpad_split_L>;
         input-processors = <&trackpad_key_behaviors_L>,
-                           <&zip_scroll_accel_L>,
                            <&zip_xy_scaler 1 5>,
                            <&zip_vertical_scroll_scaler (-1) 10>,
                            <&zip_horizontal_scroll_scaler (-1) 10>,
