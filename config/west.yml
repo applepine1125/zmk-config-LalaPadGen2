@@ -12,8 +12,8 @@ manifest:
       url-base: https://github.com/kot149
   projects:
     - name: zmk
-      remote: zmkfirmware
-      revision: v0.3.0
+      remote: applepine1125
+      revision: a007c7b20fed45d2a39a5b1784dc6163f84f1d35  # v0.3.0 + PR #3483(スクロール解像度の宣言)。ブランチ lalapad-v0.3.0
       import: app/west.yml
     - name: zmk-driver-iqs9151
       remote: applepine1125
