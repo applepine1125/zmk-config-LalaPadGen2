@@ -17,7 +17,7 @@ manifest:
       import: app/west.yml
     - name: zmk-driver-iqs9151
       remote: applepine1125
-      revision: bd8195decb3aaff2db55b34c7967469c1dffca5e
+      revision: debd8c49bcfdb4a6d10be5e7955aadb63bb17c4e
     - name: zmk-easy-charge-indicator
       remote: ShiniNet
       revision: v1.0.0
