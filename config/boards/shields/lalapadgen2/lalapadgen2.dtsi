@@ -211,8 +211,8 @@
         input-processors = <&trackpad_key_behaviors_R>,
                            <&zip_scroll_accel_R>,
                            <&zip_xy_scaler 1 5>,
-                           <&zip_vertical_scroll_scaler (-1) 10>,
-                           <&zip_horizontal_scroll_scaler (-1) 10>,
+                           <&zip_vertical_scroll_scaler (-1) 1>,
+                           <&zip_horizontal_scroll_scaler (-1) 1>,
                            <&zip_dynamic_xy_scaler>,
                            <&zip_dynamic_scroll_scaler>,
                            <&zip_scroll_snap>;
@@ -220,8 +220,8 @@
             layers = <1>,<2>;
             input-processors =  <&trackpad_key_behaviors_R>,
                                 <&zip_xy_scaler 1 15>,
-                                <&zip_vertical_scroll_scaler (-1) 40>,
-                                <&zip_horizontal_scroll_scaler (-1) 40>,
+                                <&zip_vertical_scroll_scaler (-1) 4>,
+                                <&zip_horizontal_scroll_scaler (-1) 4>,
                                 <&zip_dynamic_xy_scaler>,
                                 <&zip_dynamic_scroll_scaler>,
                                 <&zip_scroll_snap>;
@@ -234,8 +234,8 @@
         input-processors = <&trackpad_key_behaviors_L>,
                            <&zip_scroll_accel_L>,
                            <&zip_xy_scaler 1 5>,
-                           <&zip_vertical_scroll_scaler (-1) 10>,
-                           <&zip_horizontal_scroll_scaler (-1) 10>,
+                           <&zip_vertical_scroll_scaler (-1) 1>,
+                           <&zip_horizontal_scroll_scaler (-1) 1>,
                            <&zip_dynamic_xy_scaler>,
                            <&zip_dynamic_scroll_scaler>,
                            <&zip_scroll_snap>;
@@ -243,8 +243,8 @@
             layers = <1>,<2>;
             input-processors =  <&trackpad_key_behaviors_L>,
                                 <&zip_xy_scaler 1 15>,
-                                <&zip_vertical_scroll_scaler (-1) 40>,
-                                <&zip_horizontal_scroll_scaler (-1) 40>,
+                                <&zip_vertical_scroll_scaler (-1) 4>,
+                                <&zip_horizontal_scroll_scaler (-1) 4>,
                                 <&zip_dynamic_xy_scaler>,
                                 <&zip_dynamic_scroll_scaler>,
                                 <&zip_scroll_snap>;
