@@ -1,9 +1,5 @@
 set(_lalapad_sources)
 
-if(CONFIG_ZMK_INPUT_PROCESSOR_SCROLL_ACCEL)
-  list(APPEND _lalapad_sources src/input_processor_scroll_accel.c)
-endif()
-
 if(CONFIG_LALAPAD_TP_TUNER)
   list(APPEND _lalapad_sources src/behavior_tp_param.c src/lalapad_diag.c)
   if(CONFIG_ZMK_SPLIT_ROLE_CENTRAL)
